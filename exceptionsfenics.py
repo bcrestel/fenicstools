@@ -12,3 +12,8 @@ class NoVarnameError(Exception):
 class NoIndicesError(Exception):
     """No index list to gather plots"""
     pass
+
+# Exceptions for datafenics
+class WrongInstanceError(Exception):
+    """m_in is from the wrong instance"""
+    pass

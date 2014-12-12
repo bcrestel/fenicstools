@@ -3,7 +3,7 @@
 import os
 
 
-TESTS=['test_plotfenics']
+TESTS=['test_plotfenics', 'test_datafenics']
 
 
 for test in TESTS:
