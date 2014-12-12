@@ -30,16 +30,12 @@ class OperatorPDE:
         self.update_A()
 
     @abc.abstractmethod
-    def _set_Data(self, Data):
-        self.Data = Data
-
-    @abc.abstractmethod
     def _wkforma(self):
         self.a = []
 
     # Update param
     def update_Data(self, Data):
-        self._set_Data(Data)
+        self.Data = Data
         self.update_A()
 
     def update_m(self, m):
@@ -52,7 +48,7 @@ class OperatorPDE:
 
     def update_A(self):
         self.A = assemble(self.a)
-        (self.bc).apply(self.A)
+        self.bc.apply(self.A)
 
 
 ###########################################################
@@ -63,9 +59,6 @@ class OperatorMass(OperatorPDE):
     Operator A for Mass matrix
     Derived from class OperatorA
     """
-    def _set_Data(self, Data):
-        self.Data = Data
-
     def _wkforma(self):
         self.a = inner(self.trial, self.test)*dx 
 
@@ -76,11 +69,7 @@ class OperatorHelmholtz(OperatorPDE):
     Operator A for Helmholtz equation
     Derived from class OperatorA
     """
-    def _set_Data(self, Data):
-        if not Data.has_key('k'):   raise WrongKeyInInputDataError
-        self.Data = Data
-
     def _wkforma(self):
-        kk = (self.Data)['k']
+        kk = self.Data['k']
         self.a = inner(nabla_grad(self.trial), nabla_grad(self.test))*dx -\
         inner(kk**2*(self.m)*(self.trial), self.test)*dx
