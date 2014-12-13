@@ -5,19 +5,19 @@ from dolfin import *
 from exceptionsfenics import WrongInstanceError
 
 
-class PbData:
-    """Store problem-specific data for medium parameter reconstruction
-    Contains:
-        mesh
-        V, Vm
-        UD
-        m0, mexact
-        src & rec locations
-        pb-specific parameters (e.g, freq for Helmholtz pb)
-        RHS for fwd problem
-    """
-    def __init__(self, inputfile):
-    """Instantiate object from specially written input file"""
+#class PbData:
+#    """Store problem-specific data for medium parameter reconstruction
+#    Contains:
+#        mesh
+#        V, Vm
+#        UD
+#        m0, mexact
+#        src & rec locations
+#        pb-specific parameters (e.g, freq for Helmholtz pb)
+#        RHS for fwd problem
+#    """
+#    def __init__(self, inputfile):
+#    """Instantiate object from specially written input file"""
 
 
 class CompData:

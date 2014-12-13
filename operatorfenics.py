@@ -15,7 +15,7 @@ class OperatorPDE:
     __metaclass__ = abc.ABCMeta
 
     # Instantiation
-    def __init__(self, V, Vm, bc, Data=[])
+    def __init__(self, V, Vm, bc, Data=[]):
         # parameter & bc
         self.m = Function(Vm)
         self.bc = bc
@@ -43,7 +43,7 @@ class OperatorPDE:
             self.m.assign(m)
         elif isinstance(m, np.ndarray):
             self.m.vector()[:] = m
-        elif:   raise WrongInstanceError('m should be Function or ndarray')
+        else:   raise WrongInstanceError('m should be Function or ndarray')
         self.update_A()
 
     def update_A(self):
