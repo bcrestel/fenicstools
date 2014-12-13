@@ -50,24 +50,34 @@ class OperatorPDE:
         self.A = assemble(self.a)
         self.bc.apply(self.A)
 
+    def assemble_Ab(self, f):
+        L = f*self.test*dx
+        self.A, b = assemble(self.a, L, self.bc)
+        return self.A, b
+
 
 ###########################################################
 # Derived Classes
 ###########################################################
 class OperatorMass(OperatorPDE):
     """
-    Operator A for Mass matrix
-    Derived from class OperatorA
+    Operator for Mass matrix <u, v>
     """
     def _wkforma(self):
         self.a = inner(self.trial, self.test)*dx 
 
+class OperatorElliptic(OperatorPDE):
+    """
+    Operator for elliptic equation div (m grad u)
+    <m grad u, grad v>
+    """
+    def _wkforma(self):
+        self.a = inner(self.m*nabla_grad(self.trial), nabla_grad(self.test))*dx
 
-###########################################################
 class OperatorHelmholtz(OperatorPDE):
     """
-    Operator A for Helmholtz equation
-    Derived from class OperatorA
+    Operator for Helmholtz equation
+    <grad u, grad v> - k^2 m u v
     """
     def _wkforma(self):
         kk = self.Data['k']
