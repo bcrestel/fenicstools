@@ -60,6 +60,31 @@ class TestMass(unittest.TestCase):
         myclass = OperatorMass(self.V, self.Vm, self.bc)
         self.assertRaises(WrongInstanceError, myclass.update_m, self.m.vector())
 
+    def test99_assemble(self):
+        """Check diff way to assemble syst are consistent"""
+        mesh = UnitSquareMesh(10,10)
+        V = FunctionSpace(mesh, 'Lagrange', 2)
+        u0 = Expression('0')
+        def u0_bdy(x, on_boundary): return on_boundary
+        bc = DirichletBC(V, u0, u0_bdy)
+        OpEll = OperatorMass(V, V, bc)
+        f = Expression('1')
+        OpEll.update_A()
+        A1 = OpEll.A
+        v = TestFunction(V)
+        L = f*v*dx
+        b1 = assemble(L)
+        bc.apply(b1)
+        u1 = Function(V)
+        solve(A1, u1.vector(), b1)
+
+        A2, b2 = OpEll.assemble_Ab(f)
+        u2 = Function(V)
+        solve(A2, u2.vector(), b2)
+        diffa = A1.array() - A2.array()
+        self.assertTrue(max(abs(u1.vector().array() - \
+        u2.vector().array())) < 1e-14 and max(abs(u1.vector().array())) > 1e-3)
+
 
 if __name__ == '__main__':
     unittest.main()

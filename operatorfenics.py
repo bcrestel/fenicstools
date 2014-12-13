@@ -52,7 +52,7 @@ class OperatorPDE:
 
     def assemble_Ab(self, f):
         L = f*self.test*dx
-        self.A, b = assemble(self.a, L, self.bc)
+        self.A, b = assemble_system(self.a, L, self.bc)
         return self.A, b
 
 
