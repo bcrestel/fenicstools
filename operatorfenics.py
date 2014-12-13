@@ -27,7 +27,7 @@ class OperatorPDE:
         # Define weak form to assemble A
         self._wkforma()
         # Assemble PDE operator A 
-        self.update_A()
+        self.assemble_A()
 
     @abc.abstractmethod
     def _wkforma(self):
@@ -36,7 +36,7 @@ class OperatorPDE:
     # Update param
     def update_Data(self, Data):
         self.Data = Data
-        self.update_A()
+        self.assemble_A()
 
     def update_m(self, m):
         if isinstance(m, Function):
@@ -44,16 +44,15 @@ class OperatorPDE:
         elif isinstance(m, np.ndarray):
             self.m.vector()[:] = m
         else:   raise WrongInstanceError('m should be Function or ndarray')
-        self.update_A()
+        self.assemble_A()
 
-    def update_A(self):
+    def assemble_A(self):
         self.A = assemble(self.a)
         self.bc.apply(self.A)
 
     def assemble_Ab(self, f):
         L = f*self.test*dx
-        self.A, b = assemble_system(self.a, L, self.bc)
-        return self.A, b
+        return assemble_system(self.a, L, self.bc)
 
 
 ###########################################################

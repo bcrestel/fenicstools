@@ -57,7 +57,7 @@ class TestHelmholtz(unittest.TestCase):
         Data = {'k': 10.0}
         OpEll = OperatorHelmholtz(V, V, bc, Data)
         f = Expression('1')
-        OpEll.update_A()
+        OpEll.assemble_A()
         A1 = OpEll.A
         v = TestFunction(V)
         L = f*v*dx

@@ -69,7 +69,7 @@ class TestMass(unittest.TestCase):
         bc = DirichletBC(V, u0, u0_bdy)
         OpEll = OperatorMass(V, V, bc)
         f = Expression('1')
-        OpEll.update_A()
+        OpEll.assemble_A()
         A1 = OpEll.A
         v = TestFunction(V)
         L = f*v*dx
