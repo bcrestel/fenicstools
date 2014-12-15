@@ -5,7 +5,7 @@ from dolfin import *
 from exceptionsfenics import WrongInstanceError
 set_log_active(False)
 
-class DataMisfitPart:
+class DataMisfitPart(LinearOperator):
     """
     Provides data misfit, gradient and Hessian information for the data misfit
     part of a time-independent symmetric inverse problem.
@@ -13,38 +13,51 @@ class DataMisfitPart:
     __metaclass__ = abc.ABCMeta
 
     # Instantiation
-    def __init__(self, V, Vm, bc, RHS, Dr=[], UD=[], Data=[]):
-        # parameter & bc
-        self.m = Function(Vm)
-        self.lenm = len(self.m.vector().array())
-        self.mtest = TestFunction(Vm)
-        self.bc = bc
-        self.MG = Function(Vm)
-        self.Grad = Function(Vm)
-        self._assemble_solverM(Vm)
-        # Define test and trial functions
+    def __init__(self, V, Vm, bc, RHS, Dr=[], UD=[], R=[], Data=[]):
+        # Define test, trial and all other functions
         self.trial = TrialFunction(V)
         self.test = TestFunction(V)
+        self.mtrial = TrialFunction(Vm)
+        self.mtest = TestFunction(Vm)
         self.rhsadj = Function(V)
-        # Define u and p for C and E
+        self.m = Function(Vm)
+        self.lenm = len(self.m.vector().array())
+        self.delta_m = Function(Vm)
+        self.MG = Function(Vm)
+        self.Grad = Function(Vm)
         self.u = Function(V)
         self.ud = Function(V)
         self.p = Function(V)
+        # Define weak forms to assemble A, C and E
+        self._wkforma()
+        self._wkformc()
+        self._wkforme()
         # Store other info:
         self.Dr = Dr
         self.Ladj = - inner(self.u - self.ud, self.test)*dx
         self.UD = UD
         self.RHS = RHS
-        # Add pb specific data
-        self.Data = Data
-        # Define weak forms to assemble A, C and E
-        self._wkforma()
-        self._wkformc()
-        self._wkforme()
-        # Assemble PDE operator A 
-        self.assemble_A()
-        # initialize other members:
         self.reset()
+        self.Data = Data
+        # Operators and bc
+        LinearOperator.__init__(self, self.delta_m.vector(), self.delta_m.vector()) 
+        self.bc = bc
+        self._assemble_solverM(Vm)
+        self.assemble_A()
+        self.W = assemble(inner(self.trial, self.test)*dx)
+        self.assemble_R(R)
+
+    def mult(self, x, y):
+        y[:] = np.zeros(self.lenm)
+        for C in self.C:
+            C.transpmult(x, self.rhsadj.vector())
+            print self.rhsadj.vector().array()[:5]
+            self.solver.solve(self.u.vector(), -self.rhsadj.vector())
+            print self.u.vector().array()[:5]
+            self.solver.solve(self.p.vector(), -(self.W * self.u.vector()))
+            print self.p.vector().array()[:5]
+            y[:] += (C*self.p.vector()).array()
+        y[:] += (self.R * x).array()
 
     # Solve
     def solvefwd(self):
@@ -94,12 +107,19 @@ class DataMisfitPart:
         self.rhsadj.vector()[:] = rhs.array()
 
     def _assemble_solverM(self, Vm):
-        mtrial = TrialFunction(Vm)
-        self.MM = assemble(inner(mtrial, self.mtest)*dx)
+        self.MM = assemble(inner(self.mtrial, self.mtest)*dx)
         self.solverM = LUSolver()
         self.solverM.parameters['reuse_factorization'] = True
         self.solverM.parameters['symmetric'] = True
         self.solverM.set_operator(self.MM)
+
+    def assemble_R(self, R):
+        if not R == []:
+            if isinstance(R, float):
+                self.R = assemble(R * inner(nabla_grad(self.mtrial), \
+                nabla_grad(self.mtest))*dx)
+            else:
+                self.R = R
 
     # Update param
     def update_Data(self, Data):
