@@ -13,7 +13,7 @@ class DataMisfitPart(LinearOperator):
     __metaclass__ = abc.ABCMeta
 
     # Instantiation
-    def __init__(self, V, Vm, bc, RHS, Dr=[], UD=[], R=[], Data=[]):
+    def __init__(self, V, Vm, bc, RHSinput=[], Dr=[], UD=[], R=[], Data=[]):
         # Define test, trial and all other functions
         self.trial = TrialFunction(V)
         self.test = TestFunction(V)
@@ -36,14 +36,15 @@ class DataMisfitPart(LinearOperator):
         self.Dr = Dr
         self.Ladj = - inner(self.u - self.ud, self.test)*dx
         self.UD = UD
-        self.RHS = RHS
         self.reset()
         self.Data = Data
         # Operators and bc
-        LinearOperator.__init__(self, self.delta_m.vector(), self.delta_m.vector()) 
+        LinearOperator.__init__(self, self.delta_m.vector(), \
+        self.delta_m.vector()) 
         self.bc = bc
         self._assemble_solverM(Vm)
         self.assemble_A()
+        self.assemble_RHS(RHSinput)
         self.W = assemble(inner(self.trial, self.test)*dx)
         self.assemble_R(R)
 
@@ -70,6 +71,27 @@ class DataMisfitPart(LinearOperator):
                 self.U.append(self.Dr.dot(self.u.vector().array()))
             self.C.append(assemble(self.c))
 
+    def solvefwd_cost(self):
+        """Solve fwd operators for given RHS and compute cost"""
+        self.misfit = 0.0
+        for rhs, ud in zip(self.RHS, self.UD):
+            self.solver.solve(self.u.vector(), rhs)
+            if self.Dr == []:
+                u_vec_arr = self.u.vector().array()
+                self.U.append(u_vec_arr)
+                # WARNING: self.ud is here used for another meaning
+                self.ud.vector()[:] = u_vec_arr - ud   
+                self.misfit += np.dot(self.ud.vector().array(), \
+                (self.W * self.ud.vector()).array())
+            else:
+                #self.U.append(self.Dr.dot(self.u.vector().array()))
+                assert False
+            self.C.append(assemble(self.c))
+        self.misfit *= 0.5        
+        self.regul = 0.5 * np.dot(self.m.vector().array(), \
+        (self.R * self.m.vector()).array())
+        self.cost = self.misfit + self.regul
+
     def solveadj_constructgrad(self):
         """Solve adj operators"""
         self.Nbsrc = len(self.UD)
@@ -89,10 +111,24 @@ class DataMisfitPart(LinearOperator):
         self.bc.apply(self.A)
         self.set_solver()
 
-    def assemble_Ab(self, f):
-        """Assemble operator A(m) and rhs b in symm way"""
-        L = f*self.test*dx
-        return assemble_system(self.a, L, self.bc)
+    def assemble_RHS(self, RHSin):
+        """Assemble RHS for fwd solve"""
+        if RHSin == []: self.RHS = None
+        else:
+            self.RHS = []
+            for rhs in RHSin:
+                if isinstance(rhs, Expression):
+                    L = rhs*self.test*dx
+                    b = assemble(L)
+                    self.bc.apply(b)
+                    self.RHS.append(b)
+                else:   
+                    raise WrongInstanceError("rhs should be Expression")
+
+#    def assemble_Ab(self, f):
+#        """Assemble operator A(m) and rhs b in symm way"""
+#        L = f*self.test*dx
+#        return assemble_system(self.a, L, self.bc)
 
     def assemble_rhsadj(self, U, UD):
         """Assemble rhs for adjoint equation"""
@@ -114,7 +150,8 @@ class DataMisfitPart(LinearOperator):
         self.solverM.set_operator(self.MM)
 
     def assemble_R(self, R):
-        if not R == []:
+        if R == []: self.R = None
+        else:
             if isinstance(R, float):
                 self.R = assemble(R * inner(nabla_grad(self.mtrial), \
                 nabla_grad(self.mtest))*dx)
@@ -134,7 +171,11 @@ class DataMisfitPart(LinearOperator):
             self.m.assign(m)
         elif isinstance(m, np.ndarray):
             self.m.vector()[:] = m
-        else:   raise WrongInstanceError('m should be Function or ndarray')
+        elif isinstance(m, float):
+            self.m.vector()[:] = m
+        elif isinstance(m, int):
+            self.m.vector()[:] = float(m)
+        else:   raise WrongInstanceError('Format for me not accepted')
         self.assemble_A()
         self.reset()
 
