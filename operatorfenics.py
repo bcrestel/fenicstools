@@ -54,6 +54,12 @@ class OperatorPDE:
         L = f*self.test*dx
         return assemble_system(self.a, L, self.bc)
 
+    def assemble_b(self, f):
+        L = f*self.test*dx
+        b = assemble(L)
+        self.bc.apply(b)
+        return b
+
 
 ###########################################################
 # Derived Classes
