@@ -13,7 +13,7 @@ class NoIndicesError(Exception):
     """No index list to gather plots"""
     pass
 
-# Exceptions for datafenics
+# Exceptions for datafenics/datamisfit
 class WrongInstanceError(Exception):
-    """m_in is from the wrong instance"""
+    """Input is from the wrong instance"""
     pass
