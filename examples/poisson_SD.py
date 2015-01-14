@@ -32,3 +32,4 @@ print InvPb.u.vector().array()[:20]
 print InvPb.misfit, InvPb.regul, InvPb.cost
 InvPb.solveadj_constructgrad()
 print InvPb.Grad.vector().array()[:20]
+InvPb.checkgradfd()

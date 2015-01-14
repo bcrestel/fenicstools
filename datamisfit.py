@@ -47,6 +47,20 @@ class DataMisfitPart(LinearOperator):
         self.assemble_RHS(RHSinput)
         self.W = assemble(inner(self.trial, self.test)*dx)
         self.assemble_R(R)
+        # Counters, tolerances and others
+        self.nbcheck = 10
+        self.tolgradchk = 1e-6
+
+    def copy(self):
+        """Define a copy method"""
+        V = self.trial.function_space()
+        Vm = self.mtrial.function_space()
+        newobj = self.__class__(V, Vm, self.bc, [], self.Dr, self.UD, [],\
+        self.Data)
+        newobj.RHS = self.RHS
+        newobj.R = self.R
+        newobj.update_m(self.m)
+        return newobj
 
     def mult(self, x, y):
         y[:] = np.zeros(self.lenm)
@@ -175,7 +189,7 @@ class DataMisfitPart(LinearOperator):
             self.m.vector()[:] = m
         elif isinstance(m, int):
             self.m.vector()[:] = float(m)
-        else:   raise WrongInstanceError('Format for me not accepted')
+        else:   raise WrongInstanceError('Format for m not accepted')
         self.assemble_A()
         self.reset()
 
@@ -190,6 +204,29 @@ class DataMisfitPart(LinearOperator):
         self.solver = LUSolver()
         self.solver.parameters['reuse_factorization'] = True
         self.solver.set_operator(self.A)
+
+    # Checks
+    def checkgradfd(self):
+        """Finite-difference check for the gradient"""
+        FDobj = self.copy()
+        rnddirc = np.random.randn(self.nbcheck, self.lenm)
+        H = [1e-5, 1e-4, 1e-3]
+        factor = [1.0, -1.0]
+        MGdir = rnddirc.dot(self.MG.vector().array())
+        for textnb, dirct, mgdir in zip(range(self.lenm), rnddirc, MGdir):
+            print 'Gradient check -- direction {0}: MGdir={1:.5e}'\
+            .format(textnb+1, mgdir)
+            for hh in H:
+                cost = []
+                for fact in factor:
+                    FDobj.update_m(self.m.vector().array() + fact*hh*dirct)
+                    FDobj.solvefwd_cost()
+                    cost.append(FDobj.cost)
+                FDgrad = (cost[0] - cost[1])/(2.0*hh)
+                err = abs(mgdir - FDgrad) / abs(FDgrad)
+                print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e}'\
+                .format(hh, FDgrad, err)
+                if err < self.tolgradchk:   break
 
     # Abstract methods
     @abc.abstractmethod
