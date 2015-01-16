@@ -50,6 +50,7 @@ class DataMisfitPart(LinearOperator):
         # Counters, tolerances and others
         self.nbcheck = 10
         self.tolgradchk = 1e-6
+        self.nbPDEsolves = 0
 
     def copy(self):
         """Define a copy method"""
@@ -67,9 +68,9 @@ class DataMisfitPart(LinearOperator):
         for C in self.C:
             C.transpmult(x, self.rhsadj.vector())
             print self.rhsadj.vector().array()[:5]
-            self.solver.solve(self.u.vector(), -self.rhsadj.vector())
+            self.solve_A(self.u.vector(), -self.rhsadj.vector())
             print self.u.vector().array()[:5]
-            self.solver.solve(self.p.vector(), -(self.W * self.u.vector()))
+            self.solve_A(self.p.vector(), -(self.W * self.u.vector()))
             print self.p.vector().array()[:5]
             y[:] += (C*self.p.vector()).array()
         y[:] += (self.R * x).array()
@@ -78,7 +79,7 @@ class DataMisfitPart(LinearOperator):
     def solvefwd(self):
         """Solve fwd operators for given RHS"""
         for rhs in self.RHS:
-            self.solver.solve(self.u.vector(), rhs)
+            self.solve_A(self.u.vector(), rhs)
             if self.Dr == []:
                 self.U.append(self.u.vector().array())
             else:
@@ -89,7 +90,7 @@ class DataMisfitPart(LinearOperator):
         """Solve fwd operators for given RHS and compute cost"""
         self.misfit = 0.0
         for rhs, ud in zip(self.RHS, self.UD):
-            self.solver.solve(self.u.vector(), rhs)
+            self.solve_A(self.u.vector(), rhs)
             if self.Dr == []:
                 u_vec_arr = self.u.vector().array()
                 self.U.append(u_vec_arr)
@@ -112,7 +113,7 @@ class DataMisfitPart(LinearOperator):
         MG = np.zeros(self.lenm)
         for ii, C in enumerate(self.C):
             self.assemble_rhsadj(self.U[ii], self.UD[ii])
-            self.solver.solve(self.p.vector(), self.rhsadj.vector())
+            self.solve_A(self.p.vector(), self.rhsadj.vector())
             self.E.append(assemble(self.e))
             MG += (C*self.p.vector()).array()
         self.MG.vector()[:] = MG/self.Nbsrc
@@ -124,6 +125,12 @@ class DataMisfitPart(LinearOperator):
         self.A = assemble(self.a)
         self.bc.apply(self.A)
         self.set_solver()
+
+    def solve_A(self, b, f):
+        """Solve system of the form A.b = f, 
+        with b and f in form to be used in solver."""
+        self.solver.solve(b, f)
+        self.nbPDEsolves += 1
 
     def assemble_RHS(self, RHSin):
         """Assemble RHS for fwd solve"""
@@ -204,6 +211,13 @@ class DataMisfitPart(LinearOperator):
         self.solver = LUSolver()
         self.solver.parameters['reuse_factorization'] = True
         self.solver.set_operator(self.A)
+
+    def addPDEcount(self, increment):
+        """Increase 'nbPDEsolves' by 'increment'"""
+        self.nbPDEsolves += increment
+
+    def resetPDEsolves(self):
+        self.nbPDEsolves = 0
 
     # Checks
     def checkgradfd(self):
