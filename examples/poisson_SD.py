@@ -1,6 +1,8 @@
 from dolfin import *
 from fenicstools.datamisfit import DataMisfitElliptic
 
+DEBUG = True
+
 # Domain
 mesh = UnitSquareMesh(12,12)
 # Finite element spaces
@@ -20,7 +22,7 @@ f = Expression("1.0")
 goal = DataMisfitElliptic(V, Vme, bc, [f])
 goal.update_m(mtrue)
 goal.solvefwd()
-print goal.u.vector().array()[:20]
+if DEBUG:   print goal.u.vector().array()[:20]
 UD = goal.U
 # Add noise
 # TO BE DONE
@@ -28,8 +30,12 @@ UD = goal.U
 InvPb = DataMisfitElliptic(V, Vm, bc, [f], [], UD, 1e-10)
 InvPb.update_m(1.0)
 InvPb.solvefwd_cost()
-print InvPb.u.vector().array()[:20]
-print InvPb.misfit, InvPb.regul, InvPb.cost
+if DEBUG:   print InvPb.u.vector().array()[:20]
+if DEBUG:   print InvPb.misfit, InvPb.regul, InvPb.cost
 InvPb.solveadj_constructgrad()
-print InvPb.Grad.vector().array()[:20]
+if DEBUG:   print InvPb.Grad.vector().array()[:20]
 InvPb.checkgradfd()
+print InvPb.cost
+LSsuccess, LScount, alpha = InvPb.bcktrcklinesearch()
+print InvPb.cost
+print LSsuccess, LScount, alpha

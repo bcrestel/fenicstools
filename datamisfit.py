@@ -21,6 +21,7 @@ class DataMisfitPart(LinearOperator):
         self.mtest = TestFunction(Vm)
         self.rhsadj = Function(V)
         self.m = Function(Vm)
+        self.mcopy = Function(Vm)
         self.lenm = len(self.m.vector().array())
         self.delta_m = Function(Vm)
         self.MG = Function(Vm)
@@ -200,6 +201,9 @@ class DataMisfitPart(LinearOperator):
         self.assemble_A()
         self.reset()
 
+    def backup_m(self):
+        self.mcopy.assign(self.m)
+
     def reset(self):
         """Reset U, C and E"""
         self.U = []
@@ -241,6 +245,29 @@ class DataMisfitPart(LinearOperator):
                 print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e}'\
                 .format(hh, FDgrad, err)
                 if err < self.tolgradchk:   break
+
+    def bcktrcklinesearch(self, alpha_init=1.0, rho=0.5, c=5e-5, search_direction=None):
+        """Run backtracking line search in 'search_direction'. 
+        Default 'search_direction is steepest descent.
+        'rho' is multiplicative factor for alpha."""
+        self.backup_m()
+        cost_mk = self.cost
+        LScount = 0
+        success = False
+        alpha = alpha_init
+        if search_direction == None:    srch_dir = -1.0*self.Grad.vector().array()
+        else:   srch_dir = search_direction.vector().array()
+        gradxdir = np.dot(srch_dir, self.MG.vector().array())
+        print gradxdir
+        while LScount < 10:
+            LScount += 1
+            self.update_m(self.mcopy.vector().array() + alpha*srch_dir)
+            self.solvefwd_cost()
+            if self.cost < cost_mk + alpha * c * gradxdir: 
+                success = True
+                break
+            alpha *= rho
+        return success, LScount, alpha
 
     # Abstract methods
     @abc.abstractmethod
