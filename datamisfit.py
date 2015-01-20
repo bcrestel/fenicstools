@@ -22,6 +22,7 @@ class DataMisfitPart(LinearOperator):
         self.rhsadj = Function(V)
         self.m = Function(Vm)
         self.mcopy = Function(Vm)
+        self.srchdir = Function(Vm)
         self.lenm = len(self.m.vector().array())
         self.delta_m = Function(Vm)
         self.MG = Function(Vm)
@@ -49,7 +50,8 @@ class DataMisfitPart(LinearOperator):
         self.W = assemble(inner(self.trial, self.test)*dx)
         self.assemble_R(R)
         # Counters, tolerances and others
-        self.nbcheck = 10
+        self.nbLS = 12
+        self.nbgradcheck = 10
         self.tolgradchk = 1e-6
         self.nbPDEsolves = 0
 
@@ -117,7 +119,7 @@ class DataMisfitPart(LinearOperator):
             self.solve_A(self.p.vector(), self.rhsadj.vector())
             self.E.append(assemble(self.e))
             MG += (C*self.p.vector()).array()
-        self.MG.vector()[:] = MG/self.Nbsrc
+        self.MG.vector()[:] = MG/self.Nbsrc + (self.R * self.m.vector()).array()
         self.solverM.solve(self.Grad.vector(), self.MG.vector())
 
     # Assembler
@@ -223,11 +225,10 @@ class DataMisfitPart(LinearOperator):
     def resetPDEsolves(self):
         self.nbPDEsolves = 0
 
-    # Checks
     def checkgradfd(self):
         """Finite-difference check for the gradient"""
         FDobj = self.copy()
-        rnddirc = np.random.randn(self.nbcheck, self.lenm)
+        rnddirc = np.random.randn(self.nbgradcheck, self.lenm)
         H = [1e-5, 1e-4, 1e-3]
         factor = [1.0, -1.0]
         MGdir = rnddirc.dot(self.MG.vector().array())
@@ -242,28 +243,43 @@ class DataMisfitPart(LinearOperator):
                     cost.append(FDobj.cost)
                 FDgrad = (cost[0] - cost[1])/(2.0*hh)
                 err = abs(mgdir - FDgrad) / abs(FDgrad)
-                print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e}'\
-                .format(hh, FDgrad, err)
-                if err < self.tolgradchk:   break
+                if err < self.tolgradchk:   
+                    print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e} -> OK!'\
+                    .format(hh, FDgrad, err)
+                    break
+                else:
+                    print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e}'\
+                    .format(hh, FDgrad, err)
 
-    def bcktrcklinesearch(self, alpha_init=1.0, rho=0.5, c=5e-5, search_direction=None):
+    def set_searchdirection(self, keyword):
+        """Set up search direction based on 'keyword'. 
+        'keyword' can be: 'sd'."""
+        if keyword == 'sd':
+            self.srchdir.vector()[:] = -1.0*self.Grad.vector().array()
+        self.gradxdir = np.dot(self.srchdir.vector().array(), \
+        self.MG.vector().array())
+        if self.gradxdir > 0.0: 
+            raise ValueError("Search direction is not a descent direction")
+
+    def bcktrcklinesearch(self, alpha_init=1.0, rho=0.5, c=5e-5):
         """Run backtracking line search in 'search_direction'. 
         Default 'search_direction is steepest descent.
         'rho' is multiplicative factor for alpha."""
+        if c < 0. or c > 1.:    raise ValueError("c must be between 0 and 1")
+        if rho < 0. or rho > 0.99:  
+            raise ValueError("rho must be between 0 and 1")
+        if alpha_init < 1e-16:    raise ValueError("alpha must be positive")
         self.backup_m()
         cost_mk = self.cost
         LScount = 0
         success = False
         alpha = alpha_init
-        if search_direction == None:    srch_dir = -1.0*self.Grad.vector().array()
-        else:   srch_dir = search_direction.vector().array()
-        gradxdir = np.dot(srch_dir, self.MG.vector().array())
-        print gradxdir
-        while LScount < 10:
+        srch_dir = self.srchdir.vector().array()
+        while LScount < self.nbLS:
             LScount += 1
             self.update_m(self.mcopy.vector().array() + alpha*srch_dir)
             self.solvefwd_cost()
-            if self.cost < cost_mk + alpha * c * gradxdir: 
+            if self.cost < cost_mk + alpha * c * self.gradxdir: 
                 success = True
                 break
             alpha *= rho
