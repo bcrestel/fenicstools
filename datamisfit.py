@@ -315,7 +315,7 @@ class DataMisfitElliptic(DataMisfitPart):
     <m grad u, grad v>
     """
     def _wkforma(self):
-        self.a = inner(self.m*nabla_grad(self.test), nabla_grad(self.trial))*dx
+        self.a = inner(self.m*nabla_grad(self.trial), nabla_grad(self.test))*dx
 
     def _wkformc(self):
         self.c = inner(self.mtest*nabla_grad(self.u), nabla_grad(self.trial))*dx
