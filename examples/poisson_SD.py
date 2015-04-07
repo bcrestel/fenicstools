@@ -21,7 +21,7 @@ mtrue_exp = Expression('1 + 7*(pow(pow(x[0] - 0.5,2) +' + \
 mtrue = interpolate(mtrue_exp, Vme)
 normmtrue = norm(mtrue)
 f = Expression("1.0")
-goal = DataMisfitElliptic(V, Vme, bc, [f])
+goal = DataMisfitElliptic(V, Vme, bc, bc, [f])
 goal.update_m(mtrue)
 goal.solvefwd()
 UD = goal.U
@@ -29,7 +29,7 @@ UD = goal.U
 # TO BE DONE
 
 # Set up optimization 
-InvPb = DataMisfitElliptic(V, Vm, bc, [f], [], UD, 1e-10)
+InvPb = DataMisfitElliptic(V, Vm, bc, bc, [f], [], UD, 1e-10)
 InvPb.update_m(1.0)
 InvPb.solvefwd_cost()
 print ('{:2s} {:12s} {:12s} {:12s} {:10s} {:6s} {:12s} {:8s} {:10s} {:10s}')\

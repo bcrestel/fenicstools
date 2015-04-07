@@ -13,13 +13,14 @@ class DataMisfitPart(LinearOperator):
     __metaclass__ = abc.ABCMeta
 
     # Instantiation
-    def __init__(self, V, Vm, bc, RHSinput=[], B=[], UD=[], R=[], Data=[]):
+    def __init__(self, V, Vm, bc, bcadj, RHSinput=[], B=[], UD=[], R=[], \
+    Data=[]):
         # Define test, trial and all other functions
         self.trial = TrialFunction(V)
         self.test = TestFunction(V)
         self.mtrial = TrialFunction(Vm)
         self.mtest = TestFunction(Vm)
-        self.rhsadj = Function(V)
+        self.rhs = Function(V)
         self.m = Function(Vm)
         self.mcopy = Function(Vm)
         self.srchdir = Function(Vm)
@@ -45,6 +46,7 @@ class DataMisfitPart(LinearOperator):
         LinearOperator.__init__(self, self.delta_m.vector(), \
         self.delta_m.vector()) 
         self.bc = bc
+        self.bcadj = bcadj
         self._assemble_solverM(Vm)
         self.assemble_A()
         self.assemble_RHS(RHSinput)
@@ -60,8 +62,8 @@ class DataMisfitPart(LinearOperator):
         """Define a copy method"""
         V = self.trial.function_space()
         Vm = self.mtrial.function_space()
-        newobj = self.__class__(V, Vm, self.bc, [], self.B, self.UD, [],\
-        self.Data)
+        newobj = self.__class__(V, Vm, self.bc, self.bcadj, [], self.B, \
+        self.UD, [], self.Data)
         newobj.RHS = self.RHS
         newobj.R = self.R
         newobj.update_m(self.m)
@@ -76,9 +78,9 @@ class DataMisfitPart(LinearOperator):
     def mult(self, x, y):
         y[:] = np.zeros(self.lenm)
         for C in self.C:
-            C.transpmult(x, self.rhsadj.vector())
-            print self.rhsadj.vector().array()[:5]
-            self.solve_A(self.u.vector(), -self.rhsadj.vector())
+            C.transpmult(x, self.rhs.vector())
+            print self.rhs.vector().array()[:5]
+            self.solve_A(self.u.vector(), -self.rhs.vector())
             print self.u.vector().array()[:5]
             self.solve_A(self.p.vector(), -(self.W * self.u.vector()))
             print self.p.vector().array()[:5]
@@ -115,17 +117,23 @@ class DataMisfitPart(LinearOperator):
         """Solve fwd operators for given RHS and compute cost fct"""
         self.solvefwd(True)
 
-    def solveadj_constructgrad(self):
+    def solveadj(self, grad=True):
         """Solve adj operators"""
         self.Nbsrc = len(self.UD)
-        MG = np.zeros(self.lenm)
+        if grad:    MG = np.zeros(self.lenm)
         for ii, C in enumerate(self.C):
             self.assemble_rhsadj(self.U[ii], self.UD[ii])
-            self.solve_A(self.p.vector(), self.rhsadj.vector())
+            self.solve_A(self.p.vector(), self.rhs.vector())
             self.E.append(assemble(self.e))
-            MG += (C*self.p.vector()).array()
-        self.MG.vector()[:] = MG/self.Nbsrc + (self.R * self.m.vector()).array()
-        self.solverM.solve(self.Grad.vector(), self.MG.vector())
+            if grad:    MG += (C*self.p.vector()).array()
+        if grad:
+            self.MG.vector()[:] = MG/self.Nbsrc + \
+            (self.R * self.m.vector()).array()
+            self.solverM.solve(self.Grad.vector(), self.MG.vector())
+
+    def solveadj_constructgrad(self):
+        """Solve adj operators and assemble gradient"""
+        self.solveadj()
 
     # Assembler
     def assemble_A(self):
@@ -161,15 +169,9 @@ class DataMisfitPart(LinearOperator):
 
     def assemble_rhsadj(self, U, UD):
         """Assemble rhs for adjoint equation"""
-        if self.B == []:
-            self.u.vector()[:] = U
-            self.ud.vector()[:] = UD
-        else:
-            self.u.vector()[:] = self.B.transpose.dot(U)
-            self.ud.vector()[:] = self.B.transpose.dot(UD)
-        rhs = assemble(self.Ladj)
-        self.bc.apply(rhs)
-        self.rhsadj.vector()[:] = rhs.array()
+        self.diff.vector()[:] = U - UD
+        self.rhs.vector()[:] = - (self.W * self.diff.vector()).array()
+        self.bcadj.apply(self.rhs.vector())
 
     def _assemble_solverM(self, Vm):
         self.MM = assemble(inner(self.mtrial, self.mtest)*dx)
@@ -181,6 +183,7 @@ class DataMisfitPart(LinearOperator):
     def _assemble_W(self):
         if self.B == []:
             self.W = assemble(inner(self.trial, self.test)*dx)
+            #self.W = assemble(inner(self.trial, self.test)*dx, None, self.bc)
         else:   self.W = []
 
     def assemble_R(self, R):
