@@ -13,7 +13,7 @@ class DataMisfitPart(LinearOperator):
     __metaclass__ = abc.ABCMeta
 
     # Instantiation
-    def __init__(self, V, Vm, bc, RHSinput=[], Dr=[], UD=[], R=[], Data=[]):
+    def __init__(self, V, Vm, bc, RHSinput=[], B=[], UD=[], R=[], Data=[]):
         # Define test, trial and all other functions
         self.trial = TrialFunction(V)
         self.test = TestFunction(V)
@@ -29,13 +29,14 @@ class DataMisfitPart(LinearOperator):
         self.Grad = Function(Vm)
         self.u = Function(V)
         self.ud = Function(V)
+        self.diff = Function(V)
         self.p = Function(V)
         # Define weak forms to assemble A, C and E
         self._wkforma()
         self._wkformc()
         self._wkforme()
         # Store other info:
-        self.Dr = Dr
+        self.B = B
         self.Ladj = - inner(self.u - self.ud, self.test)*dx
         self.UD = UD
         self.reset()
@@ -47,7 +48,7 @@ class DataMisfitPart(LinearOperator):
         self._assemble_solverM(Vm)
         self.assemble_A()
         self.assemble_RHS(RHSinput)
-        self.W = assemble(inner(self.trial, self.test)*dx)
+        self._assemble_W()
         self.assemble_R(R)
         # Counters, tolerances and others
         self.nbLS = 12
@@ -59,12 +60,18 @@ class DataMisfitPart(LinearOperator):
         """Define a copy method"""
         V = self.trial.function_space()
         Vm = self.mtrial.function_space()
-        newobj = self.__class__(V, Vm, self.bc, [], self.Dr, self.UD, [],\
+        newobj = self.__class__(V, Vm, self.bc, [], self.B, self.UD, [],\
         self.Data)
         newobj.RHS = self.RHS
         newobj.R = self.R
         newobj.update_m(self.m)
         return newobj
+
+    def obs(self, uin):
+        """Apply observation operator based on self.B"""
+        assert uin.__class__ == Function
+        if self.B == []:   return uin.vector().array()
+        else:   return self.B.dot(uin.vector().array())
 
     def mult(self, x, y):
         y[:] = np.zeros(self.lenm)
@@ -79,36 +86,34 @@ class DataMisfitPart(LinearOperator):
         y[:] += (self.R * x).array()
 
     # Solve
-    def solvefwd(self):
+    def costfct(self, uin, udin):
+        """Compute cost functional for 2 entries"""
+        if self.W == []:
+            return 0.5*np.dot(uin, udin)
+        else:
+            self.diff.vector()[:] = uin - udin
+            return 0.5*np.dot(self.diff.vector().array(), \
+            (self.W * self.diff.vector()).array())
+
+    def solvefwd(self, cost=False):
         """Solve fwd operators for given RHS"""
-        for rhs in self.RHS:
+        if cost:    self.misfit = 0.0
+        for ii, rhs in enumerate(self.RHS):
             self.solve_A(self.u.vector(), rhs)
-            if self.Dr == []:
-                self.U.append(self.u.vector().array())
-            else:
-                self.U.append(self.Dr.dot(self.u.vector().array()))
+            u_obs = self.obs(self.u)
+            self.U.append(u_obs)
+            if cost:
+                self.misfit += self.costfct(u_obs, self.UD[ii])
             self.C.append(assemble(self.c))
+        if cost:
+            self.misfit /= len(self.U)
+            self.regul = 0.5 * np.dot(self.m.vector().array(), \
+            (self.R * self.m.vector()).array())
+            self.cost = self.misfit + self.regul
 
     def solvefwd_cost(self):
-        """Solve fwd operators for given RHS and compute cost"""
-        self.misfit = 0.0
-        for rhs, ud in zip(self.RHS, self.UD):
-            self.solve_A(self.u.vector(), rhs)
-            if self.Dr == []:
-                u_vec_arr = self.u.vector().array()
-                self.U.append(u_vec_arr)
-                # WARNING: self.ud is here used for another meaning
-                self.ud.vector()[:] = u_vec_arr - ud   
-                self.misfit += np.dot(self.ud.vector().array(), \
-                (self.W * self.ud.vector()).array())
-            else:
-                #self.U.append(self.Dr.dot(self.u.vector().array()))
-                assert False
-            self.C.append(assemble(self.c))
-        self.misfit *= 0.5        
-        self.regul = 0.5 * np.dot(self.m.vector().array(), \
-        (self.R * self.m.vector()).array())
-        self.cost = self.misfit + self.regul
+        """Solve fwd operators for given RHS and compute cost fct"""
+        self.solvefwd(True)
 
     def solveadj_constructgrad(self):
         """Solve adj operators"""
@@ -156,12 +161,12 @@ class DataMisfitPart(LinearOperator):
 
     def assemble_rhsadj(self, U, UD):
         """Assemble rhs for adjoint equation"""
-        if self.Dr == []:
+        if self.B == []:
             self.u.vector()[:] = U
             self.ud.vector()[:] = UD
         else:
-            self.u.vector()[:] = self.Dr.transpose.dot(U)
-            self.ud.vector()[:] = self.Dr.transpose.dot(UD)
+            self.u.vector()[:] = self.B.transpose.dot(U)
+            self.ud.vector()[:] = self.B.transpose.dot(UD)
         rhs = assemble(self.Ladj)
         self.bc.apply(rhs)
         self.rhsadj.vector()[:] = rhs.array()
@@ -172,6 +177,11 @@ class DataMisfitPart(LinearOperator):
         self.solverM.parameters['reuse_factorization'] = True
         self.solverM.parameters['symmetric'] = True
         self.solverM.set_operator(self.MM)
+
+    def _assemble_W(self):
+        if self.B == []:
+            self.W = assemble(inner(self.trial, self.test)*dx)
+        else:   self.W = []
 
     def assemble_R(self, R):
         if R == []: self.R = None
@@ -225,6 +235,7 @@ class DataMisfitPart(LinearOperator):
     def resetPDEsolves(self):
         self.nbPDEsolves = 0
 
+    # Computations
     def checkgradfd(self):
         """Finite-difference check for the gradient"""
         FDobj = self.copy()
