@@ -5,6 +5,10 @@ from dolfin import *
 from exceptionsfenics import WrongInstanceError
 set_log_active(False)
 
+#TODO: Move computations method to a different class (line search, gradient
+# check,...)
+# Test Hessian
+
 class DataMisfitPart(LinearOperator):
     """
     Provides data misfit, gradient and Hessian information for the data misfit
@@ -42,6 +46,7 @@ class DataMisfitPart(LinearOperator):
         self.UD = UD
         self.reset()
         self.Data = Data
+        self.GN = 1.0
         # Operators and bc
         LinearOperator.__init__(self, self.delta_m.vector(), \
         self.delta_m.vector()) 
@@ -76,16 +81,28 @@ class DataMisfitPart(LinearOperator):
         else:   return self.B.dot(uin.vector().array())
 
     def mult(self, x, y):
+        """mult(self, x, y): do y = Hessian * x
+        member self.GN sets full Hessian (=1.0) or GN Hessian (=0.0)"""
         y[:] = np.zeros(self.lenm)
-        for C in self.C:
+        for C, E in zip(self.C, self.E):
+            # Solve for u_hat
             C.transpmult(x, self.rhs.vector())
-            print self.rhs.vector().array()[:5]
+            self.bcadj.apply(self.rhs.vector())
             self.solve_A(self.u.vector(), -self.rhs.vector())
-            print self.u.vector().array()[:5]
-            self.solve_A(self.p.vector(), -(self.W * self.u.vector()))
-            print self.p.vector().array()[:5]
-            y[:] += (C*self.p.vector()).array()
+            # Solve for phat
+            E.transpmult(x, self.rhs.vector())
+            self.rhs.vector()[:] *= -1.0 * self.GN
+            self.rhs.vector()[:] += -(self.W * self.u.vector()).array()
+            self.bcadj.apply(self.rhs.vector())
+            self.solve_A(self.p.vector(), self.rhs.vector())
+            # Compute Hessian*x:
+            y[:] += (C*self.p.vector()).array() + \
+            self.GN*(E*self.u.vector()).array()
+        y[:] /= len(self.C)
         y[:] += (self.R * x).array()
+            #print self.rhs.vector().array()[:5]
+            #print self.u.vector().array()[:5]
+            #print self.p.vector().array()[:5]
 
     # Solve
     def costfct(self, uin, udin):
@@ -117,7 +134,7 @@ class DataMisfitPart(LinearOperator):
         """Solve fwd operators for given RHS and compute cost fct"""
         self.solvefwd(True)
 
-    def solveadj(self, grad=True):
+    def solveadj(self, grad=False):
         """Solve adj operators"""
         self.Nbsrc = len(self.UD)
         if grad:    MG = np.zeros(self.lenm)
@@ -133,7 +150,7 @@ class DataMisfitPart(LinearOperator):
 
     def solveadj_constructgrad(self):
         """Solve adj operators and assemble gradient"""
-        self.solveadj()
+        self.solveadj(True)
 
     # Assembler
     def assemble_A(self):
@@ -316,12 +333,6 @@ class DataMisfitPart(LinearOperator):
 ###########################################################
 # Derived Classes
 ###########################################################
-#class OperatorMass(OperatorPDE):
-#    """
-#    Operator for Mass matrix <u, v>
-#    """
-#    def _wkforma(self):
-#        self.a = inner(self.trial, self.test)*dx 
 
 class DataMisfitElliptic(DataMisfitPart):
     """
