@@ -58,9 +58,6 @@ class ObjectiveFunctional(LinearOperator):
         self._assemble_W()
         self.assemble_R(R)
         # Counters, tolerances and others
-        #self.nbLS = 12
-        #self.nbgradcheck = 10
-        #self.tolgradchk = 1e-6
         self.nbPDEsolves = 0
 
     def copy(self):
@@ -162,6 +159,16 @@ class ObjectiveFunctional(LinearOperator):
         """Solve adj operators and assemble gradient"""
         self.solveadj(True)
 
+    def set_searchdirection(self, keyword):
+        """Set up search direction based on 'keyword'. 
+        'keyword' can be: 'sd'."""
+        if keyword == 'sd':
+            self.srchdir.vector()[:] = -1.0*self.Grad.vector().array()
+        self.gradxdir = np.dot(self.srchdir.vector().array(), \
+        self.MG.vector().array())
+        if self.gradxdir > 0.0: 
+            raise ValueError("Search direction is not a descent direction")
+
     # Assembler
     def assemble_A(self):
         """Assemble operator A(m)"""
@@ -189,11 +196,6 @@ class ObjectiveFunctional(LinearOperator):
                 else:   
                     raise WrongInstanceError("rhs should be Expression")
 
-#    def assemble_Ab(self, f):
-#        """Assemble operator A(m) and rhs b in symm way"""
-#        L = f*self.test*dx
-#        return assemble_system(self.a, L, self.bc)
-
     def assemble_rhsadj(self, U, UD):
         """Assemble rhs for adjoint equation"""
         self.diff.vector()[:] = U - UD
@@ -210,7 +212,6 @@ class ObjectiveFunctional(LinearOperator):
     def _assemble_W(self):
         if self.B == []:
             self.W = assemble(inner(self.trial, self.test)*dx)
-            #self.W = assemble(inner(self.trial, self.test)*dx, None, self.bc)
         else:   self.W = []
 
     def assemble_R(self, R):
@@ -264,67 +265,6 @@ class ObjectiveFunctional(LinearOperator):
 
     def resetPDEsolves(self):
         self.nbPDEsolves = 0
-
-    # Computations
-#    def checkgradfd(self):
-#        """Finite-difference check for the gradient"""
-#        FDobj = self.copy()
-#        rnddirc = np.random.randn(self.nbgradcheck, self.lenm)
-#        H = [1e-5, 1e-4, 1e-3]
-#        factor = [1.0, -1.0]
-#        MGdir = rnddirc.dot(self.MG.vector().array())
-#        for textnb, dirct, mgdir in zip(range(self.lenm), rnddirc, MGdir):
-#            print 'Gradient check -- direction {0}: MGdir={1:.5e}'\
-#            .format(textnb+1, mgdir)
-#            for hh in H:
-#                cost = []
-#                for fact in factor:
-#                    FDobj.update_m(self.m.vector().array() + fact*hh*dirct)
-#                    FDobj.solvefwd_cost()
-#                    cost.append(FDobj.cost)
-#                FDgrad = (cost[0] - cost[1])/(2.0*hh)
-#                err = abs(mgdir - FDgrad) / abs(FDgrad)
-#                if err < self.tolgradchk:   
-#                    print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e} -> OK!'\
-#                    .format(hh, FDgrad, err)
-#                    break
-#                else:
-#                    print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e}'\
-#                    .format(hh, FDgrad, err)
-#
-    def set_searchdirection(self, keyword):
-        """Set up search direction based on 'keyword'. 
-        'keyword' can be: 'sd'."""
-        if keyword == 'sd':
-            self.srchdir.vector()[:] = -1.0*self.Grad.vector().array()
-        self.gradxdir = np.dot(self.srchdir.vector().array(), \
-        self.MG.vector().array())
-        if self.gradxdir > 0.0: 
-            raise ValueError("Search direction is not a descent direction")
-#
-#    def bcktrcklinesearch(self, alpha_init=1.0, rho=0.5, c=5e-5):
-#        """Run backtracking line search in 'search_direction'. 
-#        Default 'search_direction is steepest descent.
-#        'rho' is multiplicative factor for alpha."""
-#        if c < 0. or c > 1.:    raise ValueError("c must be between 0 and 1")
-#        if rho < 0. or rho > 0.99:  
-#            raise ValueError("rho must be between 0 and 1")
-#        if alpha_init < 1e-16:    raise ValueError("alpha must be positive")
-#        self.backup_m()
-#        cost_mk = self.cost
-#        LScount = 0
-#        success = False
-#        alpha = alpha_init
-#        srch_dir = self.srchdir.vector().array()
-#        while LScount < self.nbLS:
-#            LScount += 1
-#            self.update_m(self.mcopy.vector().array() + alpha*srch_dir)
-#            self.solvefwd_cost()
-#            if self.cost < cost_mk + alpha * c * self.gradxdir: 
-#                success = True
-#                break
-#            alpha *= rho
-#        return success, LScount, alpha
 
     # Abstract methods
     @abc.abstractmethod
