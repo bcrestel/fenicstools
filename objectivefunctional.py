@@ -9,7 +9,7 @@ set_log_active(False)
 # check,...)
 # Test Hessian
 
-class DataMisfitPart(LinearOperator):
+class ObjectiveFunctional(LinearOperator):
     """
     Provides data misfit, gradient and Hessian information for the data misfit
     part of a time-independent symmetric inverse problem.
@@ -58,9 +58,9 @@ class DataMisfitPart(LinearOperator):
         self._assemble_W()
         self.assemble_R(R)
         # Counters, tolerances and others
-        self.nbLS = 12
-        self.nbgradcheck = 10
-        self.tolgradchk = 1e-6
+        #self.nbLS = 12
+        #self.nbgradcheck = 10
+        #self.tolgradchk = 1e-6
         self.nbPDEsolves = 0
 
     def copy(self):
@@ -103,6 +103,16 @@ class DataMisfitPart(LinearOperator):
             #print self.rhs.vector().array()[:5]
             #print self.u.vector().array()[:5]
             #print self.p.vector().array()[:5]
+
+    # Getters
+    def getm(self): return self.m
+    def getmarray(self):    return self.m.vector().array()
+    def getmcopyarray(self):    return self.mcopy.vector().array()
+    def getMGarray(self):   return self.MG.vector().array()
+    def getGradarray(self):   return self.Grad.vector().array()
+    def getsearchdirarray(self):    return self.srchdir.vector().array()
+    def getgradxdir(self): return self.gradxdir
+    def getcost(self):  return self.cost, self.misfit, self.regul
 
     # Solve
     def costfct(self, uin, udin):
@@ -248,7 +258,7 @@ class DataMisfitPart(LinearOperator):
         self.solver.parameters['reuse_factorization'] = True
         self.solver.set_operator(self.A)
 
-    def addPDEcount(self, increment):
+    def addPDEcount(self, increment=1):
         """Increase 'nbPDEsolves' by 'increment'"""
         self.nbPDEsolves += increment
 
@@ -256,32 +266,32 @@ class DataMisfitPart(LinearOperator):
         self.nbPDEsolves = 0
 
     # Computations
-    def checkgradfd(self):
-        """Finite-difference check for the gradient"""
-        FDobj = self.copy()
-        rnddirc = np.random.randn(self.nbgradcheck, self.lenm)
-        H = [1e-5, 1e-4, 1e-3]
-        factor = [1.0, -1.0]
-        MGdir = rnddirc.dot(self.MG.vector().array())
-        for textnb, dirct, mgdir in zip(range(self.lenm), rnddirc, MGdir):
-            print 'Gradient check -- direction {0}: MGdir={1:.5e}'\
-            .format(textnb+1, mgdir)
-            for hh in H:
-                cost = []
-                for fact in factor:
-                    FDobj.update_m(self.m.vector().array() + fact*hh*dirct)
-                    FDobj.solvefwd_cost()
-                    cost.append(FDobj.cost)
-                FDgrad = (cost[0] - cost[1])/(2.0*hh)
-                err = abs(mgdir - FDgrad) / abs(FDgrad)
-                if err < self.tolgradchk:   
-                    print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e} -> OK!'\
-                    .format(hh, FDgrad, err)
-                    break
-                else:
-                    print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e}'\
-                    .format(hh, FDgrad, err)
-
+#    def checkgradfd(self):
+#        """Finite-difference check for the gradient"""
+#        FDobj = self.copy()
+#        rnddirc = np.random.randn(self.nbgradcheck, self.lenm)
+#        H = [1e-5, 1e-4, 1e-3]
+#        factor = [1.0, -1.0]
+#        MGdir = rnddirc.dot(self.MG.vector().array())
+#        for textnb, dirct, mgdir in zip(range(self.lenm), rnddirc, MGdir):
+#            print 'Gradient check -- direction {0}: MGdir={1:.5e}'\
+#            .format(textnb+1, mgdir)
+#            for hh in H:
+#                cost = []
+#                for fact in factor:
+#                    FDobj.update_m(self.m.vector().array() + fact*hh*dirct)
+#                    FDobj.solvefwd_cost()
+#                    cost.append(FDobj.cost)
+#                FDgrad = (cost[0] - cost[1])/(2.0*hh)
+#                err = abs(mgdir - FDgrad) / abs(FDgrad)
+#                if err < self.tolgradchk:   
+#                    print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e} -> OK!'\
+#                    .format(hh, FDgrad, err)
+#                    break
+#                else:
+#                    print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e}'\
+#                    .format(hh, FDgrad, err)
+#
     def set_searchdirection(self, keyword):
         """Set up search direction based on 'keyword'. 
         'keyword' can be: 'sd'."""
@@ -291,30 +301,30 @@ class DataMisfitPart(LinearOperator):
         self.MG.vector().array())
         if self.gradxdir > 0.0: 
             raise ValueError("Search direction is not a descent direction")
-
-    def bcktrcklinesearch(self, alpha_init=1.0, rho=0.5, c=5e-5):
-        """Run backtracking line search in 'search_direction'. 
-        Default 'search_direction is steepest descent.
-        'rho' is multiplicative factor for alpha."""
-        if c < 0. or c > 1.:    raise ValueError("c must be between 0 and 1")
-        if rho < 0. or rho > 0.99:  
-            raise ValueError("rho must be between 0 and 1")
-        if alpha_init < 1e-16:    raise ValueError("alpha must be positive")
-        self.backup_m()
-        cost_mk = self.cost
-        LScount = 0
-        success = False
-        alpha = alpha_init
-        srch_dir = self.srchdir.vector().array()
-        while LScount < self.nbLS:
-            LScount += 1
-            self.update_m(self.mcopy.vector().array() + alpha*srch_dir)
-            self.solvefwd_cost()
-            if self.cost < cost_mk + alpha * c * self.gradxdir: 
-                success = True
-                break
-            alpha *= rho
-        return success, LScount, alpha
+#
+#    def bcktrcklinesearch(self, alpha_init=1.0, rho=0.5, c=5e-5):
+#        """Run backtracking line search in 'search_direction'. 
+#        Default 'search_direction is steepest descent.
+#        'rho' is multiplicative factor for alpha."""
+#        if c < 0. or c > 1.:    raise ValueError("c must be between 0 and 1")
+#        if rho < 0. or rho > 0.99:  
+#            raise ValueError("rho must be between 0 and 1")
+#        if alpha_init < 1e-16:    raise ValueError("alpha must be positive")
+#        self.backup_m()
+#        cost_mk = self.cost
+#        LScount = 0
+#        success = False
+#        alpha = alpha_init
+#        srch_dir = self.srchdir.vector().array()
+#        while LScount < self.nbLS:
+#            LScount += 1
+#            self.update_m(self.mcopy.vector().array() + alpha*srch_dir)
+#            self.solvefwd_cost()
+#            if self.cost < cost_mk + alpha * c * self.gradxdir: 
+#                success = True
+#                break
+#            alpha *= rho
+#        return success, LScount, alpha
 
     # Abstract methods
     @abc.abstractmethod
@@ -334,7 +344,7 @@ class DataMisfitPart(LinearOperator):
 # Derived Classes
 ###########################################################
 
-class DataMisfitElliptic(DataMisfitPart):
+class ObjFctalElliptic(ObjectiveFunctional):
     """
     Operator for elliptic equation div (m grad u)
     <m grad u, grad v>

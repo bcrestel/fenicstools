@@ -1,7 +1,8 @@
 import numpy as np
 from dolfin import *
-from fenicstools.datamisfit import DataMisfitElliptic
+from fenicstools.objectivefunctional import ObjFctalElliptic
 from fenicstools.plotfenics import PlotFenics
+from fenicstools.optimsolver import checkgradfd, bcktrcklinesearch
 
 # Domain
 mesh = UnitSquareMesh(12,12)
@@ -21,7 +22,7 @@ mtrue_exp = Expression('1 + 7*(pow(pow(x[0] - 0.5,2) +' + \
 mtrue = interpolate(mtrue_exp, Vme)
 normmtrue = norm(mtrue)
 f = Expression("1.0")
-goal = DataMisfitElliptic(V, Vme, bc, bc, [f])
+goal = ObjFctalElliptic(V, Vme, bc, bc, [f])
 goal.update_m(mtrue)
 goal.solvefwd()
 UD = goal.U
@@ -29,37 +30,39 @@ UD = goal.U
 # TO BE DONE
 
 # Set up optimization 
-InvPb = DataMisfitElliptic(V, Vm, bc, bc, [f], [], UD, 1e-10)
+InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], [], UD, 1e-10)
 InvPb.update_m(1.0)
 InvPb.solvefwd_cost()
+cost, misfit, regul = InvPb.getcost()
 print ('{:2s} {:12s} {:12s} {:12s} {:10s} {:6s} {:12s} {:8s} {:10s} {:10s}')\
 .format('iter', 'cost', 'datamisfit', 'regul', 'medmisfit', 'rel', \
 '||grad||', 'rel', 'angle', 'alpha')
 medmisfit = errornorm(InvPb.m, mtrue, 'l2', 1)
 print ('{:2d} {:12.5e} {:12.5e} {:12.5e} {:10.2e} {:6.3f}').format(0, \
-InvPb.cost, InvPb.misfit, InvPb.regul, medmisfit, medmisfit/normmtrue)
+cost, misfit, regul, medmisfit, medmisfit/normmtrue)
 maxiter = 100 
 alpha_init = 1e3
-InvPb.nbgradcheck = 2
-InvPb.nbLS = 20
+nbgradcheck = 2
+nbLS = 20
 
 # Iteration
 for it in range(1, maxiter+1):
     InvPb.solveadj_constructgrad()
-    if it == 1 or it % 20 == 0: InvPb.checkgradfd()
+    if it == 1 or it % 20 == 0: checkgradfd(InvPb, nbgradcheck)
     InvPb.set_searchdirection('sd')
-    LSsuccess, LScount, alpha = InvPb.bcktrcklinesearch(alpha_init)
+    LSsuccess, LScount, alpha = bcktrcklinesearch(InvPb, nbLS, alpha_init)
     # Print results
-    gradnorm = np.sqrt(np.dot(InvPb.Grad.vector().array(), \
-    InvPb.MG.vector().array()))
+    gradnorm = np.sqrt(np.dot(InvPb.getGradarray(), \
+    InvPb.getMGarray()))
     if it == 1:   gradnorm_init = gradnorm
     gradnormrel = gradnorm/gradnorm_init
-    srchdirnorm = np.sqrt(np.dot(InvPb.srchdir.vector().array(), \
-    (InvPb.MM*InvPb.srchdir.vector()).array()))
-    medmisfit = errornorm(InvPb.m, mtrue, 'l2', 1)
+    srchdirnorm = np.sqrt(np.dot(InvPb.getsearchdirarray(), \
+    (InvPb.MM*InvPb.getsearchdirarray())))
+    medmisfit = errornorm(InvPb.getm(), mtrue, 'l2', 1)
+    cost, misfit, regul = InvPb.getcost()
     print ('{:2d} {:12.5e} {:12.5e} {:12.5e} {:10.2e} {:6.3f} {:12.5e} ' + \
-    '{:8.2e} {:10.3e} {:10.3e}').format(it, InvPb.cost, InvPb.misfit, \
-    InvPb.regul, medmisfit, medmisfit/normmtrue, gradnorm, \
+    '{:8.2e} {:10.3e} {:10.3e}').format(it, cost, misfit, regul, \
+    medmisfit, medmisfit/normmtrue, gradnorm, \
     gradnormrel, InvPb.gradxdir/(gradnorm*srchdirnorm), alpha)
     # Stopping criteria:
     if not LSsuccess:
