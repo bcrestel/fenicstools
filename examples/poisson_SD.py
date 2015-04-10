@@ -2,7 +2,7 @@ import numpy as np
 from dolfin import *
 from fenicstools.objectivefunctional import ObjFctalElliptic
 from fenicstools.plotfenics import PlotFenics
-from fenicstools.optimsolver import checkgradfd, bcktrcklinesearch
+from fenicstools.optimsolver import checkgradfd, checkhessfd, bcktrcklinesearch
 
 # Domain
 mesh = UnitSquareMesh(12,12)
@@ -30,7 +30,8 @@ UD = goal.U
 # TO BE DONE
 
 # Set up optimization 
-InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], [], UD, 1e-10)
+gamma =1e-16 
+InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], [], UD, gamma)
 InvPb.update_m(1.0)
 InvPb.solvefwd_cost()
 cost, misfit, regul = InvPb.getcost()
@@ -42,13 +43,15 @@ print ('{:2d} {:12.5e} {:12.5e} {:12.5e} {:10.2e} {:6.3f}').format(0, \
 cost, misfit, regul, medmisfit, medmisfit/normmtrue)
 maxiter = 100 
 alpha_init = 1e3
-nbgradcheck = 2
+nbcheck = 4
 nbLS = 20
 
 # Iteration
 for it in range(1, maxiter+1):
     InvPb.solveadj_constructgrad()
-    if it == 1 or it % 20 == 0: checkgradfd(InvPb, nbgradcheck)
+    if it == 1 or it % 20 == 0: 
+        checkgradfd(InvPb, nbcheck)
+        checkhessfd(InvPb, nbcheck)
     InvPb.set_searchdirection('sd')
     LSsuccess, LScount, alpha = bcktrcklinesearch(InvPb, nbLS, alpha_init)
     # Print results

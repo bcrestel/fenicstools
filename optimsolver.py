@@ -1,5 +1,6 @@
 import numpy as np
 import objectivefunctional
+from dolfin import *
 
 """Contains functions used to solve optimization problem"""
 
@@ -8,6 +9,7 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6):
     object"""
     FDobj = ObjFctal.copy()
     lenm = len(FDobj.getmarray())
+    ObjFctal.backup_m()
     rnddirc = np.random.randn(nbgradcheck, lenm)
     H = [1e-5, 1e-4, 1e-3]
     factor = [1.0, -1.0]
@@ -18,7 +20,7 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6):
         for hh in H:
             cost = []
             for fact in factor:
-                FDobj.update_m(ObjFctal.getmarray() + fact*hh*dirct)
+                FDobj.update_m(ObjFctal.getmcopyarray() + fact*hh*dirct)
                 FDobj.solvefwd_cost()
                 cost.append(FDobj.cost)
             FDgrad = (cost[0] - cost[1])/(2.0*hh)
@@ -30,6 +32,53 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6):
             else:
                 print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e}'\
                 .format(hh, FDgrad, err)
+
+def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6):
+    """Finite-difference check for the Hessian of an ObjectiveFunctional
+    object"""
+    FDobj = ObjFctal.copy()
+    lenm = len(FDobj.getmarray())
+    ObjFctal.backup_m()
+    rnddirc = np.random.randn(nbhesscheck, lenm)
+    #H = [1e-5, 1e-4, 1e-3]
+    H = [1e-5]
+    factor = [1.0, -1.0]
+    Vm = FDobj.getVm()
+    hessxdir = Function(Vm)
+    dirfct = Function(Vm)
+#    hessxdir = FDobj.srchdir
+#    dirfct = FDobj.delta_m
+    for textnb, dirct in zip(range(lenm), rnddirc):
+        # Do computations for analytical Hessian:
+        print 'Hessian check -- direction {0}: '.format(textnb+1)
+        dirfct.vector()[:] = dirct
+        ObjFctal.mult(dirfct.vector(), hessxdir.vector())
+        xHy = []
+        for dd in rnddirc:
+            xHy.append(np.dot(dd, hessxdir.vector().array()))
+        print ', '.join('{:.5e}'.format(hh) for hh in xHy)
+        # Do computations for FD Hessian:
+        for hh in H:
+            print '\th={0:.1e}: '.format(hh)
+            MG = []
+            for fact in factor:
+                FDobj.update_m(ObjFctal.getmarray() + fact*hh*dirct)
+                FDobj.solvefwd_cost()
+                FDobj.solveadj_constructgrad()
+                MG.append(FDobj.getMGarray())
+            FDHessx = (MG[0] - MG[1])/(2.0*hh)
+            xHFDy = []
+            for dd in rnddirc:
+                xHFDy.append(np.dot(dd, FDHessx))
+            print ', '.join('{:.5e}'.format(hh) for hh in xHFDy)
+#            err = abs(mgdir - FDgrad) / abs(FDgrad)
+#            if err < tolgradchk:   
+#                print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e} -> OK!'\
+#                .format(hh, FDgrad, err)
+#                break
+#            else:
+#                print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e}'\
+#                .format(hh, FDgrad, err)
 
 def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
     """Run backtracking line search in 'search_direction'. 

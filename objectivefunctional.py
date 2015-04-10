@@ -59,6 +59,11 @@ class ObjectiveFunctional(LinearOperator):
         self.assemble_R(R)
         # Counters, tolerances and others
         self.nbPDEsolves = 0
+        ##### TEMP #####
+        m0=Constant('0')
+        def m0_bndy(x,on_boundary): return on_boundary
+        self.bcm = DirichletBC(Vm,m0,m0_bndy)
+        ##### TEMP #####
 
     def copy(self):
         """Define a copy method"""
@@ -77,26 +82,25 @@ class ObjectiveFunctional(LinearOperator):
         if self.B == []:   return uin.vector().array()
         else:   return self.B.dot(uin.vector().array())
 
-    def mult(self, x, y):
-        """mult(self, x, y): do y = Hessian * x
+    def mult(self, mhat, y):
+        """mult(self, mhat, y): do y = Hessian * mhat
         member self.GN sets full Hessian (=1.0) or GN Hessian (=0.0)"""
         y[:] = np.zeros(self.lenm)
         for C, E in zip(self.C, self.E):
-            # Solve for u_hat
-            C.transpmult(x, self.rhs.vector())
+            # Solve for uhat
+            C.transpmult(mhat, self.rhs.vector())
             self.bcadj.apply(self.rhs.vector())
             self.solve_A(self.u.vector(), -self.rhs.vector())
             # Solve for phat
-            E.transpmult(x, self.rhs.vector())
-            self.rhs.vector()[:] *= -1.0 * self.GN
-            self.rhs.vector()[:] += -(self.W * self.u.vector()).array()
+            E.transpmult(mhat, self.rhs.vector())
+            self.rhs.vector()[:] += (self.W * self.u.vector()).array()
             self.bcadj.apply(self.rhs.vector())
-            self.solve_A(self.p.vector(), self.rhs.vector())
+            self.solve_A(self.p.vector(), -self.rhs.vector())
             # Compute Hessian*x:
             y[:] += (C*self.p.vector()).array() + \
             self.GN*(E*self.u.vector()).array()
         y[:] /= len(self.C)
-        y[:] += (self.R * x).array()
+        y[:] += (self.R * mhat).array()
             #print self.rhs.vector().array()[:5]
             #print self.u.vector().array()[:5]
             #print self.p.vector().array()[:5]
@@ -105,6 +109,7 @@ class ObjectiveFunctional(LinearOperator):
     def getm(self): return self.m
     def getmarray(self):    return self.m.vector().array()
     def getmcopyarray(self):    return self.mcopy.vector().array()
+    def getVm(self):    return self.mtrial.function_space()
     def getMGarray(self):   return self.MG.vector().array()
     def getGradarray(self):   return self.Grad.vector().array()
     def getsearchdirarray(self):    return self.srchdir.vector().array()
@@ -130,7 +135,10 @@ class ObjectiveFunctional(LinearOperator):
             self.U.append(u_obs)
             if cost:
                 self.misfit += self.costfct(u_obs, self.UD[ii])
-            self.C.append(assemble(self.c))
+            ctmp = assemble(self.c)
+            self.bcm.apply(ctmp)
+            self.C.append(ctmp)
+            #self.C.append(assemble(self.c))
         if cost:
             self.misfit /= len(self.U)
             self.regul = 0.5 * np.dot(self.m.vector().array(), \
@@ -148,7 +156,10 @@ class ObjectiveFunctional(LinearOperator):
         for ii, C in enumerate(self.C):
             self.assemble_rhsadj(self.U[ii], self.UD[ii])
             self.solve_A(self.p.vector(), self.rhs.vector())
-            self.E.append(assemble(self.e))
+            etmp = assemble(self.e)
+            self.bcm.apply(etmp)
+            self.E.append(etmp)
+            #self.E.append(assemble(self.e))
             if grad:    MG += (C*self.p.vector()).array()
         if grad:
             self.MG.vector()[:] = MG/self.Nbsrc + \
@@ -212,6 +223,8 @@ class ObjectiveFunctional(LinearOperator):
     def _assemble_W(self):
         if self.B == []:
             self.W = assemble(inner(self.trial, self.test)*dx)
+            self.bc.zero(self.W)
+            self.bc.zero_columns(self.W, self.diff.vector(), 0)
         else:   self.W = []
 
     def assemble_R(self, R):
