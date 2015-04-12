@@ -87,12 +87,16 @@ class ObjectiveFunctional(LinearOperator):
             print self.u.vector().array()[:5]
             # Solve for phat
             E.transpmult(mhat, self.rhs.vector())
+            print self.rhs.vector().array()[:5]
             self.rhs.vector()[:] += (self.W * self.u.vector()).array()
+            print (self.W * self.u.vector()).array()[:5]
             self.bcadj.apply(self.rhs.vector())
             print self.rhs.vector().array()[:5]
             self.solve_A(self.p.vector(), -self.rhs.vector())
             print self.p.vector().array()[:5]
             # Compute Hessian*x:
+            print (C*self.p.vector()).array()[:5]
+            print (E*self.u.vector()).array()[:5]
             y[:] += (C*self.p.vector()).array() + \
             self.GN*(E*self.u.vector()).array()
         y[:] /= len(self.C)
