@@ -88,9 +88,12 @@ class ObjectiveFunctional(LinearOperator):
             print "uhat", self.u.vector().array()[:8]
             # Solve for phat
             E.transpmult(mhat, self.rhs.vector())
-            print "rhs", self.rhs.vector().array()[:8]
-            self.rhs.vector()[:] += (self.W * self.u.vector()).array()
-            print "W.u", (self.W * self.u.vector()).array()[:8]
+            Etmhat = self.rhs.vector().array()
+            print "rhs", Etmhat[:8]
+            Wu = (self.W * self.u.vector()).array()
+            print "W.u", Wu[:8]
+            #self.rhs.vector()[:] += (self.W * self.u.vector()).array()
+            self.rhs.vector()[:] = Etmhat + Wu
             print "rhs", self.rhs.vector().array()[:8]
             self.bcadj.apply(self.rhs.vector())
             print "rhs", self.rhs.vector().array()[:8]
