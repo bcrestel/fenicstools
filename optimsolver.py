@@ -40,26 +40,19 @@ def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6):
     lenm = len(FDobj.getmarray())
     ObjFctal.backup_m()
     rnddirc = np.random.randn(nbhesscheck, lenm)
-    #H = [1e-5, 1e-4, 1e-3]
-    H = [1e-5]
+    H = [1e-5, 1e-4, 1e-3]
     factor = [1.0, -1.0]
-    Vm = FDobj.getVm()
-    hessxdir = Function(Vm)
-    dirfct = Function(Vm)
-#    hessxdir = FDobj.srchdir
-#    dirfct = FDobj.delta_m
+    hessxdir = FDobj.srchdir
+    dirfct = FDobj.delta_m
     for textnb, dirct in zip(range(lenm), rnddirc):
         # Do computations for analytical Hessian:
-        print 'Hessian check -- direction {0}: '.format(textnb+1)
         dirfct.vector()[:] = dirct
         ObjFctal.mult(dirfct.vector(), hessxdir.vector())
-        xHy = []
-        for dd in rnddirc:
-            xHy.append(np.dot(dd, hessxdir.vector().array()))
-        print ', '.join('{:.5e}'.format(hh) for hh in xHy)
+        normhess = np.linalg.norm(hessxdir.vector().array())
+        print 'Hessian check -- direction {0}: ||H.x||={1:.5e}'\
+        .format(textnb+1, normhess)
         # Do computations for FD Hessian:
         for hh in H:
-            print '\th={0:.1e}: '.format(hh)
             MG = []
             for fact in factor:
                 FDobj.update_m(ObjFctal.getmarray() + fact*hh*dirct)
@@ -67,18 +60,17 @@ def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6):
                 FDobj.solveadj_constructgrad()
                 MG.append(FDobj.getMGarray())
             FDHessx = (MG[0] - MG[1])/(2.0*hh)
-            xHFDy = []
-            for dd in rnddirc:
-                xHFDy.append(np.dot(dd, FDHessx))
-            print ', '.join('{:.5e}'.format(hh) for hh in xHFDy)
-#            err = abs(mgdir - FDgrad) / abs(FDgrad)
-#            if err < tolgradchk:   
-#                print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e} -> OK!'\
-#                .format(hh, FDgrad, err)
-#                break
-#            else:
-#                print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e}'\
-#                .format(hh, FDgrad, err)
+            # Compute errors:
+            normFDhess = np.linalg.norm(FDHessx)
+            err = np.linalg.norm(hessxdir.vector().array() - FDHessx)/\
+            normhess
+            if err < tolgradchk:   
+                print '\th={0:.1e}: ||FDH.x||={1:.5e}, error={2:.2e} -> OK!'\
+                .format(hh, np.linalg.norm(FDHessx), err)
+                break
+            else:
+                print '\th={0:.1e}: ||FDH.x||={1:.5e}, error={2:.2e}'\
+                .format(hh, np.linalg.norm(FDHessx), err)
 
 def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
     """Run backtracking line search in 'search_direction'. 

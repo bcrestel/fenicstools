@@ -5,9 +5,6 @@ from dolfin import *
 from exceptionsfenics import WrongInstanceError
 set_log_active(False)
 
-#TODO: Move computations method to a different class (line search, gradient
-# check,...)
-# Test Hessian
 
 class ObjectiveFunctional(LinearOperator):
     """
@@ -59,11 +56,6 @@ class ObjectiveFunctional(LinearOperator):
         self.assemble_R(R)
         # Counters, tolerances and others
         self.nbPDEsolves = 0
-        ##### TEMP #####
-        m0=Constant('0')
-        def m0_bndy(x,on_boundary): return on_boundary
-        self.bcm = DirichletBC(Vm,m0,m0_bndy)
-        ##### TEMP #####
 
     def copy(self):
         """Define a copy method"""
@@ -135,10 +127,7 @@ class ObjectiveFunctional(LinearOperator):
             self.U.append(u_obs)
             if cost:
                 self.misfit += self.costfct(u_obs, self.UD[ii])
-            ctmp = assemble(self.c)
-            self.bcm.apply(ctmp)
-            self.C.append(ctmp)
-            #self.C.append(assemble(self.c))
+            self.C.append(assemble(self.c))
         if cost:
             self.misfit /= len(self.U)
             self.regul = 0.5 * np.dot(self.m.vector().array(), \
@@ -156,10 +145,7 @@ class ObjectiveFunctional(LinearOperator):
         for ii, C in enumerate(self.C):
             self.assemble_rhsadj(self.U[ii], self.UD[ii])
             self.solve_A(self.p.vector(), self.rhs.vector())
-            etmp = assemble(self.e)
-            self.bcm.apply(etmp)
-            self.E.append(etmp)
-            #self.E.append(assemble(self.e))
+            self.E.append(assemble(self.e))
             if grad:    MG += (C*self.p.vector()).array()
         if grad:
             self.MG.vector()[:] = MG/self.Nbsrc + \
@@ -223,8 +209,8 @@ class ObjectiveFunctional(LinearOperator):
     def _assemble_W(self):
         if self.B == []:
             self.W = assemble(inner(self.trial, self.test)*dx)
-            self.bc.zero(self.W)
-            self.bc.zero_columns(self.W, self.diff.vector(), 0)
+#            self.bc.zero(self.W)
+#            self.bc.zero_columns(self.W, self.diff.vector(), 0)
         else:   self.W = []
 
     def assemble_R(self, R):
