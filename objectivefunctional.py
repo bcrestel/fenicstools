@@ -82,20 +82,21 @@ class ObjectiveFunctional(LinearOperator):
             # Solve for uhat
             C.transpmult(mhat, self.rhs.vector())
             self.bcadj.apply(self.rhs.vector())
+            print self.rhs.vector().array()[:5]
             self.solve_A(self.u.vector(), -self.rhs.vector())
+            print self.u.vector().array()[:5]
             # Solve for phat
             E.transpmult(mhat, self.rhs.vector())
             self.rhs.vector()[:] += (self.W * self.u.vector()).array()
             self.bcadj.apply(self.rhs.vector())
+            print self.rhs.vector().array()[:5]
             self.solve_A(self.p.vector(), -self.rhs.vector())
+            print self.p.vector().array()[:5]
             # Compute Hessian*x:
             y[:] += (C*self.p.vector()).array() + \
             self.GN*(E*self.u.vector()).array()
         y[:] /= len(self.C)
         y[:] += (self.R * mhat).array()
-            #print self.rhs.vector().array()[:5]
-            #print self.u.vector().array()[:5]
-            #print self.p.vector().array()[:5]
 
     # Getters
     def getm(self): return self.m

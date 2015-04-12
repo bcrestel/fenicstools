@@ -49,9 +49,13 @@ nbLS = 20
 # Iteration
 for it in range(1, maxiter+1):
     InvPb.solveadj_constructgrad()
+    print InvPb.Grad.vector().array()[:5]
+    InvPb.mult(InvPb.Grad.vector(), InvPb.delta_m.vector())
+    print InvPb.delta_m.vector().array()[:5]
     if it == 1 or it % 20 == 0: 
         checkgradfd(InvPb, nbcheck)
         checkhessfd(InvPb, nbcheck)
+    break
     InvPb.set_searchdirection('sd')
     LSsuccess, LScount, alpha = bcktrcklinesearch(InvPb, nbLS, alpha_init)
     # Print results
