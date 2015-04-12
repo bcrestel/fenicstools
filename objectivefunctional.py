@@ -81,22 +81,24 @@ class ObjectiveFunctional(LinearOperator):
         for C, E in zip(self.C, self.E):
             # Solve for uhat
             C.transpmult(mhat, self.rhs.vector())
+            print "Ct.mhat", self.rhs.vector().array()[:8]
             self.bcadj.apply(self.rhs.vector())
-            print self.rhs.vector().array()[:5]
+            print "rhs", self.rhs.vector().array()[:8]
             self.solve_A(self.u.vector(), -self.rhs.vector())
-            print self.u.vector().array()[:5]
+            print "uhat", self.u.vector().array()[:8]
             # Solve for phat
             E.transpmult(mhat, self.rhs.vector())
-            print self.rhs.vector().array()[:5]
+            print "rhs", self.rhs.vector().array()[:8]
             self.rhs.vector()[:] += (self.W * self.u.vector()).array()
-            print (self.W * self.u.vector()).array()[:5]
+            print "W.u", (self.W * self.u.vector()).array()[:8]
+            print "rhs", self.rhs.vector().array()[:8]
             self.bcadj.apply(self.rhs.vector())
-            print self.rhs.vector().array()[:5]
+            print "rhs", self.rhs.vector().array()[:8]
             self.solve_A(self.p.vector(), -self.rhs.vector())
-            print self.p.vector().array()[:5]
+            print "phat", self.p.vector().array()[:8]
             # Compute Hessian*x:
-            print (C*self.p.vector()).array()[:5]
-            print (E*self.u.vector()).array()[:5]
+            print "C.phat", (C*self.p.vector()).array()[:8]
+            print "E.uhat", (E*self.u.vector()).array()[:8]
             y[:] += (C*self.p.vector()).array() + \
             self.GN*(E*self.u.vector()).array()
         y[:] /= len(self.C)
