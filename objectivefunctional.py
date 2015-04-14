@@ -101,10 +101,23 @@ class ObjectiveFunctional(LinearOperator):
     def getmcopyarray(self):    return self.mcopy.vector().array()
     def getVm(self):    return self.mtrial.function_space()
     def getMGarray(self):   return self.MG.vector().array()
+    def getMGvec(self):   return self.MG.vector()
     def getGradarray(self):   return self.Grad.vector().array()
-    def getsearchdirarray(self):    return self.srchdir.vector().array()
+    def getsrchdirarray(self):    return self.srchdir.vector().array()
+    def getsrchdirvec(self):    return self.srchdir.vector()
     def getgradxdir(self): return self.gradxdir
     def getcost(self):  return self.cost, self.misfit, self.regul
+    def getprecond(self):
+        Prec = PETScKrylovSolver("richardson", "amg")
+        Prec.parameters["maximum_iterations"] = 1
+        Prec.parameters["error_on_nonconvergence"] = False
+        Prec.parameters["nonzero_initial_guess"] = False
+        Prec.set_operator(self.R + 1e-12*self.MM)
+        return Prec
+
+    # Setters
+    def setsrchdir(self, arr):  self.srchdir.vector()[:] = arr
+    def setgradxdir(self, arr):   self.gradxdir = arr
 
     # Solve
     def costfct(self, uin, udin):
@@ -153,16 +166,6 @@ class ObjectiveFunctional(LinearOperator):
     def solveadj_constructgrad(self):
         """Solve adj operators and assemble gradient"""
         self.solveadj(True)
-
-    def set_searchdirection(self, keyword):
-        """Set up search direction based on 'keyword'. 
-        'keyword' can be: 'sd'."""
-        if keyword == 'sd':
-            self.srchdir.vector()[:] = -1.0*self.Grad.vector().array()
-        self.gradxdir = np.dot(self.srchdir.vector().array(), \
-        self.MG.vector().array())
-        if self.gradxdir > 0.0: 
-            raise ValueError("Search direction is not a descent direction")
 
     # Assembler
     def assemble_A(self):
@@ -260,6 +263,11 @@ class ObjectiveFunctional(LinearOperator):
 
     def resetPDEsolves(self):
         self.nbPDEsolves = 0
+
+    # Additional methods for compatibility with solver:
+    def init_vector(self, x, dim):
+        """Initialize vector x to be compatible with parameter"""
+        self.R.init_vector(x, 0)
 
     # Abstract methods
     @abc.abstractmethod

@@ -1,5 +1,6 @@
 import numpy as np
 import objectivefunctional
+from pylib.cgsolverSteihaug import CGSolverSteihaug
 from dolfin import *
 
 """Contains functions used to solve optimization problem"""
@@ -72,6 +73,34 @@ def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6):
                 print '\th={0:.1e}: ||FDH.x||={1:.5e}, error={2:.2e}'\
                 .format(hh, np.linalg.norm(FDHessx), err)
 
+def compute_searchdirection(ObjFctal, keyword, tolcg=None):
+    """Compute search direction for Line Search based on keyword.
+    keyword can be 'sd' (steepest descent) or 'Newt' (Newton's method).
+    Whether we use full Hessian or GN Hessian in Newton's method depend on
+parameter ObjFctal.GN
+
+    ObjFctal = object from class ObjectiveFunctional
+    keyword = 'sd' or 'Newt'
+    """
+    if keyword == 'sd':
+        ObjFctal.setsrchdir(-1.0*ObjFctal.getGradarray())
+    elif keyword == 'Newt':
+        solver = CGSolverSteihaug()
+        solver.set_operator(ObjFctal)
+        solver.set_preconditioner(ObjFctal.getprecond())
+        solver.parameters["rel_tolerance"] = tolcg
+        solver.parameters["zero_initial_guess"] = True
+        #solver.parameters["print_level"] = print_level-1
+        solver.solve(ObjFctal.srchdir.vector(), -ObjFctal.MG.vector())
+    else:
+        raise ValueError("Wrong keyword")
+    ObjFctal.setgradxdir( np.dot(ObjFctal.getsrchdirarray(), \
+    ObjFctal.getMGarray()) )
+    if ObjFctal.getgradxdir() > 0.0: 
+        raise ValueError("Search direction is not a descent direction")
+        assert False
+
+
 def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
     """Run backtracking line search in 'search_direction'. 
     Default 'search_direction is steepest descent.
@@ -87,7 +116,7 @@ def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
     LScount = 0
     success = False
     alpha = alpha_init
-    srch_dir = ObjFctal.getsearchdirarray()
+    srch_dir = ObjFctal.getsrchdirarray()
     # Start Line Search:
     while LScount < nbLS:
         LScount += 1

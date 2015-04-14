@@ -2,7 +2,8 @@ import numpy as np
 from dolfin import *
 from fenicstools.objectivefunctional import ObjFctalElliptic
 from fenicstools.plotfenics import PlotFenics
-from fenicstools.optimsolver import checkgradfd, checkhessfd, bcktrcklinesearch
+from fenicstools.optimsolver import checkgradfd, checkhessfd, \
+bcktrcklinesearch, compute_searchdirection
 
 # Domain
 mesh = UnitSquareMesh(12,12)
@@ -42,8 +43,9 @@ medmisfit = errornorm(InvPb.m, mtrue, 'l2', 1)
 print ('{:2d} {:12.5e} {:12.5e} {:12.5e} {:10.2e} {:6.3f}').format(0, \
 cost, misfit, regul, medmisfit, medmisfit/normmtrue)
 maxiter = 100 
-alpha_init = 1e3
-nbcheck = 4
+#alpha_init = 1e3
+alpha_init = 1.0
+nbcheck = 0
 nbLS = 20
 
 # Iteration
@@ -53,15 +55,18 @@ for it in range(1, maxiter+1):
     if it == 1 or it % 20 == 0: 
         checkgradfd(InvPb, nbcheck)
         checkhessfd(InvPb, nbcheck)
-    InvPb.set_searchdirection('sd')
-    LSsuccess, LScount, alpha = bcktrcklinesearch(InvPb, nbLS, alpha_init)
-    # Print results
     gradnorm = np.sqrt(np.dot(InvPb.getGradarray(), \
     InvPb.getMGarray()))
     if it == 1:   gradnorm_init = gradnorm
-    gradnormrel = gradnorm/gradnorm_init
-    srchdirnorm = np.sqrt(np.dot(InvPb.getsearchdirarray(), \
-    (InvPb.MM*InvPb.getsearchdirarray())))
+    gradnormrel = gradnorm/max(1.0, gradnorm_init)
+    tolcg = min(0.5, np.sqrt(gradnormrel))
+    #tolcg = 1e-12
+    compute_searchdirection(InvPb, 'Newt', tolcg)
+    #compute_searchdirection(InvPb, 'sd')
+    LSsuccess, LScount, alpha = bcktrcklinesearch(InvPb, nbLS, alpha_init)
+    # Print results
+    srchdirnorm = np.sqrt(np.dot(InvPb.getsrchdirarray(), \
+    (InvPb.MM*InvPb.getsrchdirarray())))
     medmisfit = errornorm(InvPb.getm(), mtrue, 'l2', 1)
     cost, misfit, regul = InvPb.getcost()
     print ('{:2d} {:12.5e} {:12.5e} {:12.5e} {:10.2e} {:6.3f} {:12.5e} ' + \
