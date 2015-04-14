@@ -30,7 +30,7 @@ UD = goal.U
 # TO BE DONE
 
 # Set up optimization 
-gamma =1e-16 
+gamma =1e-10
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], [], UD, gamma)
 InvPb.update_m(1.0)
 InvPb.solvefwd_cost()
@@ -49,10 +49,7 @@ nbLS = 20
 # Iteration
 for it in range(1, maxiter+1):
     InvPb.solveadj_constructgrad()
-    print "Grad", InvPb.Grad.vector().array()[:5]
     InvPb.mult(InvPb.Grad.vector(), InvPb.delta_m.vector())
-    print "H.Grad", InvPb.delta_m.vector().array()[:5]
-    break
     if it == 1 or it % 20 == 0: 
         checkgradfd(InvPb, nbcheck)
         checkhessfd(InvPb, nbcheck)

@@ -77,35 +77,23 @@ class ObjectiveFunctional(LinearOperator):
     def mult(self, mhat, y):
         """mult(self, mhat, y): do y = Hessian * mhat
         member self.GN sets full Hessian (=1.0) or GN Hessian (=0.0)"""
+        N = self.Nbsrc # Number of sources
         y[:] = np.zeros(self.lenm)
         for C, E in zip(self.C, self.E):
             # Solve for uhat
             C.transpmult(mhat, self.rhs.vector())
-            print "Ct.mhat", self.rhs.vector().array()[:8]
             self.bcadj.apply(self.rhs.vector())
-            print "rhs", self.rhs.vector().array()[:8]
             self.solve_A(self.u.vector(), -self.rhs.vector())
-            print "uhat", self.u.vector().array()[:8]
             # Solve for phat
             E.transpmult(mhat, self.rhs.vector())
             Etmhat = self.rhs.vector().array()
-            print "rhs", Etmhat[:8]
-            Wu = (self.W * self.u.vector()).array()
-            print "W.u", Wu[:8]
-            #self.rhs.vector()[:] += (self.W * self.u.vector()).array()
-            self.rhs.vector()[:] = Etmhat + Wu
-            print "rhs", self.rhs.vector().array()[:8]
+            self.rhs.vector().axpy(1.0, self.W * self.u.vector())
             self.bcadj.apply(self.rhs.vector())
-            print "rhs", self.rhs.vector().array()[:8]
             self.solve_A(self.p.vector(), -self.rhs.vector())
-            print "phat", self.p.vector().array()[:8]
             # Compute Hessian*x:
-            print "C.phat", (C*self.p.vector()).array()[:8]
-            print "E.uhat", (E*self.u.vector()).array()[:8]
-            y[:] += (C*self.p.vector()).array() + \
-            self.GN*(E*self.u.vector()).array()
-        y[:] /= len(self.C)
-        y[:] += (self.R * mhat).array()
+            y.axpy(1.0/N, C * self.p.vector())
+            y.axpy(self.GN/N, E * self.u.vector())
+        y.axpy(1.0, self.R * mhat)
 
     # Getters
     def getm(self): return self.m
@@ -151,15 +139,15 @@ class ObjectiveFunctional(LinearOperator):
     def solveadj(self, grad=False):
         """Solve adj operators"""
         self.Nbsrc = len(self.UD)
-        if grad:    MG = np.zeros(self.lenm)
+        if grad:    self.MG.vector()[:] = np.zeros(self.lenm)
         for ii, C in enumerate(self.C):
             self.assemble_rhsadj(self.U[ii], self.UD[ii])
             self.solve_A(self.p.vector(), self.rhs.vector())
             self.E.append(assemble(self.e))
-            if grad:    MG += (C*self.p.vector()).array()
+            if grad:    self.MG.vector().axpy(1.0/self.Nbsrc, \
+                        C * self.p.vector())
         if grad:
-            self.MG.vector()[:] = MG/self.Nbsrc + \
-            (self.R * self.m.vector()).array()
+            self.MG.vector().axpy(1.0, self.R * self.m.vector())
             self.solverM.solve(self.Grad.vector(), self.MG.vector())
 
     def solveadj_constructgrad(self):
@@ -219,8 +207,6 @@ class ObjectiveFunctional(LinearOperator):
     def _assemble_W(self):
         if self.B == []:
             self.W = assemble(inner(self.trial, self.test)*dx)
-#            self.bc.zero(self.W)
-#            self.bc.zero_columns(self.W, self.diff.vector(), 0)
         else:   self.W = []
 
     def assemble_R(self, R):
