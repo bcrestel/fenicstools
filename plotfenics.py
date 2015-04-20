@@ -11,18 +11,17 @@ class PlotFenics:
     Fenics_vtu_correction = '000000'
 
     # Instantiation
-    def __init__(self, Outputfolder=[]):
-        self.outdir = Outputfolder 
-        if not self.outdir == []:   self.set_outdir(self.outdir)
+    def __init__(self, Outputfolder=None):
+        self.set_outdir(self.outdir)
         self.indices = []
         self.varname = []
 
-    def set_outdir(self, new_dir='Outputs/Plots/'):
+    def set_outdir(self, new_dir_in)
         """set output directory and creates it if needed"""
+        if new_dir_in == None:  new_dir = 'Outputs/Plots/'
+        else:   new_dir = new_dir_in
         self.outdir = new_dir
-        # Check directory exists
-        if not isdir(new_dir):
-            os.makedirs(new_dir)
+        if not isdir(new_dir):  os.makedirs(new_dir)
 
     def reset_indices(self):
         self.indices = []

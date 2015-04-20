@@ -3,6 +3,7 @@ import numpy as np
 
 from dolfin import *
 from exceptionsfenics import WrongInstanceError
+from plotfenics import PlotFenics
 set_log_active(False)
 
 
@@ -15,7 +16,7 @@ class ObjectiveFunctional(LinearOperator):
 
     # Instantiation
     def __init__(self, V, Vm, bc, bcadj, RHSinput=[], B=[], UD=[], R=[], \
-    Data=[]):
+    Data=[], plot=True):
         # Define test, trial and all other functions
         self.trial = TrialFunction(V)
         self.test = TestFunction(V)
@@ -55,7 +56,10 @@ class ObjectiveFunctional(LinearOperator):
         self._assemble_W()
         self.assemble_R(R)
         # Counters, tolerances and others
-        self.nbPDEsolves = 0
+        self.nbPDEsolves = 0    # Updated when solve_A called
+        self.nbfwdsolves = 0
+        self.nbadjsolves = 0
+        self._set_plots(plot)
 
     def copy(self):
         """Define a copy method"""
@@ -131,9 +135,14 @@ class ObjectiveFunctional(LinearOperator):
 
     def solvefwd(self, cost=False):
         """Solve fwd operators for given RHS"""
+        self.nbfwdsolves += 1
+        if self.plot:
+            self.plotu = PlotFenics()
+            self.plotu.set_varname('u{0}'.format(self.nbfwdsolves))
         if cost:    self.misfit = 0.0
         for ii, rhs in enumerate(self.RHS):
             self.solve_A(self.u.vector(), rhs)
+            if self.plot:   self.plotu.plot_vtk(self.u, ii)
             u_obs = self.obs(self.u)
             self.U.append(u_obs)
             if cost:
@@ -144,6 +153,7 @@ class ObjectiveFunctional(LinearOperator):
             self.regul = 0.5 * np.dot(self.m.vector().array(), \
             (self.R * self.m.vector()).array())
             self.cost = self.misfit + self.regul
+        if self.plot:   self.plotu.gather_vtkplots()
 
     def solvefwd_cost(self):
         """Solve fwd operators for given RHS and compute cost fct"""
@@ -151,17 +161,23 @@ class ObjectiveFunctional(LinearOperator):
 
     def solveadj(self, grad=False):
         """Solve adj operators"""
+        self.nbadjsolves += 1
+        if self.plot:
+            self.plotp = PlotFenics()
+            self.plotp.set_varname('p{0}'.format(self.nbadjsolves))
         self.Nbsrc = len(self.UD)
         if grad:    self.MG.vector()[:] = np.zeros(self.lenm)
         for ii, C in enumerate(self.C):
             self.assemble_rhsadj(self.U[ii], self.UD[ii])
             self.solve_A(self.p.vector(), self.rhs.vector())
+            if self.plot:   self.plotp.plot_vtk(self.p, ii)
             self.E.append(assemble(self.e))
             if grad:    self.MG.vector().axpy(1.0/self.Nbsrc, \
                         C * self.p.vector())
         if grad:
             self.MG.vector().axpy(1.0, self.R * self.m.vector())
             self.solverM.solve(self.Grad.vector(), self.MG.vector())
+        if self.plot:   self.plotp.gather_vtkplots()
 
     def solveadj_constructgrad(self):
         """Solve adj operators and assemble gradient"""
@@ -221,6 +237,18 @@ class ObjectiveFunctional(LinearOperator):
             else:
                 self.R = R
 
+    def _set_plots(self, plot):
+        self.plot = plot
+        if self.plot:
+            self.plotm = PlotFenics()
+            self.plotm.set_varname('m')
+
+    def plotm(self, index):
+        if self.plot:   self.plotm.plot_vtk(self.m, index)
+
+    def gatherm(self):
+        if self.plot:   self.plotm.gather_vtkplots()
+
     # Update param
     def update_Data(self, Data):
         """Update Data member"""
@@ -264,7 +292,7 @@ class ObjectiveFunctional(LinearOperator):
     def resetPDEsolves(self):
         self.nbPDEsolves = 0
 
-    # Additional methods for compatibility with solver:
+    # Additional methods for compatibility with CG solver:
     def init_vector(self, x, dim):
         """Initialize vector x to be compatible with parameter"""
         self.R.init_vector(x, 0)
