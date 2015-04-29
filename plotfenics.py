@@ -12,11 +12,12 @@ class PlotFenics:
 
     # Instantiation
     def __init__(self, Outputfolder=None):
+        self.outdir = Outputfolder
         self.set_outdir(self.outdir)
         self.indices = []
         self.varname = []
 
-    def set_outdir(self, new_dir_in)
+    def set_outdir(self, new_dir_in):
         """set output directory and creates it if needed"""
         if new_dir_in == None:  new_dir = 'Outputs/Plots/'
         else:   new_dir = new_dir_in

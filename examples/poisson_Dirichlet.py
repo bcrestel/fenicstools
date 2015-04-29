@@ -40,8 +40,9 @@ medmisfit = errornorm(InvPb.m, mtrue, 'l2', 1)
 print ('{:2d} {:12.5e} {:12.5e} {:12.5e} {:10.2e} {:6.3f}').format(0, \
 cost, misfit, regul, medmisfit, medmisfit/normmtrue)
 maxiter = 100 
-#alpha_init = 1e3
-alpha_init = 1.0
+meth = 'sd'
+if meth == 'sd':    alpha_init = 1e3
+elif meth == 'Newt':    alpha_init = 1.0
 nbcheck = 0
 nbLS = 20
 
@@ -57,9 +58,7 @@ for it in range(1, maxiter+1):
     if it == 1:   gradnorm_init = gradnorm
     gradnormrel = gradnorm/max(1.0, gradnorm_init)
     tolcg = min(0.5, np.sqrt(gradnormrel))
-    #tolcg = 1e-12
-    compute_searchdirection(InvPb, 'Newt', tolcg)
-    #compute_searchdirection(InvPb, 'sd')
+    compute_searchdirection(InvPb, meth, tolcg)
     LSsuccess, LScount, alpha = bcktrcklinesearch(InvPb, nbLS, alpha_init)
     # Print results
     srchdirnorm = np.sqrt(np.dot(InvPb.getsrchdirarray(), \
@@ -78,8 +77,9 @@ for it in range(1, maxiter+1):
         print "Optimization converged!"
         break
     # Set up next iteration
-#    if LScount == 1:    alpha_init = 10.*alpha
-#    elif LScount < 5:   alpha_init = 4.*alpha
-#    else:   alpha_init = alpha
+    if meth == 'sd':
+        if LScount == 1:    alpha_init = 10.*alpha
+        elif LScount < 5:   alpha_init = 4.*alpha
+        else:   alpha_init = alpha
 
 if it == maxiter:   print "Max nb of iterations reached."
