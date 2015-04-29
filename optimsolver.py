@@ -1,3 +1,4 @@
+import sys
 import numpy as np
 import objectivefunctional
 from pylib.cgsolverSteihaug import CGSolverSteihaug
@@ -98,7 +99,7 @@ parameter ObjFctal.GN
     ObjFctal.getMGarray()) )
     if ObjFctal.getgradxdir() > 0.0: 
         raise ValueError("Search direction is not a descent direction")
-        assert False
+        sys.exit(1)
 
 
 def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
