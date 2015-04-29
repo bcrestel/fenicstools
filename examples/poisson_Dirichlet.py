@@ -1,6 +1,6 @@
 import numpy as np
 from dolfin import *
-from fenicstools.objectivefunctional import ObjFctalElliptic
+from fenicstools.objectivefunctional import ObjFctalElliptic, ObsEntireDomain
 from fenicstools.optimsolver import checkgradfd, checkhessfd, \
 bcktrcklinesearch, compute_searchdirection
 
@@ -20,7 +20,8 @@ mtrue_exp = Expression('1 + 7*(pow(pow(x[0] - 0.5,2) +' + \
 mtrue = interpolate(mtrue_exp, Vme)
 normmtrue = norm(mtrue)
 f = Expression("1.0")
-goal = ObjFctalElliptic(V, Vme, bc, bc, [f], [], [], [], [], False)
+ObsOp = ObsEntireDomain({'V': V})
+goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False)
 goal.update_m(mtrue)
 goal.solvefwd()
 UD = goal.U
@@ -29,7 +30,7 @@ UD = goal.U
 
 # Set up optimization:
 gamma = 1e-10
-InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], [], UD, gamma)
+InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UD, gamma)
 InvPb.update_m(1.0) # Set initial medium
 InvPb.solvefwd_cost()
 cost, misfit, regul = InvPb.getcost()
@@ -44,7 +45,7 @@ maxiter = 100
 meth = 'Newt'
 if meth == 'sd':    alpha_init = 1e3
 elif meth == 'Newt':    alpha_init = 1.0
-nbcheck = 0
+nbcheck = 2
 nbLS = 20
 
 # Iteration

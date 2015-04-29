@@ -17,7 +17,7 @@ class ObjectiveFunctional(LinearOperator):
     __metaclass__ = abc.ABCMeta
 
     # Instantiation
-    def __init__(self, V, Vm, bc, bcadj, RHSinput=[], B=[], UD=[], R=[], \
+    def __init__(self, V, Vm, bc, bcadj, RHSinput=[], ObsOp=[], UD=[], R=[], \
     Data=[], plot=True):
         # Define test, trial and all other functions
         self.trial = TrialFunction(V)
@@ -41,7 +41,7 @@ class ObjectiveFunctional(LinearOperator):
         self._wkformc()
         self._wkforme()
         # Store other info:
-        self.B = B
+        self.ObsOp = ObsOp
         self.Ladj = - inner(self.u - self.ud, self.test)*dx
         self.UD = UD
         self.reset()
@@ -55,7 +55,6 @@ class ObjectiveFunctional(LinearOperator):
         self._assemble_solverM(Vm)
         self.assemble_A()
         self.assemble_RHS(RHSinput)
-        self._assemble_W()
         self.assemble_R(R)
         # Counters, tolerances and others
         self.nbPDEsolves = 0    # Updated when solve_A called
@@ -67,18 +66,12 @@ class ObjectiveFunctional(LinearOperator):
         """Define a copy method"""
         V = self.trial.function_space()
         Vm = self.mtrial.function_space()
-        newobj = self.__class__(V, Vm, self.bc, self.bcadj, [], self.B, \
+        newobj = self.__class__(V, Vm, self.bc, self.bcadj, [], self.ObsOp, \
         self.UD, [], self.Data, False)
         newobj.RHS = self.RHS
         newobj.R = self.R
         newobj.update_m(self.m)
         return newobj
-
-    def obs(self, uin):
-        """Apply observation operator based on self.B"""
-        assert uin.__class__ == Function
-        if self.B == []:   return uin.vector().array()
-        else:   return self.B.dot(uin.vector().array())
 
     def mult(self, mhat, y):
         """mult(self, mhat, y): do y = Hessian * mhat
@@ -93,7 +86,7 @@ class ObjectiveFunctional(LinearOperator):
             # Solve for phat
             E.transpmult(mhat, self.rhs.vector())
             Etmhat = self.rhs.vector().array()
-            self.rhs.vector().axpy(1.0, self.W * self.u.vector())
+            self.rhs.vector().axpy(1.0, self.ObsOp.incradj(self.u))
             self.bcadj.apply(self.rhs.vector())
             self.solve_A(self.p.vector(), -self.rhs.vector())
             # Compute Hessian*x:
@@ -126,15 +119,6 @@ class ObjectiveFunctional(LinearOperator):
     def setgradxdir(self, arr):   self.gradxdir = arr
 
     # Solve
-    def costfct(self, uin, udin):
-        """Compute cost functional for 2 entries"""
-        if self.W == []:
-            return 0.5*np.dot(uin, udin)
-        else:
-            self.diff.vector()[:] = uin - udin
-            return 0.5*np.dot(self.diff.vector().array(), \
-            (self.W * self.diff.vector()).array())
-
     def solvefwd(self, cost=False):
         """Solve fwd operators for given RHS"""
         self.nbfwdsolves += 1
@@ -145,10 +129,10 @@ class ObjectiveFunctional(LinearOperator):
         for ii, rhs in enumerate(self.RHS):
             self.solve_A(self.u.vector(), rhs)
             if self.plot:   self.plotu.plot_vtk(self.u, ii)
-            u_obs = self.obs(self.u)
+            u_obs = self.ObsOp.obs(self.u)
             self.U.append(u_obs)
             if cost:
-                self.misfit += self.costfct(u_obs, self.UD[ii])
+                self.misfit += self.ObsOp.costfct(u_obs, self.UD[ii])
             self.C.append(assemble(self.c))
         if cost:
             self.misfit /= len(self.U)
@@ -170,7 +154,8 @@ class ObjectiveFunctional(LinearOperator):
         self.Nbsrc = len(self.UD)
         if grad:    self.MG.vector()[:] = np.zeros(self.lenm)
         for ii, C in enumerate(self.C):
-            self.assemble_rhsadj(self.U[ii], self.UD[ii])
+            self.ObsOp.assemble_rhsadj(self.U[ii], self.UD[ii], \
+            self.rhs, self.bcadj)
             self.solve_A(self.p.vector(), self.rhs.vector())
             if self.plot:   self.plotp.plot_vtk(self.p, ii)
             self.E.append(assemble(self.e))
@@ -209,14 +194,7 @@ class ObjectiveFunctional(LinearOperator):
                     b = assemble(L)
                     self.bc.apply(b)
                     self.RHS.append(b)
-                else:   
-                    raise WrongInstanceError("rhs should be Expression")
-
-    def assemble_rhsadj(self, U, UD):
-        """Assemble rhs for adjoint equation"""
-        self.diff.vector()[:] = U - UD
-        self.rhs.vector()[:] = - (self.W * self.diff.vector()).array()
-        self.bcadj.apply(self.rhs.vector())
+                else:   raise WrongInstanceError("rhs should be Expression")
 
     def _assemble_solverM(self, Vm):
         self.MM = assemble(inner(self.mtrial, self.mtest)*dx)
@@ -224,11 +202,6 @@ class ObjectiveFunctional(LinearOperator):
         self.solverM.parameters['reuse_factorization'] = True
         self.solverM.parameters['symmetric'] = True
         self.solverM.set_operator(self.MM)
-
-    def _assemble_W(self):
-        if self.B == []:
-            self.W = assemble(inner(self.trial, self.test)*dx)
-        else:   self.W = []
 
     def assemble_R(self, R):
         if R == []: self.R = None
@@ -303,27 +276,49 @@ class ObjectiveFunctional(LinearOperator):
 
     # Abstract methods
     @abc.abstractmethod
-    def _wkforma(self):
-        self.a = []
+    def _wkforma(self): self.a = []
 
     @abc.abstractmethod
-    def _wkformc(self):
-        self.c = []
+    def _wkformc(self): self.c = []
 
     @abc.abstractmethod
-    def _wkforme(self):
-        self.e = []
+    def _wkforme(self): self.e = []
 
 
-"""
 class ObservationOperator():
-    " ""Define observation operator and all actions using this observation
-    operator, i.e., cost function, rhs in adj eqn and term in incr. adj eqn"" "
+    """Define observation operator and all actions using this observation
+    operator, i.e., cost function, rhs in adj eqn and term in incr. adj eqn"""
     __metaclass__ = abc.ABCMeta
 
     #Instantiation
     def __init__(self, Parameters=None):
-"""
+        self.Parameters = Parameters
+        self._assemble()
+
+    @abc.abstractmethod
+    def _assemble(self):    print "Needs to be implemented"
+
+    @abc.abstractmethod
+    def obs(self, uin): print "Needs to be implemented"
+
+    @abc.abstractmethod
+    def costfct(self, uin, udin):   print "Needs to be implemented"
+
+    @abc.abstractmethod
+    def assemble_rhsadj(self, uin, udin):   print "Needs to be implemented"
+        
+    @abc.abstractmethod
+    def incradj(self, uin):    print "Needs to be implemented"
+
+    # Checkers
+    def isFunction(self, uin):
+        if not isinstance(uin, Function):
+         raise WrongInstanceError("uin should be a Dolfin Function")
+            
+    def isarray(self, uin, udin):
+        if not (isinstance(uin, np.ndarray) and isinstance(udin, np.ndarray)):
+         raise WrongInstanceError("uin and udin should be a Numpy array")
+
 
 ###########################################################
 # Derived Classes
@@ -352,3 +347,38 @@ class ObjFctalElliptic(ObjectiveFunctional):
 #        kk = self.Data['k']
 #        self.a = inner(nabla_grad(self.trial), nabla_grad(self.test))*dx -\
 #        inner(kk**2*(self.m)*(self.trial), self.test)*dx
+
+
+class ObsEntireDomain(ObservationOperator):
+    """Observation operator over the entire domain
+    with L2 misfit norm
+    Parameters must be dictionary containing:
+        V = function space for state variable"""
+    
+    def _assemble(self):
+        self.V = self.Parameters['V']
+        self.diff = Function(self.V)
+        self.trial = TrialFunction(self.V)
+        self.test = TestFunction(self.V)
+        self.W = assemble(inner(self.trial, self.test)*dx)
+
+    def obs(self, uin):
+        self.isFunction(uin)
+        return uin.vector().array()
+
+    def costfct(self, uin, udin):
+        self.isarray(uin, udin)
+        self.diff.vector()[:] = uin - udin
+        return 0.5*np.dot(self.diff.vector().array(), \
+        (self.W * self.diff.vector()).array())
+
+    def assemble_rhsadj(self, uin, udin, outp, bc):
+        self.isarray(uin, udin)
+        self.isFunction(outp)
+        self.diff.vector()[:] = uin - udin
+        outp.vector()[:] = - (self.W * self.diff.vector()).array()
+        bc.apply(outp.vector())
+        
+    def incradj(self, uin):
+        self.isFunction(uin)
+        return self.W * uin.vector()
