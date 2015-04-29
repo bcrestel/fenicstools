@@ -311,6 +311,16 @@ class ObjectiveFunctional(LinearOperator):
         self.e = []
 
 
+
+class ObservationOperator():
+    """Define observation operator and all actions using this observation
+    operator, i.e., cost function, rhs in adj eqn and term in incr. adj eqn"""
+    __metaclass__ = abc.ABCMeta
+
+    #Instantiation
+    def __init__(self, Parameters=None):
+
+
 ###########################################################
 # Derived Classes
 ###########################################################

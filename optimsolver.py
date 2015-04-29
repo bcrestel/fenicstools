@@ -1,6 +1,5 @@
 import sys
 import numpy as np
-import objectivefunctional
 #from pylib.cgsolverSteihaug import CGSolverSteihaug
 from dolfin import *
 
