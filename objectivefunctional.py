@@ -1,4 +1,6 @@
 import abc
+import sys
+from os.path import splitext
 import numpy as np
 
 from dolfin import *
@@ -66,7 +68,7 @@ class ObjectiveFunctional(LinearOperator):
         V = self.trial.function_space()
         Vm = self.mtrial.function_space()
         newobj = self.__class__(V, Vm, self.bc, self.bcadj, [], self.B, \
-        self.UD, [], self.Data)
+        self.UD, [], self.Data, False)
         newobj.RHS = self.RHS
         newobj.R = self.R
         newobj.update_m(self.m)
@@ -137,7 +139,7 @@ class ObjectiveFunctional(LinearOperator):
         """Solve fwd operators for given RHS"""
         self.nbfwdsolves += 1
         if self.plot:
-            self.plotu = PlotFenics()
+            self.plotu = PlotFenics(self.plotoutdir)
             self.plotu.set_varname('u{0}'.format(self.nbfwdsolves))
         if cost:    self.misfit = 0.0
         for ii, rhs in enumerate(self.RHS):
@@ -163,7 +165,7 @@ class ObjectiveFunctional(LinearOperator):
         """Solve adj operators"""
         self.nbadjsolves += 1
         if self.plot:
-            self.plotp = PlotFenics()
+            self.plotp = PlotFenics(self.plotoutdir)
             self.plotp.set_varname('p{0}'.format(self.nbadjsolves))
         self.Nbsrc = len(self.UD)
         if grad:    self.MG.vector()[:] = np.zeros(self.lenm)
@@ -240,14 +242,16 @@ class ObjectiveFunctional(LinearOperator):
     def _set_plots(self, plot):
         self.plot = plot
         if self.plot:
-            self.plotm = PlotFenics()
-            self.plotm.set_varname('m')
+            filename, ext = splitext(sys.argv[0])
+            self.plotoutdir = filename + '/Plots/'
+            self.plotvarm = PlotFenics(self.plotoutdir)
+            self.plotvarm.set_varname('m')
 
     def plotm(self, index):
-        if self.plot:   self.plotm.plot_vtk(self.m, index)
+        if self.plot:   self.plotvarm.plot_vtk(self.m, index)
 
     def gatherm(self):
-        if self.plot:   self.plotm.gather_vtkplots()
+        if self.plot:   self.plotvarm.gather_vtkplots()
 
     # Update param
     def update_Data(self, Data):
@@ -311,15 +315,15 @@ class ObjectiveFunctional(LinearOperator):
         self.e = []
 
 
-
+"""
 class ObservationOperator():
-    """Define observation operator and all actions using this observation
-    operator, i.e., cost function, rhs in adj eqn and term in incr. adj eqn"""
+    " ""Define observation operator and all actions using this observation
+    operator, i.e., cost function, rhs in adj eqn and term in incr. adj eqn"" "
     __metaclass__ = abc.ABCMeta
 
     #Instantiation
     def __init__(self, Parameters=None):
-
+"""
 
 ###########################################################
 # Derived Classes

@@ -20,7 +20,7 @@ mtrue_exp = Expression('1 + 7*(pow(pow(x[0] - 0.5,2) +' + \
 mtrue = interpolate(mtrue_exp, Vme)
 normmtrue = norm(mtrue)
 f = Expression("1.0")
-goal = ObjFctalElliptic(V, Vme, bc, bc, [f])
+goal = ObjFctalElliptic(V, Vme, bc, bc, [f], [], [], [], [], False)
 goal.update_m(mtrue)
 goal.solvefwd()
 UD = goal.U
@@ -40,7 +40,8 @@ medmisfit = errornorm(InvPb.m, mtrue, 'l2', 1)
 print ('{:2d} {:12.5e} {:12.5e} {:12.5e} {:10.2e} {:6.3f}').format(0, \
 cost, misfit, regul, medmisfit, medmisfit/normmtrue)
 maxiter = 100 
-meth = 'sd'
+#meth = 'sd'
+meth = 'Newt'
 if meth == 'sd':    alpha_init = 1e3
 elif meth == 'Newt':    alpha_init = 1.0
 nbcheck = 0
@@ -60,6 +61,7 @@ for it in range(1, maxiter+1):
     tolcg = min(0.5, np.sqrt(gradnormrel))
     compute_searchdirection(InvPb, meth, tolcg)
     LSsuccess, LScount, alpha = bcktrcklinesearch(InvPb, nbLS, alpha_init)
+    InvPb.plotm(it)
     # Print results
     srchdirnorm = np.sqrt(np.dot(InvPb.getsrchdirarray(), \
     (InvPb.MM*InvPb.getsrchdirarray())))
@@ -81,5 +83,6 @@ for it in range(1, maxiter+1):
         if LScount == 1:    alpha_init = 10.*alpha
         elif LScount < 5:   alpha_init = 4.*alpha
         else:   alpha_init = alpha
+InvPb.gatherm()
 
 if it == maxiter:   print "Max nb of iterations reached."
