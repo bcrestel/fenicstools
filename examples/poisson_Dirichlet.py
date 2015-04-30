@@ -1,6 +1,7 @@
 import numpy as np
 from dolfin import *
 from fenicstools.objectivefunctional import ObjFctalElliptic, ObsEntireDomain
+from fenicstools.observationoperator import ObsEntireDomain
 from fenicstools.optimsolver import checkgradfd, checkhessfd, \
 bcktrcklinesearch, compute_searchdirection
 from fenicstools.miscfenics import apply_noise
