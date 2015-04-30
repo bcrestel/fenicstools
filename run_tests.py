@@ -3,8 +3,7 @@
 import os
 
 
-TESTS=['test_plotfenics', 'test_datafenics', 'test_operatorfenics_Mass',
-'test_operatorfenics_Helmholtz']
+TESTS=['test_plotfenics']
 
 
 for test in TESTS:
