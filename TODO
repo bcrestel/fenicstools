@@ -1,10 +1,11 @@
 TODO list
+* Noise
+* Results printing
 * Implement finite disctete observations
-* Test with multiple sources
-* Bayesian example
+* Multiple sources
+* Implement OED problem
 
+* Bayesian example (?)
 * Helmholtz example (?)
-* Implement OED problem (?)
-
 * profile code or test run time
 
