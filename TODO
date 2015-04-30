@@ -1,5 +1,5 @@
 TODO list
-* Noise
+* Unit test regularization and observationoperator
 * Results printing
 * Implement finite disctete observations
 * Multiple sources

@@ -1,13 +1,14 @@
 import numpy as np
 from dolfin import *
-from fenicstools.objectivefunctional import ObjFctalElliptic, ObsEntireDomain
+from fenicstools.objectivefunctional import ObjFctalElliptic
 from fenicstools.observationoperator import ObsEntireDomain
+from fenicstools.regularization import TikhonovH1
 from fenicstools.optimsolver import checkgradfd, checkhessfd, \
 bcktrcklinesearch, compute_searchdirection
 from fenicstools.miscfenics import apply_noise
 
 # Domain, f-e spaces and boundary conditions:
-mesh = UnitSquareMesh(12,12)
+mesh = UnitSquareMesh(20,20)
 V = FunctionSpace(mesh, 'Lagrange', 2)
 Vm = FunctionSpace(mesh, 'Lagrange', 1)
 Vme = FunctionSpace(mesh, 'Lagrange', 5)
@@ -33,8 +34,8 @@ UDnoise, objnoise = apply_noise(UD, noisepercent)
 print 'Noise in data misfit={:.5e}'.format(objnoise*.5/len(UD))
 
 # Set up optimization:
-gamma = 1e+6
-InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, gamma)
+Regul = TikhonovH1({'Vm': Vm, 'gamma': 1e-9})
+InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul)
 InvPb.update_m(1.0) # Set initial medium
 InvPb.solvefwd_cost()
 cost, misfit, regul = InvPb.getcost()
@@ -49,14 +50,14 @@ maxiter = 100
 meth = 'Newt'
 if meth == 'sd':    alpha_init = 1e3
 elif meth == 'Newt':    alpha_init = 1.0
-nbcheck = 2
+nbcheck = 4
 nbLS = 20
 
 # Iteration
 for it in range(1, maxiter+1):
     InvPb.solveadj_constructgrad()
     InvPb.mult(InvPb.Grad.vector(), InvPb.delta_m.vector())
-    if it == 1 or it % 20 == 0: 
+    if it == 1 or it % 10 == 0: 
         checkgradfd(InvPb, nbcheck)
         checkhessfd(InvPb, nbcheck)
     gradnorm = np.sqrt(np.dot(InvPb.getGradarray(), \

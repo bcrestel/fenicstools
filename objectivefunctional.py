@@ -17,8 +17,8 @@ class ObjectiveFunctional(LinearOperator):
     __metaclass__ = abc.ABCMeta
 
     # Instantiation
-    def __init__(self, V, Vm, bc, bcadj, RHSinput=[], ObsOp=[], UD=[], R=[], \
-    Data=[], plot=True):
+    def __init__(self, V, Vm, bc, bcadj, \
+    RHSinput=[], ObsOp=[], UD=[], Regul=[], Data=[], plot=True):
         # Define test, trial and all other functions
         self.trial = TrialFunction(V)
         self.test = TestFunction(V)
@@ -55,7 +55,7 @@ class ObjectiveFunctional(LinearOperator):
         self._assemble_solverM(Vm)
         self.assemble_A()
         self.assemble_RHS(RHSinput)
-        self.assemble_R(R)
+        self.Regul = Regul
         # Counters, tolerances and others
         self.nbPDEsolves = 0    # Updated when solve_A called
         self.nbfwdsolves = 0
@@ -67,7 +67,7 @@ class ObjectiveFunctional(LinearOperator):
         V = self.trial.function_space()
         Vm = self.mtrial.function_space()
         newobj = self.__class__(V, Vm, self.bc, self.bcadj, [], self.ObsOp, \
-        self.UD, self.R, self.Data, False)
+        self.UD, self.Regul, self.Data, False)
         newobj.RHS = self.RHS
         newobj.update_m(self.m)
         return newobj
@@ -91,7 +91,7 @@ class ObjectiveFunctional(LinearOperator):
             # Compute Hessian*x:
             y.axpy(1.0/N, C * self.p.vector())
             y.axpy(self.GN/N, E * self.u.vector())
-        y.axpy(1.0, self.R * mhat)
+        y.axpy(1.0, self.Regul.hessian(mhat))
 
     # Getters
     def getm(self): return self.m
@@ -110,7 +110,7 @@ class ObjectiveFunctional(LinearOperator):
         Prec.parameters["maximum_iterations"] = 1
         Prec.parameters["error_on_nonconvergence"] = False
         Prec.parameters["nonzero_initial_guess"] = False
-        Prec.set_operator(self.R + 1e-12*self.MM)
+        Prec.set_operator(self.Regul.get_R() + 1e-12*self.MM)
         return Prec
 
     # Setters
@@ -135,8 +135,7 @@ class ObjectiveFunctional(LinearOperator):
             self.C.append(assemble(self.c))
         if cost:
             self.misfit /= len(self.U)
-            self.regul = 0.5 * np.dot(self.m.vector().array(), \
-            (self.R * self.m.vector()).array())
+            self.regul = self.Regul.cost(self.m)
             self.cost = self.misfit + self.regul
         if self.plot:   self.plotu.gather_vtkplots()
 
@@ -161,7 +160,7 @@ class ObjectiveFunctional(LinearOperator):
             if grad:    self.MG.vector().axpy(1.0/self.Nbsrc, \
                         C * self.p.vector())
         if grad:
-            self.MG.vector().axpy(1.0, self.R * self.m.vector())
+            self.MG.vector().axpy(1.0, self.Regul.grad(self.m))
             self.solverM.solve(self.Grad.vector(), self.MG.vector())
         if self.plot:   self.plotp.gather_vtkplots()
 
@@ -271,7 +270,8 @@ class ObjectiveFunctional(LinearOperator):
     # Additional methods for compatibility with CG solver:
     def init_vector(self, x, dim):
         """Initialize vector x to be compatible with parameter"""
-        self.R.init_vector(x, 0)
+        self.Regul.get_R().init_vector(x, 0)
+        #self.R.init_vector(x, 0)
 
     # Abstract methods
     @abc.abstractmethod
@@ -282,41 +282,6 @@ class ObjectiveFunctional(LinearOperator):
 
     @abc.abstractmethod
     def _wkforme(self): self.e = []
-
-
-class ObservationOperator():
-    """Define observation operator and all actions using this observation
-    operator, i.e., cost function, rhs in adj eqn and term in incr. adj eqn"""
-    __metaclass__ = abc.ABCMeta
-
-    #Instantiation
-    def __init__(self, Parameters=None):
-        self.Parameters = Parameters
-        self._assemble()
-
-    @abc.abstractmethod
-    def _assemble(self):    print "Needs to be implemented"
-
-    @abc.abstractmethod
-    def obs(self, uin): print "Needs to be implemented"
-
-    @abc.abstractmethod
-    def costfct(self, uin, udin):   print "Needs to be implemented"
-
-    @abc.abstractmethod
-    def assemble_rhsadj(self, uin, udin):   print "Needs to be implemented"
-        
-    @abc.abstractmethod
-    def incradj(self, uin):    print "Needs to be implemented"
-
-    # Checkers
-    def isFunction(self, uin):
-        if not isinstance(uin, Function):
-         raise WrongInstanceError("uin should be a Dolfin Function")
-            
-    def isarray(self, uin, udin):
-        if not (isinstance(uin, np.ndarray) and isinstance(udin, np.ndarray)):
-         raise WrongInstanceError("uin and udin should be a Numpy array")
 
 
 ###########################################################
@@ -348,36 +313,3 @@ class ObjFctalElliptic(ObjectiveFunctional):
 #        inner(kk**2*(self.m)*(self.trial), self.test)*dx
 
 
-class ObsEntireDomain(ObservationOperator):
-    """Observation operator over the entire domain
-    with L2 misfit norm
-    Parameters must be dictionary containing:
-        V = function space for state variable"""
-    
-    def _assemble(self):
-        self.V = self.Parameters['V']
-        self.diff = Function(self.V)
-        self.trial = TrialFunction(self.V)
-        self.test = TestFunction(self.V)
-        self.W = assemble(inner(self.trial, self.test)*dx)
-
-    def obs(self, uin):
-        self.isFunction(uin)
-        return uin.vector().array()
-
-    def costfct(self, uin, udin):
-        self.isarray(uin, udin)
-        self.diff.vector()[:] = uin - udin
-        return 0.5*np.dot(self.diff.vector().array(), \
-        (self.W * self.diff.vector()).array())
-
-    def assemble_rhsadj(self, uin, udin, outp, bc):
-        self.isarray(uin, udin)
-        self.isFunction(outp)
-        self.diff.vector()[:] = uin - udin
-        outp.vector()[:] = - (self.W * self.diff.vector()).array()
-        bc.apply(outp.vector())
-        
-    def incradj(self, uin):
-        self.isFunction(uin)
-        return self.W * uin.vector()
