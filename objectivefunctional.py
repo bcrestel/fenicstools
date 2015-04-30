@@ -67,9 +67,8 @@ class ObjectiveFunctional(LinearOperator):
         V = self.trial.function_space()
         Vm = self.mtrial.function_space()
         newobj = self.__class__(V, Vm, self.bc, self.bcadj, [], self.ObsOp, \
-        self.UD, [], self.Data, False)
+        self.UD, self.R, self.Data, False)
         newobj.RHS = self.RHS
-        newobj.R = self.R
         newobj.update_m(self.m)
         return newobj
 
@@ -207,7 +206,7 @@ class ObjectiveFunctional(LinearOperator):
         if R == []: self.R = None
         else:
             if isinstance(R, float):
-                self.R = assemble(R * inner(nabla_grad(self.mtrial), \
+                self.R = R * assemble(inner(nabla_grad(self.mtrial), \
                 nabla_grad(self.mtest))*dx)
             else:
                 self.R = R

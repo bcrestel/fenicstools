@@ -3,6 +3,7 @@ from dolfin import *
 from fenicstools.objectivefunctional import ObjFctalElliptic, ObsEntireDomain
 from fenicstools.optimsolver import checkgradfd, checkhessfd, \
 bcktrcklinesearch, compute_searchdirection
+from fenicstools.miscfenics import apply_noise
 
 # Domain, f-e spaces and boundary conditions:
 mesh = UnitSquareMesh(12,12)
@@ -26,11 +27,13 @@ goal.update_m(mtrue)
 goal.solvefwd()
 UD = goal.U
 # Add noise
-# TO BE DONE
+noisepercent = 0.00   # e.g., 0.02 = 2% noise level
+UDnoise, objnoise = apply_noise(UD, noisepercent)
+print 'Noise in data misfit={:.5e}'.format(objnoise*.5/len(UD))
 
 # Set up optimization:
-gamma = 1e-10
-InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UD, gamma)
+gamma = 1e+6
+InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, gamma)
 InvPb.update_m(1.0) # Set initial medium
 InvPb.solvefwd_cost()
 cost, misfit, regul = InvPb.getcost()
