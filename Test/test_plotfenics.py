@@ -9,6 +9,7 @@ from exceptionsfenics import NoOutdirError, NoVarnameError, NoIndicesError
 set_log_active(False)
 
 MYOUTDIR = 'Test/Plots/'
+DEFOUTDIR = 'Outputs/Plots/'
 
 class TestPlots(unittest.TestCase):
     os.system('rm -rf {0}'.format(MYOUTDIR))
@@ -24,21 +25,19 @@ class TestPlots(unittest.TestCase):
             return False
         bc = DirichletBC(V, u0, u0_boundary)
         self.myoutdir = MYOUTDIR
+        self.defoutdir = DEFOUTDIR 
         self.indexlist = [1,3,5,6,7]
 
     def test00_inst(self):
         """Default instantiation"""
         myplot = PlotFenics()
 
-    def test00_except(self):
-        """Raise exception when dir not defined"""
+    def test00_defdir(self):
+        """Check default directory"""
+        if isdir(self.defoutdir):
+            os.system('rm -rf {0}'.format(self.defoutdir))
         myplot = PlotFenics()
-        self.assertRaises(NoOutdirError, myplot.plot_vtk, self.m)
-
-    def test00_except2(self):
-        """Raise exception when dir not defined"""
-        myplot = PlotFenics()
-        self.assertRaises(NoOutdirError, myplot.gather_vtkplots)
+        self.assertTrue(isdir(self.defoutdir))
 
     def test01(self):
         """Instantiate class when dir does not exist"""
