@@ -1,7 +1,7 @@
 TODO list
 * Unit test regularization and observationoperator
 * Results printing
-* Implement finite disctete observations
+* Implement finite discrete observations
 * Multiple sources
 * Implement OED problem
 * Bayesian example, sampling, ...
