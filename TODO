@@ -1,5 +1,5 @@
 TODO list
-* Unit test regularization and observationoperator
+* Unit test observationoperator
 * Results printing
 * Implement finite discrete observations
 * Multiple sources
