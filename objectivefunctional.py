@@ -28,10 +28,10 @@ class ObjectiveFunctional(LinearOperator):
         self.m = Function(Vm)
         self.mcopy = Function(Vm)
         self.srchdir = Function(Vm)
-        self.lenm = len(self.m.vector().array())
         self.delta_m = Function(Vm)
         self.MG = Function(Vm)
         self.Grad = Function(Vm)
+        self.lenm = Vm.dim()
         self.u = Function(V)
         self.ud = Function(V)
         self.diff = Function(V)
@@ -42,11 +42,10 @@ class ObjectiveFunctional(LinearOperator):
         self._wkforme()
         # Store other info:
         self.ObsOp = ObsOp
-        self.Ladj = - inner(self.u - self.ud, self.test)*dx
         self.UD = UD
-        self.reset()
+        self.reset()    # Initialize U, C and E to []
         self.Data = Data
-        self.GN = 1.0
+        self.GN = 1.0   # GN = 0.0 => GN Hessian; = 1.0 => full Hessian
         # Operators and bc
         LinearOperator.__init__(self, self.delta_m.vector(), \
         self.delta_m.vector()) 
@@ -58,8 +57,8 @@ class ObjectiveFunctional(LinearOperator):
         self.Regul = Regul
         # Counters, tolerances and others
         self.nbPDEsolves = 0    # Updated when solve_A called
-        self.nbfwdsolves = 0
-        self.nbadjsolves = 0
+        self.nbfwdsolves = 0    # Counter for plots
+        self.nbadjsolves = 0    # Counter for plots
         self._set_plots(plot)
 
     def copy(self):
@@ -110,7 +109,7 @@ class ObjectiveFunctional(LinearOperator):
         Prec.parameters["maximum_iterations"] = 1
         Prec.parameters["error_on_nonconvergence"] = False
         Prec.parameters["nonzero_initial_guess"] = False
-        Prec.set_operator(self.Regul.get_R() + 1e-12*self.MM)
+        Prec.set_operator(self.Regul.get_precond())
         return Prec
 
     # Setters
@@ -201,15 +200,6 @@ class ObjectiveFunctional(LinearOperator):
         self.solverM.parameters['symmetric'] = True
         self.solverM.set_operator(self.MM)
 
-    def assemble_R(self, R):
-        if R == []: self.R = None
-        else:
-            if isinstance(R, float):
-                self.R = R * assemble(inner(nabla_grad(self.mtrial), \
-                nabla_grad(self.mtest))*dx)
-            else:
-                self.R = R
-
     def _set_plots(self, plot):
         self.plot = plot
         if self.plot:
@@ -270,8 +260,7 @@ class ObjectiveFunctional(LinearOperator):
     # Additional methods for compatibility with CG solver:
     def init_vector(self, x, dim):
         """Initialize vector x to be compatible with parameter"""
-        self.Regul.get_R().init_vector(x, 0)
-        #self.R.init_vector(x, 0)
+        self.MM.init_vector(x, 0)
 
     # Abstract methods
     @abc.abstractmethod
