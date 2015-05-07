@@ -72,8 +72,7 @@ for it in range(1, maxiter+1):
     if it == 1 or it % 10 == 0: 
         checkgradfd(InvPb, nbcheck)
         checkhessfd(InvPb, nbcheck)
-    gradnorm = np.sqrt(np.dot(InvPb.getGradarray(), \
-    InvPb.getMGarray()))
+    gradnorm = InvPb.getGradnorm()
     if it == 1:   gradnorm_init = gradnorm
     gradnormrel = gradnorm/max(1.0, gradnorm_init)
     tolcg = min(0.5, np.sqrt(gradnormrel))  # Inexact-CG-Newton's method
@@ -81,8 +80,7 @@ for it in range(1, maxiter+1):
     LSsuccess, LScount, alpha = bcktrcklinesearch(InvPb, nbLS, alpha_init)
     InvPb.plotm(it) # Plot current medium reconstruction
     # Print results
-    srchdirnorm = np.sqrt(np.dot(InvPb.getsrchdirarray(), \
-    (InvPb.MM*InvPb.getsrchdirarray())))
+    srchdirnorm = InvPb.getsrchdirnorm()
     medmisfit = errornorm(InvPb.getm(), mtrue, 'l2', 1)
     cost, misfit, regul = InvPb.getcost()
     print ('{:2d} {:12.5e} {:12.5e} {:12.5e} {:10.2e} {:6.3f} {:12.5e} ' + \
@@ -101,6 +99,6 @@ for it in range(1, maxiter+1):
         if LScount == 1:    alpha_init = 10.*alpha
         elif LScount < 5:   alpha_init = 4.*alpha
         else:   alpha_init = alpha
-InvPb.gatherm()
+InvPb.gatherm() # Create one plot for all intermediate reconstructions
 
 if it == maxiter:   print "Max nb of iterations reached."

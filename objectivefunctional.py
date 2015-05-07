@@ -100,8 +100,12 @@ class ObjectiveFunctional(LinearOperator):
     def getMGarray(self):   return self.MG.vector().array()
     def getMGvec(self):   return self.MG.vector()
     def getGradarray(self):   return self.Grad.vector().array()
+    def getGradnorm(self):  return self.Gradnorm
     def getsrchdirarray(self):    return self.srchdir.vector().array()
     def getsrchdirvec(self):    return self.srchdir.vector()
+    def getsrchdirnorm(self):   
+        return np.sqrt(np.dot(self.getsrchdirarray(), \
+        (self.MM*self.getsrchdirvec()).array()))
     def getgradxdir(self): return self.gradxdir
     def getcost(self):  return self.cost, self.misfit, self.regul
     def getprecond(self):
@@ -161,6 +165,8 @@ class ObjectiveFunctional(LinearOperator):
         if grad:
             self.MG.vector().axpy(1.0, self.Regul.grad(self.m))
             self.solverM.solve(self.Grad.vector(), self.MG.vector())
+            self.Gradnorm = np.sqrt(np.dot(self.getGradarray(), \
+            self.getMGarray()))
         if self.plot:   self.plotp.gather_vtkplots()
 
     def solveadj_constructgrad(self):
