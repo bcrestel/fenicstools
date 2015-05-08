@@ -1,6 +1,5 @@
 TODO list
 * Unit test observationoperator
-* Results printing
 * Implement finite discrete observations
 * Multiple sources
 * Implement OED problem

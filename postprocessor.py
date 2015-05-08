@@ -10,6 +10,7 @@ class PostProcessor():
     def __init__(self, meth, mtrue, maxnbLS=15):
         self.meth = meth
         if self.meth == 'Newt': self.Newt = True
+        else:   self.Newt = False
         self.mtrue = mtrue
         self.normmtrue = norm(self.mtrue)
         self.maxnbLS = maxnbLS
@@ -54,7 +55,7 @@ class PostProcessor():
         self.gradnorm = 0.0
         self.gradnorminit = None
 
-    def getResults(self, Obj, LSresults=None, CGresults=None, index=None):
+    def getResults(self, Obj, LSresults, CGresults, index=None):
         """LSresults = [LSsuccess, LScount, ratio]
         CGresults = [tolcg]"""
         if index == None:   self.index += 1
@@ -79,12 +80,11 @@ class PostProcessor():
             Obj.getgradxdir()/(self.gradnorm*Obj.getsrchdirnorm())
         else:   self.Gpangle = np.inf
         # Line Search
-        if not (LSresults == None):
-            self.LSsuccess = LSresults[0]
-            self.LScount = LSresults[1]
-            self.LSratio = LSresults[2]
+        self.LSsuccess = LSresults[0]
+        self.LScount = LSresults[1]
+        self.LSratio = LSresults[2]
         # CG
-        if not (CGresults == None): 
+        if self.Newt:
             self.CGiter = CGresults[0]
             self.finalnormCG = CGresults[1]
             self.tolCG = CGresults[3]
@@ -120,3 +120,12 @@ class PostProcessor():
             print 'Optimization converged!'
             return True
         else:   return False
+
+    def alpha_init(self):
+        """Evaluate initial length for line search in next iteration"""
+        if self.Newt:   return 1.0
+        else:
+            alpha = self.LSratio
+            if self.LScount == 1:    return 10.*alpha
+            elif self.LScount < 5:   return 4.*alpha
+            else:   return alpha

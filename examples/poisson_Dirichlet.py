@@ -52,7 +52,7 @@ InvPb.update_m(1.0) # Set initial medium
 InvPb.solvefwd_cost()
 # Choose between steepest descent and Newton's method:
 METHODS = ['sd','Newt']
-meth = METHODS[1]
+meth = METHODS[0]
 if meth == 'sd':    alpha_init = 1e3
 elif meth == 'Newt':    alpha_init = 1.0
 nbcheck = 0 # Grad and Hessian checks
@@ -78,13 +78,7 @@ for it in range(1, maxiter+1):
     # Print results:
     PP.getResults(InvPb, LSresults, CGresults)
     PP.printResults()
-    # Stopping criteria:
-    if PP.Stop():   break
-    # Set up next iteration
-    if meth == 'sd':
-        if LScount == 1:    alpha_init = 10.*alpha
-        elif LScount < 5:   alpha_init = 4.*alpha
-        else:   alpha_init = alpha
+    if PP.Stop():   break   # Stopping criterion
+    alpha_init = PP.alpha_init()    # Initialize next alpha when using sd
 InvPb.gatherm() # Create one plot for all intermediate reconstructions
-
 if it == maxiter:   print "Max nb of iterations reached."
