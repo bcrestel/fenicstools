@@ -50,16 +50,6 @@ Regul = TikhonovH1({'Vm':Vm,'gamma':1e-9,'beta':1e-14})
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul)
 InvPb.update_m(1.0) # Set initial medium
 InvPb.solvefwd_cost()
-"""
-cost, misfit, regul = InvPb.getcost()
-print ('{:2s} {:12s} {:12s} {:12s} {:10s} {:6s} {:12s} {:8s} {:10s} {:10s}')\
-.format('iter', 'cost', 'datamisfit', 'regul', 'medmisfit', 'rel', \
-'||grad||', 'rel', 'angle', 'alpha')
-medmisfit = errornorm(InvPb.m, mtrue, 'l2', 1)
-print ('{:2d} {:12.5e} {:12.5e} {:12.5e} {:10.2e} {:6.3f}').format(0, \
-cost, misfit, regul, medmisfit, medmisfit/normmtrue)
-"""
-maxiter = 100 
 # Choose between steepest descent and Newton's method:
 METHODS = ['sd','Newt']
 meth = METHODS[1]
@@ -72,40 +62,24 @@ PP = PostProcessor(meth, mtrue)
 PP.getResults0(InvPb)    # Get results for index 0 (before first iteration)
 PP.printResults()
 # Start iteration:
+maxiter = 100 
 for it in range(1, maxiter+1):
     InvPb.solveadj_constructgrad()
-    #InvPb.mult(InvPb.Grad.vector(), InvPb.delta_m.vector())
     # Check gradient and Hessian:
     if it == 1 or it % 10 == 0: 
         checkgradfd(InvPb, nbcheck)
         checkhessfd(InvPb, nbcheck)
-    gradnorm = InvPb.getGradnorm()
-    if it == 1:   gradnorm_init = gradnorm
-    gradnormrel = gradnorm/max(1.0, gradnorm_init)
-    tolcg = min(0.5, np.sqrt(gradnormrel))  # Inexact-CG-Newton's method
-    CGresults = compute_searchdirection(InvPb, meth, tolcg)
+    # Compute search direction:
+    if it == 1:   gradnorm_init = InvPb.getGradnorm()
+    CGresults = compute_searchdirection(InvPb, meth, gradnorm_init)
+    # Compute line search:
     LSresults = bcktrcklinesearch(InvPb, nbLS, alpha_init)
     InvPb.plotm(it) # Plot current medium reconstruction
     # Print results:
     PP.getResults(InvPb, LSresults, CGresults)
     PP.printResults()
-    """
-    srchdirnorm = InvPb.getsrchdirnorm()
-    medmisfit = errornorm(InvPb.getm(), mtrue, 'l2', 1)
-    cost, misfit, regul = InvPb.getcost()
-    print ('{:2d} {:12.5e} {:12.5e} {:12.5e} {:10.2e} {:6.3f} {:12.5e} ' + \
-    '{:8.2e} {:10.3e} {:10.3e}').format(it, cost, misfit, regul, \
-    medmisfit, medmisfit/normmtrue, gradnorm, \
-    gradnormrel, InvPb.gradxdir/(gradnorm*srchdirnorm), alpha)
-    """
-    [LSsuccess, LScount, alpha] = LSresults
     # Stopping criteria:
-    if not LSsuccess:
-        print 'Line Search failed after {0} counts'.format(LScount)
-        break
-    if gradnormrel < 1e-10: 
-        print "Optimization converged!"
-        break
+    if PP.Stop():   break
     # Set up next iteration
     if meth == 'sd':
         if LScount == 1:    alpha_init = 10.*alpha

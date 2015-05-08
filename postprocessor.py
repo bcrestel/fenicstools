@@ -28,7 +28,7 @@ class PostProcessor():
         '    cost', '    datamis', '    regul', \
         '  Mmis-abs', '  rel', \
         '||grad||-abs', '   rel', '  G.p', \
-        'LS-ratio', 'iter')
+        'LS-length', 'iter')
         if self.Newt:
             self.titleline = self.titleline + \
             '{:10s} {:5s} {:10s}'.format('  CG-tol', 'iter', 'finalres')
@@ -40,7 +40,7 @@ class PostProcessor():
         '{:12.5e} {:8.2e} {:6.2f} \t'+\
         '{:10.3e} {:3d} \t\t'
         if self.Newt:
-            self.dataline = self.dataline + '{:10.1e} {:5d} {:10.1e}'
+            self.dataline = self.dataline + '{:10.1e} {:3d} {:10.1e}'
 
     def getResults0(self, Obj):
         """Get results before first step of iteration"""
@@ -109,3 +109,14 @@ class PostProcessor():
         self.medmisfit, self.medmisfitrel, \
         self.gradnorm, self.gradnormrel, self.Gpangle, \
         self.LSratio, self.LScount)
+
+    def Stop(self):
+        """Compute stopping criterion and 
+        return True if iteration must stop"""
+        if not self.LSsuccess:
+            print 'Line Search failed after {0} counts'.format(self.LScount)
+            return True
+        elif self.gradnormrel < 1e-10:
+            print 'Optimization converged!'
+            return True
+        else:   return False

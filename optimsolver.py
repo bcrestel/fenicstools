@@ -73,7 +73,7 @@ def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6):
                 print '\th={0:.1e}: ||FDH.x||={1:.5e}, error={2:.2e}'\
                 .format(hh, np.linalg.norm(FDHessx), err)
 
-def compute_searchdirection(ObjFctal, keyword, tolcg=None):
+def compute_searchdirection(ObjFctal, keyword, gradnorm_init=None):
     """Compute search direction for Line Search based on keyword.
     keyword can be 'sd' (steepest descent) or 'Newt' (Newton's method).
     Whether we use full Hessian or GN Hessian in Newton's method depend on
@@ -81,10 +81,16 @@ parameter ObjFctal.GN
 
     ObjFctal = object from class ObjectiveFunctional
     keyword = 'sd' or 'Newt'
+    gradnorminit = norm of gradient at first step of iteration
     """
     if keyword == 'sd':
         ObjFctal.setsrchdir(-1.0*ObjFctal.getGradarray())
     elif keyword == 'Newt':
+        # Compute tolcg for Inexact-CG Newton's method:
+        gradnorm = ObjFctal.getGradnorm()
+        gradnormrel = gradnorm/max(1.0, gradnorm_init)
+        tolcg = min(0.5, np.sqrt(gradnormrel))
+        # Define solver
         solver = CGSolverSteihaug()
         solver.set_operator(ObjFctal)
         solver.set_preconditioner(ObjFctal.getprecond())
@@ -99,7 +105,8 @@ parameter ObjFctal.GN
     if ObjFctal.getgradxdir() > 0.0: 
         raise ValueError("Search direction is not a descent direction")
         sys.exit(1)
-    return [solver.iter, solver.final_norm, solver.reasonid, tolcg]
+    if keyword == 'Newt':
+        return [solver.iter, solver.final_norm, solver.reasonid, tolcg]
 
 
 def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
