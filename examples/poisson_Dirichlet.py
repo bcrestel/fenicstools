@@ -65,10 +65,12 @@ METHODS = ['sd','Newt']
 meth = METHODS[1]
 if meth == 'sd':    alpha_init = 1e3
 elif meth == 'Newt':    alpha_init = 1.0
-nbcheck = 4 # Grad and Hessian checks
+nbcheck = 0 # Grad and Hessian checks
 nbLS = 20   # Max nb of line searches
+# Prepare results outputs:
 PP = PostProcessor(meth, mtrue)
-PP.getResults(InvPb,None,None,0)    # Get results for index 0 (before first iteration)
+PP.getResults0(InvPb)    # Get results for index 0 (before first iteration)
+PP.printResults()
 # Start iteration:
 for it in range(1, maxiter+1):
     InvPb.solveadj_constructgrad()
@@ -84,11 +86,13 @@ for it in range(1, maxiter+1):
     CGresults = compute_searchdirection(InvPb, meth, tolcg)
     LSresults = bcktrcklinesearch(InvPb, nbLS, alpha_init)
     InvPb.plotm(it) # Plot current medium reconstruction
-    # Print results
+    # Print results:
+    PP.getResults(InvPb, LSresults, CGresults)
+    PP.printResults()
+    """
     srchdirnorm = InvPb.getsrchdirnorm()
     medmisfit = errornorm(InvPb.getm(), mtrue, 'l2', 1)
     cost, misfit, regul = InvPb.getcost()
-    """
     print ('{:2d} {:12.5e} {:12.5e} {:12.5e} {:10.2e} {:6.3f} {:12.5e} ' + \
     '{:8.2e} {:10.3e} {:10.3e}').format(it, cost, misfit, regul, \
     medmisfit, medmisfit/normmtrue, gradnorm, \
