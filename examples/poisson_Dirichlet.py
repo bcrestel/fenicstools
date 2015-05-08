@@ -15,6 +15,7 @@ from fenicstools.regularization import TikhonovH1
 from fenicstools.optimsolver import checkgradfd, checkhessfd, \
 bcktrcklinesearch, compute_searchdirection
 from fenicstools.miscfenics import apply_noise
+from fenicstools.postprocessor import PostProcessor
 
 # Domain, f-e spaces and boundary conditions:
 mesh = UnitSquareMesh(20,20)
@@ -30,7 +31,7 @@ bc = DirichletBC(V, u0, u0_boundary)
 mtrue_exp = Expression('1 + 7*(pow(pow(x[0] - 0.5,2) +' + \
 ' pow(x[1] - 0.5,2),0.5) > 0.2)')
 mtrue = interpolate(mtrue_exp, Vme)
-normmtrue = norm(mtrue)
+#normmtrue = norm(mtrue)
 f = Expression("1.0")
 
 # Compute target data:
@@ -49,6 +50,7 @@ Regul = TikhonovH1({'Vm':Vm,'gamma':1e-9,'beta':1e-14})
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul)
 InvPb.update_m(1.0) # Set initial medium
 InvPb.solvefwd_cost()
+"""
 cost, misfit, regul = InvPb.getcost()
 print ('{:2s} {:12s} {:12s} {:12s} {:10s} {:6s} {:12s} {:8s} {:10s} {:10s}')\
 .format('iter', 'cost', 'datamisfit', 'regul', 'medmisfit', 'rel', \
@@ -56,6 +58,7 @@ print ('{:2s} {:12s} {:12s} {:12s} {:10s} {:6s} {:12s} {:8s} {:10s} {:10s}')\
 medmisfit = errornorm(InvPb.m, mtrue, 'l2', 1)
 print ('{:2d} {:12.5e} {:12.5e} {:12.5e} {:10.2e} {:6.3f}').format(0, \
 cost, misfit, regul, medmisfit, medmisfit/normmtrue)
+"""
 maxiter = 100 
 # Choose between steepest descent and Newton's method:
 METHODS = ['sd','Newt']
@@ -64,6 +67,8 @@ if meth == 'sd':    alpha_init = 1e3
 elif meth == 'Newt':    alpha_init = 1.0
 nbcheck = 4 # Grad and Hessian checks
 nbLS = 20   # Max nb of line searches
+PP = PostProcessor(meth, mtrue)
+PP.getResults(InvPb,None,None,0)    # Get results for index 0 (before first iteration)
 # Start iteration:
 for it in range(1, maxiter+1):
     InvPb.solveadj_constructgrad()
@@ -76,17 +81,20 @@ for it in range(1, maxiter+1):
     if it == 1:   gradnorm_init = gradnorm
     gradnormrel = gradnorm/max(1.0, gradnorm_init)
     tolcg = min(0.5, np.sqrt(gradnormrel))  # Inexact-CG-Newton's method
-    compute_searchdirection(InvPb, meth, tolcg)
-    LSsuccess, LScount, alpha = bcktrcklinesearch(InvPb, nbLS, alpha_init)
+    CGresults = compute_searchdirection(InvPb, meth, tolcg)
+    LSresults = bcktrcklinesearch(InvPb, nbLS, alpha_init)
     InvPb.plotm(it) # Plot current medium reconstruction
     # Print results
     srchdirnorm = InvPb.getsrchdirnorm()
     medmisfit = errornorm(InvPb.getm(), mtrue, 'l2', 1)
     cost, misfit, regul = InvPb.getcost()
+    """
     print ('{:2d} {:12.5e} {:12.5e} {:12.5e} {:10.2e} {:6.3f} {:12.5e} ' + \
     '{:8.2e} {:10.3e} {:10.3e}').format(it, cost, misfit, regul, \
     medmisfit, medmisfit/normmtrue, gradnorm, \
     gradnormrel, InvPb.gradxdir/(gradnorm*srchdirnorm), alpha)
+    """
+    [LSsuccess, LScount, alpha] = LSresults
     # Stopping criteria:
     if not LSsuccess:
         print 'Line Search failed after {0} counts'.format(LScount)

@@ -90,7 +90,7 @@ parameter ObjFctal.GN
         solver.set_preconditioner(ObjFctal.getprecond())
         solver.parameters["rel_tolerance"] = tolcg
         solver.parameters["zero_initial_guess"] = True
-        #solver.parameters["print_level"] = print_level-1
+        solver.parameters["print_level"] = -1
         solver.solve(ObjFctal.srchdir.vector(), -ObjFctal.MG.vector())
     else:
         raise ValueError("Wrong keyword")
@@ -99,6 +99,7 @@ parameter ObjFctal.GN
     if ObjFctal.getgradxdir() > 0.0: 
         raise ValueError("Search direction is not a descent direction")
         sys.exit(1)
+    return [solver.iter, solver.final_norm, solver.reasonid, tolcg]
 
 
 def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
@@ -127,5 +128,5 @@ def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
             success = True
             break
         alpha *= rho
-    return success, LScount, alpha
+    return [success, LScount, alpha]
 
