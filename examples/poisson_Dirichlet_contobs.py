@@ -1,6 +1,6 @@
 """
 Medium parameter reconstruction example for Poisson pb with zero-Dirichlet
-boundary conditions.
+boundary conditions and continuous observations over the entire domain.
 We solve
 arg min_m 1/2||u - u_e||^2 + R(m)
 where - Delta u = f, on Omega
