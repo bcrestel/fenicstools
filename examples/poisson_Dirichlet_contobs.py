@@ -11,7 +11,7 @@ import numpy as np
 from dolfin import *
 from fenicstools.objectivefunctional import ObjFctalElliptic
 from fenicstools.observationoperator import ObsEntireDomain
-from fenicstools.regularization import TikhonovH1
+from fenicstools.priorandregularization import TikhonovH1
 from fenicstools.optimsolver import checkgradfd, checkhessfd, \
 bcktrcklinesearch, compute_searchdirection
 from fenicstools.miscfenics import apply_noise
@@ -52,7 +52,7 @@ InvPb.update_m(1.0) # Set initial medium
 InvPb.solvefwd_cost()
 # Choose between steepest descent and Newton's method:
 METHODS = ['sd','Newt']
-meth = METHODS[0]
+meth = METHODS[1]
 if meth == 'sd':    alpha_init = 1e3
 elif meth == 'Newt':    alpha_init = 1.0
 nbcheck = 0 # Grad and Hessian checks

@@ -5,7 +5,7 @@ from dolfin import *
 from exceptionsfenics import WrongInstanceError
 
 
-class Regularization():
+class PriorAndRegularization():
     """Defines regularization operator
     Abstract class"""
     __metaclass__ = abc.ABCMeta
@@ -51,7 +51,7 @@ class Regularization():
 # Derived Classes
 ###########################################################
 
-class TikhonovH1(Regularization):
+class TikhonovH1(PriorAndRegularization):
     """Tikhonov regularization with H1 semi-norm
     Parameters must be a dictionary containing:
         gamma = multiplicative factor applied to H1 semi-norm
