@@ -11,7 +11,7 @@ import numpy as np
 from dolfin import *
 from fenicstools.objectivefunctional import ObjFctalElliptic
 from fenicstools.observationoperator import ObsEntireDomain
-from fenicstools.priorandregularization import TikhonovH1
+from fenicstools.prior import LaplacianPrior
 from fenicstools.optimsolver import checkgradfd, checkhessfd, \
 bcktrcklinesearch, compute_searchdirection
 from fenicstools.miscfenics import apply_noise
@@ -46,7 +46,7 @@ UDnoise, objnoise = apply_noise(UD, noisepercent)
 print 'Noise in data misfit={:.5e}'.format(objnoise*.5/len(UD))
 
 # Solve reconstruction problem:
-Regul = TikhonovH1({'Vm':Vm,'gamma':1e-9,'beta':1e-14})
+Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-9,'beta':1e-14})
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul)
 InvPb.update_m(1.0) # Set initial medium
 InvPb.solvefwd_cost()
@@ -55,7 +55,7 @@ METHODS = ['sd','Newt']
 meth = METHODS[1]
 if meth == 'sd':    alpha_init = 1e3
 elif meth == 'Newt':    alpha_init = 1.0
-nbcheck = 0 # Grad and Hessian checks
+nbcheck = 2 # Grad and Hessian checks
 nbLS = 20   # Max nb of line searches
 # Prepare results outputs:
 PP = PostProcessor(meth, mtrue)

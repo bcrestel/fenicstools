@@ -1,9 +1,10 @@
 TODO list
+* Finish definition of priors
 * Unit test observationoperator
 * Implement finite discrete observations
+* Bayesian example, sampling, ...
 * Multiple sources
 * Implement OED problem
-* Bayesian example, sampling, ...
 
 * Helmholtz example (?)
 * profile code or test run time

@@ -1,6 +1,9 @@
 from numpy.linalg import norm
 from numpy.random import randn
 
+from dolfin import Function, GenericVector
+from exceptionsfenics import WrongInstanceError
+
 def apply_noise(UD, noisepercent):
     """Apply Gaussian noise to data.
     noisepercent = 0.02 => 2% noise level, i.e.,
@@ -15,3 +18,13 @@ def apply_noise(UD, noisepercent):
         UDnoise.append(ud + noisevect)
 
     return UDnoise, objnoise
+
+
+# Checkers
+def isFunction(m_in):
+    if not isinstance(m_in, Function):
+     raise WrongInstanceError("m_in should be a Dolfin Function")
+
+def isVector(m_in):
+    if not isinstance(m_in, GenericVector):
+     raise WrongInstanceError("m_in should be a Dolfin Generic Vector")

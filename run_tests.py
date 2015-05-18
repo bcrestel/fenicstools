@@ -3,7 +3,7 @@
 import os
 
 
-TESTS=['test_plotfenics', 'test_regularization']
+TESTS=['test_plotfenics', 'test_prior']
 
 
 for test in TESTS:
