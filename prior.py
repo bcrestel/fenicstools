@@ -120,19 +120,44 @@ class BilaplacianPrior(GaussianPrior):
         # Assemble:
         self.R = assemble(inner(nabla_grad(self.mtrial), \
         nabla_grad(self.mtest))*dx)
-        self.M = assemble(inner(self.mtrial, self.mtest)*dx)
+        M = PETScMatrix()
+        assemble(inner(self.mtrial, self.mtest)*dx, tensor=self.M)
         # preconditioner is Gamma^{-1}:
         if self.beta > 1e-16: self.precond = self.gamma*self.R + self.beta*self.M
         else:   self.precond = self.gamma*self.R + (1e-14)*self.M
         # Discrete operator K:
         self.K = self.gamma*self.R + self.beta*self.M
+        # Get eigenvalues for M:
+        self.eigsolM = SLEPcEigenSolver(self.M)
+        self.eigsolM.solve()
         # Solver for M^{-1}:
         self.solverM = LUSolver()
         self.solverM.parameters['reuse_factorization'] = True
         self.solverM.parameters['symmetric'] = True
-        self.solverM.set_operator(self.MM)
+        self.solverM.set_operator(self.M)
+        # Solver for K^{-1}:
+        self.solverK = LUSolver()
+        self.solverK.parameters['reuse_factorization'] = True
+        self.solverK.parameters['symmetric'] = True
+        self.solverK.set_operator(self.K)
 
     def Minvpriordot(self, vect):
         """Here M.Gamma^{-1} = K M^{-1} K"""
-        self.solverM.solve(self.draw.vector(), self.K*vect)
-        return self.K * self.draw.vector()
+        mhat = Function(self.Vm)
+        self.solverM.solve(mhat.vector(), self.K*vect)
+        return self.K * mhat.vector()
+
+    def apply_sqrtM(self, vect):
+        """Compute M^{1/2}.vect from Vector() vect"""
+        sqrtMv = Function(self.Vm)
+        for ii in range(self.Vm.dim()):
+            r, c, rx, cx = self.eigsolM.get_eigenpair(ii)
+            RX = Vector(rx)
+            sqrtMv.vector().axpy(np.sqrt(r)*np.dot(rx.array(), vect.array()), RX)
+        return sqrtMv.vector()
+
+    def Ldot(self, vect):   
+        """Here L = K^{-1} M^{1/2}"""
+        Lb = Function(self.Vm)
+        self.solverK.solve(Lb.vector(), self.apply_sqrtM(vect))
+        return Lb.vector()

@@ -41,7 +41,7 @@ goal.update_m(mtrue)
 goal.solvefwd()
 UD = goal.U
 # Add noise:
-noisepercent = 0.00   # e.g., 0.02 = 2% noise level
+noisepercent = 0.05   # e.g., 0.02 = 2% noise level
 UDnoise, objnoise = apply_noise(UD, noisepercent)
 print 'Noise in data misfit={:.5e}'.format(objnoise*.5/len(UD))
 

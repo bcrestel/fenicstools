@@ -1,5 +1,5 @@
 TODO list
-* Finish definition of priors
+* Test prior (especially BiLaplacian)
 * Unit test observationoperator
 * Implement finite discrete observations
 * Bayesian example, sampling, ...
