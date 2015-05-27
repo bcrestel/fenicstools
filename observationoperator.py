@@ -1,7 +1,7 @@
 import abc
 import numpy as np
 
-from dolfin import *
+from dolfin import Function, TrialFunction, TestFunction, assemble, inner, dx
 from exceptionsfenics import WrongInstanceError
 
 

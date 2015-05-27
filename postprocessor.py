@@ -1,6 +1,6 @@
 import numpy as np
 
-from dolfin import *
+from dolfin import norm, errornorm
 
 class PostProcessor():
     """Handles printing of results

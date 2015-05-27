@@ -1,7 +1,7 @@
 import os
 from os.path import isdir
 
-from dolfin import *
+from dolfin import File
 from exceptionsfenics import *
 
 class PlotFenics:

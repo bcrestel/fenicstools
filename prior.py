@@ -1,7 +1,9 @@
 import abc
 import numpy as np
 
-from dolfin import *
+from dolfin import Function, TrialFunction, TestFunction, Vector, \
+assemble, inner, nabla_grad, dx, \
+PETScMatrix, SLEPcEigenSolver, LUSolver
 from miscfenics import isFunction, isVector
 
 

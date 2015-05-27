@@ -1,8 +1,6 @@
 import sys
 import numpy as np
-#from pylib.cgsolverSteihaug import CGSolverSteihaug
 from linalg.cgsolverSteihaug import CGSolverSteihaug
-from dolfin import *
 
 """Contains functions used to solve optimization problem"""
 

@@ -3,7 +3,9 @@ import sys
 from os.path import splitext
 import numpy as np
 
-from dolfin import *
+from dolfin import TrialFunction, TestFunction, Function, Vector, \
+PETScKrylovSolver, LUSolver, set_log_active, LinearOperator, Expression, \
+assemble, inner, nabla_grad, dx
 from exceptionsfenics import WrongInstanceError
 from plotfenics import PlotFenics
 set_log_active(False)
@@ -266,8 +268,13 @@ class ObjectiveFunctional(LinearOperator):
 
     # Additional methods for compatibility with CG solver:
     def init_vector(self, x, dim):
-        """Initialize vector x to be compatible with parameter"""
+        """Initialize vector x to be compatible with parameter
+         Does not work in dolfin 1.3.0"""
         self.MM.init_vector(x, 0)
+
+    def init_vector130(self):
+        """Initialize vector x to be compatible with parameter"""
+        return Vector(Function(self.mcopy.function_space()).vector())
 
     # Abstract methods
     @abc.abstractmethod

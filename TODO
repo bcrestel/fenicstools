@@ -1,5 +1,5 @@
 TODO list
-* init_vector does not in fenics 1.3.0? May need replacement.
+* Test cg solver on fenics 1.3.0
 * Test prior (especially BiLaplacian)
 * Unit test observationoperator
 * Implement finite discrete observations

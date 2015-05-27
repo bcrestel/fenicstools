@@ -8,7 +8,8 @@ with u = 0 on boundary.
 """
 
 import numpy as np
-from dolfin import *
+from dolfin import UnitSquareMesh, FunctionSpace, Constant, DirichletBC, \
+Expression, interpolate
 from fenicstools.objectivefunctional import ObjFctalElliptic
 from fenicstools.observationoperator import ObsEntireDomain
 from fenicstools.prior import LaplacianPrior
@@ -41,7 +42,7 @@ goal.update_m(mtrue)
 goal.solvefwd()
 UD = goal.U
 # Add noise:
-noisepercent = 0.05   # e.g., 0.02 = 2% noise level
+noisepercent = 0.00   # e.g., 0.02 = 2% noise level
 UDnoise, objnoise = apply_noise(UD, noisepercent)
 print 'Noise in data misfit={:.5e}'.format(objnoise*.5/len(UD))
 

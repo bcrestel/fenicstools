@@ -1,3 +1,4 @@
+import dolfin
 from dolfin import Vector
 import math
 
@@ -47,12 +48,20 @@ class CGSolverSteihaug:
         self.r = Vector()
         self.z = Vector()
         self.d = Vector()
+
+        if dolfin.__version__[2] == '5':    self.vrs150 = True
+        else:   self.vrs150 = False
                 
     def set_operator(self, A):
         self.A = A
-        self.A.init_vector(self.r,0)
-        self.A.init_vector(self.z,0)
-        self.A.init_vector(self.d,0)
+        if self.vrs150:
+            self.A.init_vector(self.r,0)
+            self.A.init_vector(self.z,0)
+            self.A.init_vector(self.d,0)
+        else:
+            self.r = self.A.init_vector130()
+            self.z = self.A.init_vector130()
+            self.d = self.A.init_vector130()
         
     def set_preconditioner(self, B):
         self.B = B
