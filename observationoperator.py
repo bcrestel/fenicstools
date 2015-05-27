@@ -1,7 +1,10 @@
 import abc
 import numpy as np
 
-from dolfin import Function, TrialFunction, TestFunction, assemble, inner, dx
+from dolfin import Function, TrialFunction, TestFunction, \
+Constant, Point, PointSources, \
+assemble, inner, dx
+from scipy.sparse import csr_matrix
 from exceptionsfenics import WrongInstanceError
 
 
@@ -77,3 +80,55 @@ class ObsEntireDomain(ObservationOperator):
     def incradj(self, uin):
         self.isFunction(uin)
         return self.W * uin.vector()
+
+
+class ObsPointwise(ObservationOperator):
+    """Observation operator at finite nb of points
+    Parameters must be a dictionary containing:
+        V = function space for state variable
+        Points = list of coordinates"""
+
+    def _assemble(self):
+        self.V = self.Parameters['V']
+        self.Points = self.Parameters['Points']
+        self.nbPts = len(self.Points)
+        self.test = TestFunction(self.V)
+        # Build observation operator B and B^TB
+        f = Constant('0')
+        L = f*test*dx
+        b = assemble(L)
+        Dobs = np.zeros(NbPts*b.size(), float) 
+        Dobs = Dobs.reshape((NbPts, b.size()), order='C')
+        for index, pts in enumerate(self.Points):
+            delta = PointSource(self.V, self.list2point(pts))
+            bs = b.copy()
+            delta.apply(bs)
+            Dobs[index,:] = bs.array().transpose()
+        self.B = csr_matrix(Dobs)
+        self.BtB = csr_matrix((self.B.T).dot(Dr)) 
+
+    def list2point(list_in):
+        """Turn a list of coord into a Fenics Point
+        list_in = list containing coordinates of the Point"""
+        dim = np.size(list_in)
+        return Point(dim, np.array(list_in, dtype=float))
+
+    def obs(self, uin):
+        self.isFunction(uin)
+        return self.B.dot(uin.vector().array())
+
+    def costfct(self, uin, udin):
+        self.isarray(uin, udin)
+        diff = uin - udin
+        return 0.5*np.dot(diff, diff)
+
+    def assemble_rhsadj(self, uin, udin, outp, bc):
+        self.isarray(uin, udin)
+        self.isFunction(outp)
+        diff = uin - udin
+        outp.vector()[:] = - (self.B.T).dot(diff)
+        bc.apply(outp.vector())
+
+    def incradj(self, uin):
+        self.isFunction(uin)
+        return self.BtB.dot(uin.vector().array())
