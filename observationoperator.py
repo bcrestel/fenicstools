@@ -2,7 +2,7 @@ import abc
 import numpy as np
 
 from dolfin import Function, TrialFunction, TestFunction, \
-Constant, Point, PointSources, \
+Constant, Point, PointSource, \
 assemble, inner, dx
 from scipy.sparse import csr_matrix
 from exceptionsfenics import WrongInstanceError
