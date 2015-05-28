@@ -72,7 +72,7 @@ def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6):
                 print '\th={0:.1e}: ||FDH.x||={1:.5e}, error={2:.2e}'\
                 .format(hh, np.linalg.norm(FDHessx), err)
 
-def compute_searchdirection(ObjFctal, keyword, gradnorm_init=None):
+def compute_searchdirection(ObjFctal, keyword, gradnorm_init=None, maxtolcg=0.5):
     """Compute search direction for Line Search based on keyword.
     keyword can be 'sd' (steepest descent) or 'Newt' (Newton's method).
     Whether we use full Hessian or GN Hessian in Newton's method depend on
@@ -88,7 +88,7 @@ parameter ObjFctal.GN
         # Compute tolcg for Inexact-CG Newton's method:
         gradnorm = ObjFctal.getGradnorm()
         gradnormrel = gradnorm/max(1.0, gradnorm_init)
-        tolcg = min(0.5, np.sqrt(gradnormrel))
+        tolcg = min(maxtolcg, np.sqrt(gradnormrel))
         # Define solver
         solver = CGSolverSteihaug()
         solver.set_operator(ObjFctal)

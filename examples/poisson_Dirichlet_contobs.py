@@ -42,7 +42,7 @@ goal.update_m(mtrue)
 goal.solvefwd()
 UD = goal.U
 # Add noise:
-noisepercent = 0.00   # e.g., 0.02 = 2% noise level
+noisepercent = 0.05   # e.g., 0.02 = 2% noise level
 UDnoise, objnoise = apply_noise(UD, noisepercent)
 print 'Noise in data misfit={:.5e}'.format(objnoise*.5/len(UD))
 
@@ -53,10 +53,10 @@ InvPb.update_m(1.0) # Set initial medium
 InvPb.solvefwd_cost()
 # Choose between steepest descent and Newton's method:
 METHODS = ['sd','Newt']
-meth = METHODS[1]
+meth = METHODS[0]
 if meth == 'sd':    alpha_init = 1e3
 elif meth == 'Newt':    alpha_init = 1.0
-nbcheck = 2 # Grad and Hessian checks
+nbcheck = 0 # Grad and Hessian checks
 nbLS = 20   # Max nb of line searches
 # Prepare results outputs:
 PP = PostProcessor(meth, mtrue)
@@ -71,8 +71,12 @@ for it in range(1, maxiter+1):
         checkgradfd(InvPb, nbcheck)
         checkhessfd(InvPb, nbcheck)
     # Compute search direction:
-    if it == 1:   gradnorm_init = InvPb.getGradnorm()
-    CGresults = compute_searchdirection(InvPb, meth, gradnorm_init)
+    if it == 1: gradnorm_init = InvPb.getGradnorm()
+    if meth == 'Newt':
+        if it == 1: maxtolcg = .5
+        else:   maxtolcg = CGresults[3]
+    else:   maxtolcg = None
+    CGresults = compute_searchdirection(InvPb, meth, gradnorm_init, maxtolcg)
     # Compute line search:
     LSresults = bcktrcklinesearch(InvPb, nbLS, alpha_init)
     InvPb.plotm(it) # Plot current medium reconstruction
