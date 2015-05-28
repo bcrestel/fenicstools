@@ -1,17 +1,19 @@
 import numpy as np
 
-from dolfin import norm, errornorm
+from dolfin import norm, Function, interpolate
 
 class PostProcessor():
     """Handles printing of results
     and stopping criteria for optimization"""
 
     # Instantiation
-    def __init__(self, meth, mtrue, maxnbLS=15):
+    def __init__(self, meth, Vm, mtrue, maxnbLS=15):
         self.meth = meth
         if self.meth == 'Newt': self.Newt = True
         else:   self.Newt = False
-        self.mtrue = mtrue
+        self.Vm = Vm
+        self.mtrue = interpolate(mtrue, self.Vm)
+        self.diff = Function(self.Vm)
         self.normmtrue = norm(self.mtrue)
         self.maxnbLS = maxnbLS
         self._createoutputlines()
@@ -43,13 +45,18 @@ class PostProcessor():
         if self.Newt:
             self.dataline = self.dataline + '{:10.1e} {:3d} {:10.1e}'
 
+    def errornorm(self, MM, m):
+        self.diff.vector()[:] = (m.vector() - self.mtrue.vector()).array()
+        return np.sqrt(np.dot(self.diff.vector().array(), \
+        (MM * self.diff.vector()).array()))
+
     def getResults0(self, Obj):
         """Get results before first step of iteration"""
         self.index = 0
         # Cost
         self.cost, self.misfit, self.regul = Obj.getcost()
         # Med Misfit
-        self.medmisfit = errornorm(Obj.getm(), self.mtrue, 'l2', 1)
+        self.medmisfit = self.errornorm(Obj.getMass(), Obj.getm())
         self.medmisfitrel = self.medmisfit/self.normmtrue
         # Grad
         self.gradnorm = 0.0
@@ -67,7 +74,7 @@ class PostProcessor():
         # Cost
         self.cost, self.misfit, self.regul = Obj.getcost()
         # Med Misfit
-        self.medmisfit = errornorm(Obj.getm(), self.mtrue, 'l2', 1)
+        self.medmisfit = self.errornorm(Obj.getMass(), Obj.getm())
         self.medmisfitrel = self.medmisfit/self.normmtrue
         # Grad
         self.gradnorm = Obj.getGradnorm()

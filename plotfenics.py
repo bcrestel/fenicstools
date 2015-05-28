@@ -52,7 +52,6 @@ class PlotFenics:
                 self.Fenics_vtu_correction)
                 fout.write(myline)
             fout.write('\t</Collection>\n</VTKFile>')
-        os.system('rm -f {0}'.format(self.outdir+self.varname+'_*.pvd'))
 
     # Check methods
     def _check_outdir(self):

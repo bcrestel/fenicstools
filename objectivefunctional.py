@@ -118,6 +118,7 @@ class ObjectiveFunctional(LinearOperator):
         Prec.parameters["nonzero_initial_guess"] = False
         Prec.set_operator(self.Regul.get_precond())
         return Prec
+    def getMass(self):    return self.MM
 
     # Setters
     def setsrchdir(self, arr):  self.srchdir.vector()[:] = arr
@@ -232,10 +233,10 @@ class ObjectiveFunctional(LinearOperator):
 
     def update_m(self, m):
         """Update values of parameter m"""
-        if isinstance(m, Function):
-            self.m.assign(m)
-        elif isinstance(m, np.ndarray):
+        if isinstance(m, np.ndarray):
             self.m.vector()[:] = m
+        elif isinstance(m, Function):
+            self.m.assign(m)
         elif isinstance(m, float):
             self.m.vector()[:] = m
         elif isinstance(m, int):

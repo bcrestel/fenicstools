@@ -107,7 +107,6 @@ parameter ObjFctal.GN
     if keyword == 'Newt':
         return [solver.iter, solver.final_norm, solver.reasonid, tolcg]
 
-
 def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
     """Run backtracking line search in 'search_direction'. 
     Default 'search_direction is steepest descent.
