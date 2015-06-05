@@ -11,7 +11,7 @@ import numpy as np
 from dolfin import UnitSquareMesh, FunctionSpace, Constant, DirichletBC, \
 Expression, interpolate
 from fenicstools.objectivefunctional import ObjFctalElliptic
-from fenicstools.observationoperator import ObsEntireDomain
+from fenicstools.observationoperator import ObsPointwise
 from fenicstools.prior import LaplacianPrior
 from fenicstools.optimsolver import checkgradfd, checkhessfd, \
 bcktrcklinesearch, compute_searchdirection
@@ -36,7 +36,8 @@ def run_problem():
     f = Expression("1.0")
 
     # Compute target data:
-    ObsOp = ObsEntireDomain({'V': V})
+    obspts = [[ii/5.,jj/5.] for ii in range(1,5) for jj in range(1,5)]
+    ObsOp = ObsPointwise({'V': V, 'Points':obspts})
     goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False)
     goal.update_m(mtrue)
     goal.solvefwd()
@@ -47,8 +48,10 @@ def run_problem():
     print 'Noise in data misfit={:.5e}'.format(objnoise*.5/len(UD))
 
     # Solve reconstruction problem:
-    Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-9,'beta':1e-14})
-    InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul, [], False)
+    Regul = LaplacianPrior({'Vm':Vm,'gamma':5e-8,'beta':1e-14})
+    plot_option = False
+    InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul, \
+    [], plot_option)
     InvPb.update_m(1.0) # Set initial medium
     InvPb.solvefwd_cost()
     # Choose between steepest descent and Newton's method:

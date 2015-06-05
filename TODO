@@ -1,9 +1,10 @@
 TODO list
-* Test prior (especially BiLaplacian)
-* Unit test observationoperator
+* test prior (especially BiLaplacian)
+* unit test observationoperator
 * Bayesian example, sampling, ...
-* Multiple sources
-* Implement OED problem
+* multiple sources
+* non-symmetric fwd pb
+* time-dependent
 
 * Helmholtz example (?)
 

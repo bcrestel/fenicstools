@@ -11,7 +11,7 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6):
     lenm = len(FDobj.getmarray())
     ObjFctal.backup_m()
     rnddirc = np.random.randn(nbgradcheck, lenm)
-    H = [1e-5, 1e-4, 1e-3]
+    H = [1e-5, 1e-6, 1e-4]
     factor = [1.0, -1.0]
     MGdir = rnddirc.dot(ObjFctal.getMGarray())
     for textnb, dirct, mgdir in zip(range(lenm), rnddirc, MGdir):

@@ -14,8 +14,8 @@ class ObservationOperator():
     __metaclass__ = abc.ABCMeta
 
     #Instantiation
-    def __init__(self, Parameters=None):
-        self.Parameters = Parameters
+    def __init__(self, parameters=None):
+        self.parameters = parameters
         self._assemble()
 
     @abc.abstractmethod
@@ -50,11 +50,11 @@ class ObservationOperator():
 class ObsEntireDomain(ObservationOperator):
     """Observation operator over the entire domain
     with L2 misfit norm
-    Parameters must be dictionary containing:
+    parameters must be dictionary containing:
         V = function space for state variable"""
     
     def _assemble(self):
-        self.V = self.Parameters['V']
+        self.V = self.parameters['V']
         self.diff = Function(self.V)
         self.trial = TrialFunction(self.V)
         self.test = TestFunction(self.V)
@@ -84,30 +84,31 @@ class ObsEntireDomain(ObservationOperator):
 
 class ObsPointwise(ObservationOperator):
     """Observation operator at finite nb of points
-    Parameters must be a dictionary containing:
+    parameters must be a dictionary containing:
         V = function space for state variable
         Points = list of coordinates"""
 
     def _assemble(self):
-        self.V = self.Parameters['V']
-        self.Points = self.Parameters['Points']
+        self.V = self.parameters['V']
+        self.Points = self.parameters['Points']
         self.nbPts = len(self.Points)
         self.test = TestFunction(self.V)
+        self.BtBu = Function(self.V)
         # Build observation operator B and B^TB
         f = Constant('0')
-        L = f*test*dx
+        L = f*self.test*dx
         b = assemble(L)
-        Dobs = np.zeros(NbPts*b.size(), float) 
-        Dobs = Dobs.reshape((NbPts, b.size()), order='C')
+        Dobs = np.zeros(self.nbPts*b.size(), float) 
+        Dobs = Dobs.reshape((self.nbPts, b.size()), order='C')
         for index, pts in enumerate(self.Points):
             delta = PointSource(self.V, self.list2point(pts))
             bs = b.copy()
             delta.apply(bs)
             Dobs[index,:] = bs.array().transpose()
         self.B = csr_matrix(Dobs)
-        self.BtB = csr_matrix((self.B.T).dot(Dr)) 
+        self.BtB = csr_matrix((self.B.T).dot(self.B)) 
 
-    def list2point(list_in):
+    def list2point(self, list_in):
         """Turn a list of coord into a Fenics Point
         list_in = list containing coordinates of the Point"""
         dim = np.size(list_in)
@@ -131,4 +132,5 @@ class ObsPointwise(ObservationOperator):
 
     def incradj(self, uin):
         self.isFunction(uin)
-        return self.BtB.dot(uin.vector().array())
+        self.BtBu.vector()[:] = self.BtB.dot(uin.vector().array())
+        return self.BtBu.vector()
