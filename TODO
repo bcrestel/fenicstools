@@ -1,4 +1,5 @@
 TODO list
+* parallel version of code (need to modify apply_noise and others...)
 * test prior (especially BiLaplacian)
 * unit test observationoperator
 * Bayesian example, sampling, ...
