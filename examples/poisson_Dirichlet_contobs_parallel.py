@@ -20,6 +20,7 @@ from fenicstools.postprocessor import PostProcessor
 
 mycomm = mpi_comm_world()
 myrank = MPI.rank(mycomm)
+nbproc = MPI.size(mycomm)
 
 # Domain, f-e spaces and boundary conditions:
 mesh = UnitSquareMesh(20,20)
@@ -42,12 +43,14 @@ ObsOp = ObsEntireDomain({'V': V})
 goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False)
 goal.update_m(mtrue)
 goal.solvefwd()
-print 'P{0}: {1}\n'.format(myrank, max(goal.U[0]))
+print 'P{0}: max(UD[0])={1}\n'.format(myrank, max(goal.U[0]))
 UD = goal.U
 # Add noise:
 noisepercent = 0.05   # e.g., 0.02 = 2% noise level
 UDnoise, objnoise = apply_noise(UD, noisepercent)
-print 'Noise in data misfit={:.5e}'.format(objnoise*.5/len(UD))
+total_objnoise = MPI.sum(mycomm, objnoise)
+if myrank == 0:
+    print 'Total noise in data misfit={:.5e}\n'.format(total_objnoise*.5/len(UD))
 
 """
 # Solve reconstruction problem:
