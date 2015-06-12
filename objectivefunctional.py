@@ -34,7 +34,7 @@ class ObjectiveFunctional(LinearOperator):
         self.MG = Function(Vm)
         self.Grad = Function(Vm)
         self.Gradnorm = 0.0
-        self.lenm = Vm.dim()
+        self.lenm = len(self.m.vector().array())
         self.u = Function(V)
         self.ud = Function(V)
         self.diff = Function(V)

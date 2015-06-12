@@ -52,12 +52,14 @@ total_objnoise = MPI.sum(mycomm, objnoise)
 if myrank == 0:
     print 'Total noise in data misfit={:.5e}\n'.format(total_objnoise*.5/len(UD))
 
-"""
 # Solve reconstruction problem:
 Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-9,'beta':1e-14})
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul, [], False)
 InvPb.update_m(1.0) # Set initial medium
 InvPb.solvefwd_cost()
+total_misfit = MPI.sum(mycomm, InvPb.getcost()[1])
+if myrank == 0:
+    print 'Total data misfit={:.5e}\n'.format(total_misfit)
 # Choose between steepest descent and Newton's method:
 METHODS = ['sd','Newt']
 meth = METHODS[1]
@@ -68,11 +70,14 @@ nbLS = 20   # Max nb of line searches
 # Prepare results outputs:
 PP = PostProcessor(meth, Vm, mtrue)
 PP.getResults0(InvPb)    # Get results for index 0 (before first iteration)
-PP.printResults()
+#PP.printResults()
 # Start iteration:
-maxiter = 100 
+maxiter = 1 
 for it in range(1, maxiter+1):
     InvPb.solveadj_constructgrad()
+    total_normGrad = np.sqrt(MPI.sum(mycomm, InvPb.getGradnorm()**2))
+    if myrank == 0:
+        print 'Total norm Grad={:.5e}\n'.format(total_normGrad)
     # Check gradient and Hessian:
     if nbcheck and (it == 1 or it % 10 == 0): 
         checkgradfd(InvPb, nbcheck)
@@ -83,15 +88,20 @@ for it in range(1, maxiter+1):
         if it == 1: maxtolcg = .5
         else:   maxtolcg = CGresults[3]
     else:   maxtolcg = None
+    """
     CGresults = compute_searchdirection(InvPb, meth, gradnorm_init, maxtolcg)
     # Compute line search:
     LSresults = bcktrcklinesearch(InvPb, nbLS, alpha_init)
-    InvPb.plotm(it) # Plot current medium reconstruction
+    total_misfit = MPI.sum(mycomm, InvPb.getcost()[1])
+    if myrank == 0:
+        print 'Total data misfit={:.5e}\n'.format(total_misfit)
+    #InvPb.plotm(it) # Plot current medium reconstruction
     # Print results:
     PP.getResults(InvPb, LSresults, CGresults)
-    PP.printResults()
-    if PP.Stop():   break   # Stopping criterion
-    alpha_init = PP.alpha_init()    # Initialize next alpha when using sd
-InvPb.gatherm() # Create one plot for all intermediate reconstructions
-if it == maxiter:   print "Max nb of iterations reached."
+    #PP.printResults()
+    #if PP.Stop():   break   # Stopping criterion
+    #alpha_init = PP.alpha_init()    # Initialize next alpha when using sd
+    alpha_init = 1.0
+#InvPb.gatherm() # Create one plot for all intermediate reconstructions
+#if it == maxiter:   print "Max nb of iterations reached."
 """
