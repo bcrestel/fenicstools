@@ -37,7 +37,7 @@ def run_problem():
 
     # Compute target data:
     ObsOp = ObsEntireDomain({'V': V})
-    goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False)
+    goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp)
     goal.update_m(mtrue)
     goal.solvefwd()
     UD = goal.U

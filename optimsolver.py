@@ -76,11 +76,12 @@ def compute_searchdirection(ObjFctal, keyword, gradnorm_init=None, maxtolcg=0.5)
     """Compute search direction for Line Search based on keyword.
     keyword can be 'sd' (steepest descent) or 'Newt' (Newton's method).
     Whether we use full Hessian or GN Hessian in Newton's method depend on
-parameter ObjFctal.GN
-
-    ObjFctal = object from class ObjectiveFunctional
-    keyword = 'sd' or 'Newt'
-    gradnorminit = norm of gradient at first step of iteration
+    parameter ObjFctal.GN
+    Inputs:
+        ObjFctal = object from class ObjectiveFunctional
+        keyword = 'sd' or 'Newt'
+        gradnorminit = norm of gradient at first step of iteration
+        maxtolcg = max value for tol CG
     """
     if keyword == 'sd':
         ObjFctal.setsrchdir(-1.0*ObjFctal.getGradarray())

@@ -5,7 +5,8 @@ import numpy as np
 
 from dolfin import TrialFunction, TestFunction, Function, Vector, \
 PETScKrylovSolver, LUSolver, set_log_active, LinearOperator, Expression, \
-assemble, inner, nabla_grad, dx
+assemble, inner, nabla_grad, dx, \
+MPI, mpi_comm_world
 from exceptionsfenics import WrongInstanceError
 from plotfenics import PlotFenics
 set_log_active(False)
@@ -20,7 +21,8 @@ class ObjectiveFunctional(LinearOperator):
 
     # Instantiation
     def __init__(self, V, Vm, bc, bcadj, \
-    RHSinput=[], ObsOp=[], UD=[], Regul=[], Data=[], plot=True):
+    RHSinput=[], ObsOp=[], UD=[], Regul=[], Data=[], plot=False, \
+    mycomm=mpi_comm_world()):
         # Define test, trial and all other functions
         self.trial = TrialFunction(V)
         self.test = TestFunction(V)
@@ -33,6 +35,7 @@ class ObjectiveFunctional(LinearOperator):
         self.delta_m = Function(Vm)
         self.MG = Function(Vm)
         self.Grad = Function(Vm)
+        self.Gradnormloc = 0.0
         self.Gradnorm = 0.0
         self.lenm = len(self.m.vector().array())
         self.u = Function(V)
@@ -63,6 +66,8 @@ class ObjectiveFunctional(LinearOperator):
         self.nbfwdsolves = 0    # Counter for plots
         self.nbadjsolves = 0    # Counter for plots
         self._set_plots(plot)
+        # MPI:
+        self.mycomm = mycomm
 
     def copy(self):
         """Define a copy method"""
@@ -131,19 +136,22 @@ class ObjectiveFunctional(LinearOperator):
         if self.plot:
             self.plotu = PlotFenics(self.plotoutdir)
             self.plotu.set_varname('u{0}'.format(self.nbfwdsolves))
-        if cost:    self.misfit = 0.0
+        if cost:    self.misfitloc = 0.0
         for ii, rhs in enumerate(self.RHS):
             self.solve_A(self.u.vector(), rhs)
             if self.plot:   self.plotu.plot_vtk(self.u, ii)
             u_obs = self.ObsOp.obs(self.u)
             self.U.append(u_obs)
             if cost:
-                self.misfit += self.ObsOp.costfct(u_obs, self.UD[ii])
+                self.misfitloc += self.ObsOp.costfct(u_obs, self.UD[ii])
             self.C.append(assemble(self.c))
         if cost:
-            self.misfit /= len(self.U)
-            self.regul = self.Regul.cost(self.m)
-            self.cost = self.misfit + self.regul
+            self.misfitloc /= len(self.U)
+            self.regulloc = self.Regul.cost(self.m)
+            self.costloc = self.misfitloc + self.regulloc
+            self.misfit = MPI.sum(self.mycomm, self.misfitloc)
+            self.regul = MPI.sum(self.mycomm, self.regulloc)
+            self.cost = MPI.sum(self.mycomm, self.costloc)
         if self.plot:   self.plotu.gather_vtkplots()
 
     def solvefwd_cost(self):
@@ -169,8 +177,9 @@ class ObjectiveFunctional(LinearOperator):
         if grad:
             self.MG.vector().axpy(1.0, self.Regul.grad(self.m))
             self.solverM.solve(self.Grad.vector(), self.MG.vector())
-            self.Gradnorm = np.sqrt(np.dot(self.getGradarray(), \
+            self.Gradnormloc = np.sqrt(np.dot(self.getGradarray(), \
             self.getMGarray()))
+            self.Gradnorm = np.sqrt(MPI.sum(self.mycomm, self.Gradnormloc**2))
         if self.plot:   self.plotp.gather_vtkplots()
 
     def solveadj_constructgrad(self):

@@ -57,9 +57,9 @@ Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-9,'beta':1e-14})
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul, [], False)
 InvPb.update_m(1.0) # Set initial medium
 InvPb.solvefwd_cost()
-total_misfit = MPI.sum(mycomm, InvPb.getcost()[1])
 if myrank == 0:
-    print 'Total data misfit={:.5e}\n'.format(total_misfit)
+    print 'Total data cost={:.5e}, misfit={:.5e}, regul={:.5e}\n'\
+    .format(InvPb.getcost()[0], InvPb.getcost()[1], InvPb.getcost()[2])
 # Choose between steepest descent and Newton's method:
 METHODS = ['sd','Newt']
 meth = METHODS[1]
@@ -72,12 +72,11 @@ PP = PostProcessor(meth, Vm, mtrue)
 PP.getResults0(InvPb)    # Get results for index 0 (before first iteration)
 #PP.printResults()
 # Start iteration:
-maxiter = 1 
+maxiter = 5
 for it in range(1, maxiter+1):
     InvPb.solveadj_constructgrad()
-    total_normGrad = np.sqrt(MPI.sum(mycomm, InvPb.getGradnorm()**2))
     if myrank == 0:
-        print 'Total norm Grad={:.5e}\n'.format(total_normGrad)
+        print 'Total norm Grad={:.5e}'.format(InvPb.getGradnorm())
     # Check gradient and Hessian:
     if nbcheck and (it == 1 or it % 10 == 0): 
         checkgradfd(InvPb, nbcheck)
@@ -88,13 +87,14 @@ for it in range(1, maxiter+1):
         if it == 1: maxtolcg = .5
         else:   maxtolcg = CGresults[3]
     else:   maxtolcg = None
-    """
     CGresults = compute_searchdirection(InvPb, meth, gradnorm_init, maxtolcg)
+#    print 'P{0}: CGresults={1}'.format(myrank, CGresults)
+#    MPI.barrier(mycomm)
     # Compute line search:
     LSresults = bcktrcklinesearch(InvPb, nbLS, alpha_init)
-    total_misfit = MPI.sum(mycomm, InvPb.getcost()[1])
     if myrank == 0:
-        print 'Total data misfit={:.5e}\n'.format(total_misfit)
+        print 'Total data cost={:.5e}, misfit={:.5e}, regul={:.5e}\n'\
+        .format(InvPb.getcost()[0], InvPb.getcost()[1], InvPb.getcost()[2])
     #InvPb.plotm(it) # Plot current medium reconstruction
     # Print results:
     PP.getResults(InvPb, LSresults, CGresults)
@@ -104,4 +104,3 @@ for it in range(1, maxiter+1):
     alpha_init = 1.0
 #InvPb.gatherm() # Create one plot for all intermediate reconstructions
 #if it == maxiter:   print "Max nb of iterations reached."
-"""
