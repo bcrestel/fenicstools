@@ -43,7 +43,7 @@ ObsOp = ObsEntireDomain({'V': V})
 goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False)
 goal.update_m(mtrue)
 goal.solvefwd()
-print 'P{0}: max(UD[0])={1}\n'.format(myrank, max(goal.U[0]))
+#print 'P{0}: max(UD[0])={1}\n'.format(myrank, max(goal.U[0]))
 UD = goal.U
 # Add noise:
 noisepercent = 0.05   # e.g., 0.02 = 2% noise level
@@ -53,13 +53,10 @@ if myrank == 0:
     print 'Total noise in data misfit={:.5e}\n'.format(total_objnoise*.5/len(UD))
 
 # Solve reconstruction problem:
-Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-9,'beta':1e-14})
+Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-5,'beta':1e-14})
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul, [], False)
 InvPb.update_m(1.0) # Set initial medium
 InvPb.solvefwd_cost()
-if myrank == 0:
-    print 'Total data cost={:.5e}, misfit={:.5e}, regul={:.5e}\n'\
-    .format(InvPb.getcost()[0], InvPb.getcost()[1], InvPb.getcost()[2])
 # Choose between steepest descent and Newton's method:
 METHODS = ['sd','Newt']
 meth = METHODS[1]
@@ -70,13 +67,11 @@ nbLS = 20   # Max nb of line searches
 # Prepare results outputs:
 PP = PostProcessor(meth, Vm, mtrue)
 PP.getResults0(InvPb)    # Get results for index 0 (before first iteration)
-#PP.printResults()
+PP.printResults()
 # Start iteration:
-maxiter = 5
+maxiter = 50
 for it in range(1, maxiter+1):
     InvPb.solveadj_constructgrad()
-    if myrank == 0:
-        print 'Total norm Grad={:.5e}'.format(InvPb.getGradnorm())
     # Check gradient and Hessian:
     if nbcheck and (it == 1 or it % 10 == 0): 
         checkgradfd(InvPb, nbcheck)
@@ -88,19 +83,13 @@ for it in range(1, maxiter+1):
         else:   maxtolcg = CGresults[3]
     else:   maxtolcg = None
     CGresults = compute_searchdirection(InvPb, meth, gradnorm_init, maxtolcg)
-#    print 'P{0}: CGresults={1}'.format(myrank, CGresults)
-#    MPI.barrier(mycomm)
     # Compute line search:
     LSresults = bcktrcklinesearch(InvPb, nbLS, alpha_init)
-    if myrank == 0:
-        print 'Total data cost={:.5e}, misfit={:.5e}, regul={:.5e}\n'\
-        .format(InvPb.getcost()[0], InvPb.getcost()[1], InvPb.getcost()[2])
     #InvPb.plotm(it) # Plot current medium reconstruction
     # Print results:
     PP.getResults(InvPb, LSresults, CGresults)
-    #PP.printResults()
-    #if PP.Stop():   break   # Stopping criterion
-    #alpha_init = PP.alpha_init()    # Initialize next alpha when using sd
-    alpha_init = 1.0
+    PP.printResults()
+    if PP.Stop():   break   # Stopping criterion
+    alpha_init = PP.alpha_init()    # Initialize next alpha when using sd
 #InvPb.gatherm() # Create one plot for all intermediate reconstructions
-#if it == maxiter:   print "Max nb of iterations reached."
+if it == maxiter and myrank == 0:   print "Max nb of iterations reached."

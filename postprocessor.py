@@ -1,24 +1,27 @@
 import numpy as np
 
-from dolfin import norm, Function, interpolate
+from dolfin import norm, Function, interpolate, MPI, mpi_comm_world
 
 class PostProcessor():
     """Handles printing of results
     and stopping criteria for optimization"""
 
     # Instantiation
-    def __init__(self, meth, Vm, mtrue, maxnbLS=15):
+    def __init__(self, meth, Vm, mtrue, maxnbLS=15, mycomm=mpi_comm_world()):
         self.meth = meth
         if self.meth == 'Newt': self.Newt = True
         else:   self.Newt = False
         self.Vm = Vm
         self.mtrue = interpolate(mtrue, self.Vm)
         self.diff = Function(self.Vm)
-        self.normmtrue = norm(self.mtrue)
+        self.normmtrue = norm(self.mtrue)   # this is a global result (somehow)
         self.maxnbLS = maxnbLS
         self._createoutputlines()
         self.index = 0
         self.gradnorminit = None
+        # MPI:
+        self.mycomm = mycomm
+        self.myrank = MPI.rank(self.mycomm)
 
     def setnormmtrue(self, normtrue):  self.normmtrue = normmtrue
 
@@ -54,9 +57,13 @@ class PostProcessor():
         """Get results before first step of iteration"""
         self.index = 0
         # Cost
-        self.cost, self.misfit, self.regul = Obj.getcost()
+        self.costloc, self.misfitloc, self.regulloc = Obj.getcostloc()
+        self.misfit = MPI.sum(self.mycomm, self.misfitloc)
+        self.regul = MPI.sum(self.mycomm, self.regulloc)
+        self.cost = MPI.sum(self.mycomm, self.costloc)
         # Med Misfit
-        self.medmisfit = self.errornorm(Obj.getMass(), Obj.getm())
+        self.medmisfitloc = self.errornorm(Obj.getMass(), Obj.getm())
+        self.medmisfit = np.sqrt(MPI.sum(self.mycomm, self.medmisfitloc**2))
         self.medmisfitrel = self.medmisfit/self.normmtrue
         # Grad
         self.gradnorm = 0.0
@@ -72,9 +79,13 @@ class PostProcessor():
             raise ValueError(\
             "CGresults must be provided when using Newton method")
         # Cost
-        self.cost, self.misfit, self.regul = Obj.getcost()
+        self.costloc, self.misfitloc, self.regulloc = Obj.getcostloc()
+        self.misfit = MPI.sum(self.mycomm, self.misfitloc)
+        self.regul = MPI.sum(self.mycomm, self.regulloc)
+        self.cost = MPI.sum(self.mycomm, self.costloc)
         # Med Misfit
-        self.medmisfit = self.errornorm(Obj.getMass(), Obj.getm())
+        self.medmisfitloc = self.errornorm(Obj.getMass(), Obj.getm())
+        self.medmisfit = np.sqrt(MPI.sum(self.mycomm, self.medmisfitloc**2))
         self.medmisfitrel = self.medmisfit/self.normmtrue
         # Grad
         self.gradnorm = Obj.getGradnorm()
@@ -82,9 +93,11 @@ class PostProcessor():
             self.gradnorminit = self.gradnorm
         if not (self.gradnorminit == None):
             self.gradnormrel = self.gradnorm/self.gradnorminit
-        if self.gradnorm > 0.0:
-            self.Gpangle = \
-            Obj.getgradxdir()/(self.gradnorm*Obj.getsrchdirnorm())
+        if self.gradnorm > 1e-16:
+            srchdirnorm = np.sqrt(MPI.sum(self.mycomm, Obj.getsrchdirnorm()**2))
+            if srchdirnorm > 1e-16:
+                self.Gpangle = Obj.getgradxdir()/(self.gradnorm*srchdirnorm)
+            else:   self.Gpangle = np.inf
         else:   self.Gpangle = np.inf
         # Line Search
         self.LSsuccess = LSresults[0]
@@ -96,35 +109,37 @@ class PostProcessor():
             self.finalnormCG = CGresults[1]
             self.tolCG = CGresults[3]
 
-    def printResults(self):
-        """Print results"""
-        if self.index == 0: 
-            print self.titleline
-            print self.dataline0.format(self.index, \
-        self.cost, self.misfit, self.regul, \
-        self.medmisfit, self.medmisfitrel)
-        elif self.Newt:
-            print self.dataline.format(self.index, \
-        self.cost, self.misfit, self.regul, \
-        self.medmisfit, self.medmisfitrel, \
-        self.gradnorm, self.gradnormrel, self.Gpangle, \
-        self.LSratio, self.LScount, \
-        self.tolCG, self.CGiter, self.finalnormCG)
-        else:
-            print self.dataline.format(self.index, \
-        self.cost, self.misfit, self.regul, \
-        self.medmisfit, self.medmisfitrel, \
-        self.gradnorm, self.gradnormrel, self.Gpangle, \
-        self.LSratio, self.LScount)
+    def printResults(self, rank=0):
+        """Print results on process rank"""
+        if self.myrank == rank:
+            if self.index == 0: 
+                print self.titleline
+                print self.dataline0.format(self.index, \
+            self.cost, self.misfit, self.regul, \
+            self.medmisfit, self.medmisfitrel)
+            elif self.Newt:
+                print self.dataline.format(self.index, \
+            self.cost, self.misfit, self.regul, \
+            self.medmisfit, self.medmisfitrel, \
+            self.gradnorm, self.gradnormrel, self.Gpangle, \
+            self.LSratio, self.LScount, \
+            self.tolCG, self.CGiter, self.finalnormCG)
+            else:
+                print self.dataline.format(self.index, \
+            self.cost, self.misfit, self.regul, \
+            self.medmisfit, self.medmisfitrel, \
+            self.gradnorm, self.gradnormrel, self.Gpangle, \
+            self.LSratio, self.LScount)
 
-    def Stop(self):
+    def Stop(self, rank=0):
         """Compute stopping criterion and 
         return True if iteration must stop"""
         if not self.LSsuccess:
-            print 'Line Search failed after {0} counts'.format(self.LScount)
+            if self.myrank == rank:
+                print 'Line Search failed after {0} counts'.format(self.LScount)
             return True
         elif self.gradnormrel < 1e-10:
-            print 'Optimization converged!'
+            if self.myrank == rank: print 'Optimization converged!'
             return True
         else:   return False
 

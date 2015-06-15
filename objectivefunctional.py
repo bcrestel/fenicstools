@@ -115,7 +115,8 @@ class ObjectiveFunctional(LinearOperator):
         return np.sqrt(np.dot(self.getsrchdirarray(), \
         (self.MM*self.getsrchdirvec()).array()))
     def getgradxdir(self): return self.gradxdir
-    def getcost(self):  return self.cost, self.misfit, self.regul
+    def getcostloc(self):  return self.costloc, self.misfitloc, self.regulloc
+    def getcost(self):  return self.cost
     def getprecond(self):
         Prec = PETScKrylovSolver("richardson", "amg")
         Prec.parameters["maximum_iterations"] = 1
@@ -127,7 +128,10 @@ class ObjectiveFunctional(LinearOperator):
 
     # Setters
     def setsrchdir(self, arr):  self.srchdir.vector()[:] = arr
-    def setgradxdir(self, arr):   self.gradxdir = arr
+    def setgradxdir(self, valueloc):   
+        """Sum all local results for Grad . Srch_dir"""
+        valueglob = MPI.sum(self.mycomm, valueloc)
+        self.gradxdir = valueglob
 
     # Solve
     def solvefwd(self, cost=False):
@@ -149,8 +153,6 @@ class ObjectiveFunctional(LinearOperator):
             self.misfitloc /= len(self.U)
             self.regulloc = self.Regul.cost(self.m)
             self.costloc = self.misfitloc + self.regulloc
-            self.misfit = MPI.sum(self.mycomm, self.misfitloc)
-            self.regul = MPI.sum(self.mycomm, self.regulloc)
             self.cost = MPI.sum(self.mycomm, self.costloc)
         if self.plot:   self.plotu.gather_vtkplots()
 

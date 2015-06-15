@@ -119,7 +119,7 @@ def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
     if alpha_init < 1e-16:    raise ValueError("alpha must be positive")
     # Prelim steps:
     ObjFctal.backup_m()
-    cost_mk = ObjFctal.getcost()[0]
+    cost_mk = ObjFctal.getcost()
     LScount = 0
     success = False
     alpha = alpha_init
@@ -129,8 +129,7 @@ def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
         LScount += 1
         ObjFctal.update_m(ObjFctal.getmcopyarray() + alpha*srch_dir)
         ObjFctal.solvefwd_cost()
-        if ObjFctal.getcost()[0] \
-        < cost_mk + alpha * c * ObjFctal.getgradxdir():
+        if ObjFctal.getcost() < (cost_mk + alpha*c*ObjFctal.getgradxdir()):
             success = True
             break
         alpha *= rho

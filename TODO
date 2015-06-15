@@ -1,5 +1,5 @@
 TODO list
-* parallel version of code (need to modify apply_noise and others...)
+* Make ptwise observation work in parallel + compress comm in postprocessor
 * test prior (especially BiLaplacian)
 * unit test observationoperator
 * Bayesian example, sampling, ...
