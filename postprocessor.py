@@ -1,13 +1,16 @@
 import numpy as np
 
-from dolfin import norm, Function, interpolate, MPI, mpi_comm_world
+try:
+    from dolfin import norm, Function, interpolate, MPI, mpi_comm_world
+except:
+    from dolfin import norm, Function, interpolate
 
 class PostProcessor():
     """Handles printing of results
     and stopping criteria for optimization"""
 
     # Instantiation
-    def __init__(self, meth, Vm, mtrue, maxnbLS=15, mycomm=mpi_comm_world()):
+    def __init__(self, meth, Vm, mtrue, mycomm=None, maxnbLS=15):
         self.meth = meth
         if self.meth == 'Newt': self.Newt = True
         else:   self.Newt = False
@@ -21,7 +24,10 @@ class PostProcessor():
         self.gradnorminit = None
         # MPI:
         self.mycomm = mycomm
-        self.myrank = MPI.rank(self.mycomm)
+        try:
+            self.myrank = MPI.rank(self.mycomm)
+        except:
+            self.myrank = 0
 
     def setnormmtrue(self, normtrue):  self.normmtrue = normmtrue
 
@@ -58,12 +64,20 @@ class PostProcessor():
         self.index = 0
         # Cost
         self.costloc, self.misfitloc, self.regulloc = Obj.getcostloc()
-        self.misfit = MPI.sum(self.mycomm, self.misfitloc)
-        self.regul = MPI.sum(self.mycomm, self.regulloc)
-        self.cost = MPI.sum(self.mycomm, self.costloc)
+        try:
+            self.misfit = MPI.sum(self.mycomm, self.misfitloc)
+            self.regul = MPI.sum(self.mycomm, self.regulloc)
+            self.cost = MPI.sum(self.mycomm, self.costloc)
+        except:
+            self.misfit = self.misfitloc
+            self.regul = self.regulloc
+            self.cost = self.costloc
         # Med Misfit
         self.medmisfitloc = self.errornorm(Obj.getMass(), Obj.getm())
-        self.medmisfit = np.sqrt(MPI.sum(self.mycomm, self.medmisfitloc**2))
+        try:
+            self.medmisfit = np.sqrt(MPI.sum(self.mycomm, self.medmisfitloc**2))
+        except:
+            self.medmisfit = self.medmisfitloc
         self.medmisfitrel = self.medmisfit/self.normmtrue
         # Grad
         self.gradnorm = 0.0
@@ -80,12 +94,20 @@ class PostProcessor():
             "CGresults must be provided when using Newton method")
         # Cost
         self.costloc, self.misfitloc, self.regulloc = Obj.getcostloc()
-        self.misfit = MPI.sum(self.mycomm, self.misfitloc)
-        self.regul = MPI.sum(self.mycomm, self.regulloc)
-        self.cost = MPI.sum(self.mycomm, self.costloc)
+        try:
+            self.misfit = MPI.sum(self.mycomm, self.misfitloc)
+            self.regul = MPI.sum(self.mycomm, self.regulloc)
+            self.cost = MPI.sum(self.mycomm, self.costloc)
+        except:
+            self.misfit = self.misfitloc
+            self.regul = self.regulloc
+            self.cost = self.costloc
         # Med Misfit
         self.medmisfitloc = self.errornorm(Obj.getMass(), Obj.getm())
-        self.medmisfit = np.sqrt(MPI.sum(self.mycomm, self.medmisfitloc**2))
+        try:
+            self.medmisfit = np.sqrt(MPI.sum(self.mycomm, self.medmisfitloc**2))
+        except:
+            self.medmisfit = self.medmisfitloc
         self.medmisfitrel = self.medmisfit/self.normmtrue
         # Grad
         self.gradnorm = Obj.getGradnorm()
@@ -94,7 +116,10 @@ class PostProcessor():
         if not (self.gradnorminit == None):
             self.gradnormrel = self.gradnorm/self.gradnorminit
         if self.gradnorm > 1e-16:
-            srchdirnorm = np.sqrt(MPI.sum(self.mycomm, Obj.getsrchdirnorm()**2))
+            try:
+                srchdirnorm = np.sqrt(MPI.sum(self.mycomm, Obj.getsrchdirnorm()**2))
+            except:
+                srchdirnorm = Obj.getsrchdirnorm()
             if srchdirnorm > 1e-16:
                 self.Gpangle = Obj.getgradxdir()/(self.gradnorm*srchdirnorm)
             else:   self.Gpangle = np.inf

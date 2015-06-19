@@ -40,21 +40,21 @@ f = Expression("1.0")
 
 # Compute target data:
 ObsOp = ObsEntireDomain({'V': V})
-goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False)
+goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False, mycomm)
 goal.update_m(mtrue)
 goal.solvefwd()
 #print 'P{0}: max(UD[0])={1}\n'.format(myrank, max(goal.U[0]))
 UD = goal.U
 # Add noise:
 noisepercent = 0.05   # e.g., 0.02 = 2% noise level
-UDnoise, objnoise = apply_noise(UD, noisepercent)
+UDnoise, objnoise = apply_noise(UD, noisepercent, mycomm)
 total_objnoise = MPI.sum(mycomm, objnoise)
 if myrank == 0:
     print 'Total noise in data misfit={:.5e}\n'.format(total_objnoise*.5/len(UD))
 
 # Solve reconstruction problem:
 Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-5,'beta':1e-14})
-InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul, [], False)
+InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul, [], False, mycomm)
 InvPb.update_m(1.0) # Set initial medium
 InvPb.solvefwd_cost()
 # Choose between steepest descent and Newton's method:
@@ -65,7 +65,7 @@ elif meth == 'Newt':    alpha_init = 1.0
 nbcheck = 0 # Grad and Hessian checks
 nbLS = 20   # Max nb of line searches
 # Prepare results outputs:
-PP = PostProcessor(meth, Vm, mtrue)
+PP = PostProcessor(meth, Vm, mtrue, mycomm)
 PP.getResults0(InvPb)    # Get results for index 0 (before first iteration)
 PP.printResults()
 # Start iteration:

@@ -3,10 +3,15 @@ import sys
 from os.path import splitext
 import numpy as np
 
-from dolfin import TrialFunction, TestFunction, Function, Vector, \
-PETScKrylovSolver, LUSolver, set_log_active, LinearOperator, Expression, \
-assemble, inner, nabla_grad, dx, \
-MPI, mpi_comm_world
+try:
+    from dolfin import TrialFunction, TestFunction, Function, Vector, \
+    PETScKrylovSolver, LUSolver, set_log_active, LinearOperator, Expression, \
+    assemble, inner, nabla_grad, dx, \
+    MPI, mpi_comm_world
+except:
+    from dolfin import TrialFunction, TestFunction, Function, Vector, \
+    PETScKrylovSolver, LUSolver, set_log_active, LinearOperator, Expression, \
+    assemble, inner, nabla_grad, dx
 from exceptionsfenics import WrongInstanceError
 from plotfenics import PlotFenics
 set_log_active(False)
@@ -22,7 +27,7 @@ class ObjectiveFunctional(LinearOperator):
     # Instantiation
     def __init__(self, V, Vm, bc, bcadj, \
     RHSinput=[], ObsOp=[], UD=[], Regul=[], Data=[], plot=False, \
-    mycomm=mpi_comm_world()):
+    mycomm=None):
         # Define test, trial and all other functions
         self.trial = TrialFunction(V)
         self.test = TestFunction(V)
@@ -130,7 +135,10 @@ class ObjectiveFunctional(LinearOperator):
     def setsrchdir(self, arr):  self.srchdir.vector()[:] = arr
     def setgradxdir(self, valueloc):   
         """Sum all local results for Grad . Srch_dir"""
-        valueglob = MPI.sum(self.mycomm, valueloc)
+        try:
+            valueglob = MPI.sum(self.mycomm, valueloc)
+        except:
+            valueglob = valueloc
         self.gradxdir = valueglob
 
     # Solve
@@ -153,7 +161,10 @@ class ObjectiveFunctional(LinearOperator):
             self.misfitloc /= len(self.U)
             self.regulloc = self.Regul.cost(self.m)
             self.costloc = self.misfitloc + self.regulloc
-            self.cost = MPI.sum(self.mycomm, self.costloc)
+            try:
+                self.cost = MPI.sum(self.mycomm, self.costloc)
+            except:
+                self.cost = self.costloc
         if self.plot:   self.plotu.gather_vtkplots()
 
     def solvefwd_cost(self):
@@ -181,7 +192,10 @@ class ObjectiveFunctional(LinearOperator):
             self.solverM.solve(self.Grad.vector(), self.MG.vector())
             self.Gradnormloc = np.sqrt(np.dot(self.getGradarray(), \
             self.getMGarray()))
-            self.Gradnorm = np.sqrt(MPI.sum(self.mycomm, self.Gradnormloc**2))
+            try:
+                self.Gradnorm = np.sqrt(MPI.sum(self.mycomm, self.Gradnormloc**2))
+            except:
+                self.Gradnorm = self.Gradnormloc
         if self.plot:   self.plotp.gather_vtkplots()
 
     def solveadj_constructgrad(self):
