@@ -8,8 +8,16 @@ with u = 0 on boundary.
 """
 
 import numpy as np
-from dolfin import UnitSquareMesh, FunctionSpace, Constant, DirichletBC, \
-Expression, interpolate, MPI, mpi_comm_world
+try:
+    from dolfin import UnitSquareMesh, FunctionSpace, Constant, DirichletBC, \
+    Expression, interpolate, MPI, mpi_comm_world
+    mycomm = mpi_comm_world()
+    myrank = MPI.rank(mycomm)
+except:
+    from dolfin import UnitSquareMesh, FunctionSpace, Constant, DirichletBC, \
+    Expression, interpolate
+    mycomm = None
+    myrank = 0
 from fenicstools.objectivefunctional import ObjFctalElliptic
 from fenicstools.observationoperator import ObsEntireDomain
 from fenicstools.prior import LaplacianPrior
@@ -18,9 +26,6 @@ bcktrcklinesearch, compute_searchdirection
 from fenicstools.miscfenics import apply_noise
 from fenicstools.postprocessor import PostProcessor
 
-mycomm = mpi_comm_world()
-myrank = MPI.rank(mycomm)
-nbproc = MPI.size(mycomm)
 
 # Domain, f-e spaces and boundary conditions:
 mesh = UnitSquareMesh(20,20)

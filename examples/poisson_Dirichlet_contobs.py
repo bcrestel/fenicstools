@@ -47,7 +47,7 @@ def run_problem():
     print 'Noise in data misfit={:.5e}'.format(objnoise*.5/len(UD))
 
     # Solve reconstruction problem:
-    Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-9,'beta':1e-14})
+    Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-3,'beta':1e-14})
     InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul, [], False)
     InvPb.update_m(1.0) # Set initial medium
     InvPb.solvefwd_cost()
