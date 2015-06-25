@@ -1,3 +1,4 @@
+import numpy as np
 from numpy import sqrt
 from numpy.linalg import norm
 from numpy.random import randn
@@ -49,3 +50,7 @@ def isFunction(m_in):
 def isVector(m_in):
     if not isinstance(m_in, GenericVector):
      raise WrongInstanceError("m_in should be a Dolfin Generic Vector")
+
+def isarray(uin, udin):
+    if not (isinstance(uin, np.ndarray) and isinstance(udin, np.ndarray)):
+     raise WrongInstanceError("uin and udin should be a Numpy array")

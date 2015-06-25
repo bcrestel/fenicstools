@@ -6,6 +6,7 @@ Constant, Point, PointSource, as_backend_type, \
 assemble, inner, dx
 #from scipy.sparse import csr_matrix
 from exceptionsfenics import WrongInstanceError
+from miscfenics import isFunction, isarray
 
 
 class ObservationOperator():
@@ -33,14 +34,6 @@ class ObservationOperator():
     @abc.abstractmethod
     def incradj(self, uin):    print "Needs to be implemented"
 
-    # Checkers
-    def isFunction(self, uin):
-        if not isinstance(uin, Function):
-         raise WrongInstanceError("uin should be a Dolfin Function")
-            
-    def isarray(self, uin, udin):
-        if not (isinstance(uin, np.ndarray) and isinstance(udin, np.ndarray)):
-         raise WrongInstanceError("uin and udin should be a Numpy array")
 
 
 ###########################################################
@@ -61,24 +54,24 @@ class ObsEntireDomain(ObservationOperator):
         self.W = assemble(inner(self.trial, self.test)*dx)
 
     def obs(self, uin):
-        self.isFunction(uin)
+        isFunction(uin)
         return uin.vector().array()
 
     def costfct(self, uin, udin):
-        self.isarray(uin, udin)
+        isarray(uin, udin)
         self.diff.vector()[:] = uin - udin
         return 0.5*np.dot(self.diff.vector().array(), \
         (self.W * self.diff.vector()).array())
 
     def assemble_rhsadj(self, uin, udin, outp, bc):
-        self.isarray(uin, udin)
-        self.isFunction(outp)
+        isarray(uin, udin)
+        isFunction(outp)
         self.diff.vector()[:] = uin - udin
         outp.vector()[:] = - (self.W * self.diff.vector()).array()
         bc.apply(outp.vector())
         
     def incradj(self, uin):
-        self.isFunction(uin)
+        isFunction(uin)
         return self.W * uin.vector()
 
 
@@ -151,26 +144,26 @@ class ObsPointwise(ObservationOperator):
 
 
     def obs(self, uin):
-        self.isFunction(uin)
+        isFunction(uin)
         return self.Bdot(uin)
 
 
     # TODO: will require to fix PostProcess
     def costfct(self, uin, udin):
-        self.isarray(uin, udin)
+        isarray(uin, udin)
         diff = uin - udin
         return 0.5*np.dot(diff, diff)
 
 
     def assemble_rhsadj(self, uin, udin, outp, bc):
-        self.isarray(uin, udin)
-        self.isFunction(outp)
+        isarray(uin, udin)
+        isFunction(outp)
         diff = uin - udin
         outp.vector()[:] = -1.0 * self.BTdot(diff)
         bc.apply(outp.vector())
 
 
     def incradj(self, uin):
-        self.isFunction(uin)
+        isFunction(uin)
         self.BtBu.vector()[:] = self.BTdot( self.Bdot(uin) )
         return self.BtBu.vector()
