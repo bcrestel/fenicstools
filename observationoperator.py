@@ -4,9 +4,14 @@ from numpy import sqrt
 from numpy.linalg import norm
 from numpy.random import randn
 
-from dolfin import Function, TrialFunction, TestFunction, \
-Constant, Point, PointSource, as_backend_type, \
-assemble, inner, dx
+try:
+    from dolfin import Function, TrialFunction, TestFunction, \
+    Constant, Point, PointSource, as_backend_type, \
+    assemble, inner, dx, MPI, mpi_comm_world
+except:
+    from dolfin import Function, TrialFunction, TestFunction, \
+    Constant, Point, PointSource, as_backend_type, \
+    assemble, inner, dx
 from exceptionsfenics import WrongInstanceError
 from miscfenics import isFunction, isarray, arearrays
 
@@ -17,13 +22,14 @@ class ObservationOperator():
     __metaclass__ = abc.ABCMeta
 
     #Instantiation
-    def __init__(self, parameters=None):
+    def __init__(self, parameters=None, mycomm=None):
         self.parameters = parameters
         if self.parameters.has_key('noise'):
             self.noise = True
             self.noisepercent = self.parameters['noise']
         else:
             self.noise = False
+        self.mycomm = mycomm
         self._assemble()
 
     @abc.abstractmethod
@@ -49,13 +55,13 @@ class ObservationOperator():
         noisevect = randn(len(uin))
         # Get norm of entire random vector:
         try:
-            normrand = sqrt(MPI.sum(mycomm, norm(noisevect)**2))
+            normrand = sqrt(MPI.sum(self.mycomm, norm(noisevect)**2))
         except:
             normrand = norm(noisevect)
         noisevect /= normrand
         # Get norm of entire vector ud (not just local part):
         try:
-            normud = sqrt(MPI.sum(mycomm, norm(uin)**2))
+            normud = sqrt(MPI.sum(self.mycomm, norm(uin)**2))
         except:
             normud = norm(uin)
         noisevect *= self.noisepercent * normud
@@ -156,7 +162,8 @@ class ObsPointwise(ObservationOperator):
         isFunction(uin)
         Bu = np.zeros(self.nbPts)
         for ii, bb in enumerate(self.B):
-            Bu[ii] = bb.inner(uin.vector()) # Note: this returns the global inner-product
+            Bu[ii] = np.dot(bb.array(), uin.vector().array())   # local result
+            #Bu[ii] = bb.inner(uin.vector()) # Note: this returns global inner-product
         return Bu
 
 
@@ -181,11 +188,13 @@ class ObsPointwise(ObservationOperator):
             Bnoise = self.Bdot(unoise)
             diff = Bref - Bnoise
             noiselevel = np.dot(diff, diff)
-            return Bnoise, noiselevel
+            try:
+                noiselevel_glob = MPI.sum(self.mycomm, noiselevel)
+            except:
+                noiselevel_glob = noiselevel
+            return Bnoise, noiselevel_glob
 
 
-    # TODO: will require to fix PostProcess
-    # Needs to check what is global, what is local (regularization?)
     def costfct(self, uin, udin):
         arearrays(uin, udin)
         diff = uin - udin

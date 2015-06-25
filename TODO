@@ -1,11 +1,11 @@
 TODO list
-* Check what is global/local result (regularization?)
-* Implement mixed (Dirich-Neum) BCs in Poisson pb
-* test prior, observationoperator
+* fix postprocess for ptwise case (when no receiver in local mesh)
+* test prior, observationoperator, ... (serial and parallel)
+* implement mixed (Dirich-Neum) BCs in Poisson pb
+* acoustic wave equation
+
 * Bayesian example, sampling, ...
 * multiple sources
-* non-symmetric fwd pb
-* time-dependent
 
 * Helmholtz example (?)
 

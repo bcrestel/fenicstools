@@ -44,8 +44,8 @@ mtrue = interpolate(mtrue_exp, Vme)
 f = Expression("1.0")
 
 # Compute target data:
-noisepercent = 0.05   # e.g., 0.02 = 2% noise level
-ObsOp = ObsEntireDomain({'V': V,'noise':noisepercent})
+noisepercent = 0.00   # e.g., 0.02 = 2% noise level
+ObsOp = ObsEntireDomain({'V': V,'noise':noisepercent}, mycomm)
 goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False, mycomm)
 goal.update_m(mtrue)
 goal.solvefwd()

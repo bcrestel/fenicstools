@@ -27,7 +27,6 @@ from fenicstools.miscfenics import apply_noise
 from fenicstools.postprocessor import PostProcessor
 
 import sys
-from dolfin import plot, interactive
 
 
 # Domain, f-e spaces and boundary conditions:
@@ -49,15 +48,12 @@ f = Expression("1.0")
 
 # Compute target data:
 obspts = [[ii/5.,jj/5.] for ii in range(1,5) for jj in range(1,5)]
-noisepercent = 0.10   # e.g., 0.02 = 2% noise level
-ObsOp = ObsPointwise({'V': V, 'Points':obspts,'noise':noisepercent})
+noisepercent = 0.00   # e.g., 0.02 = 2% noise level
+ObsOp = ObsPointwise({'V': V, 'Points':obspts,'noise':noisepercent}, mycomm)
 goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False, mycomm)
 goal.update_m(mtrue)
 goal.solvefwd()
 UDnoise = goal.U
-# Add noise:
-#UDnoise, objnoise = apply_noise(UD, noisepercent, mycomm)
-#print 'Noise in data misfit={:.5e}'.format(objnoise*.5/len(UD))
 
 # Solve reconstruction problem:
 Regul = LaplacianPrior({'Vm':Vm,'gamma':5e-8,'beta':1e-14})
