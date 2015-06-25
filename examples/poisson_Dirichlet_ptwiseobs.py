@@ -26,9 +26,13 @@ bcktrcklinesearch, compute_searchdirection
 from fenicstools.miscfenics import apply_noise
 from fenicstools.postprocessor import PostProcessor
 
+import sys
+from dolfin import plot, interactive
+
 
 # Domain, f-e spaces and boundary conditions:
-mesh = UnitSquareMesh(20,20)
+#mesh = UnitSquareMesh(20,20)
+mesh = UnitSquareMesh(5,5)
 V = FunctionSpace(mesh, 'Lagrange', 2)  # space for state and adjoint variables
 Vm = FunctionSpace(mesh, 'Lagrange', 1) # space for medium parameter
 Vme = FunctionSpace(mesh, 'Lagrange', 5)    # sp for target med param

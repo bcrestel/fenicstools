@@ -1,8 +1,8 @@
 TODO list
-* Make ptwise observation work in parallel + compress comm in postprocessor
+* Finish ptwise obs in parallel (PostProcessor,...)
 * Implement mixed (Dirich-Neum) BCs in Poisson pb
 * test prior (especially BiLaplacian)
-* unit test observationoperator
+* test observationoperator
 * Bayesian example, sampling, ...
 * multiple sources
 * non-symmetric fwd pb

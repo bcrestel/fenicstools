@@ -2,9 +2,9 @@ import abc
 import numpy as np
 
 from dolfin import Function, TrialFunction, TestFunction, \
-Constant, Point, PointSource, \
+Constant, Point, PointSource, as_backend_type, \
 assemble, inner, dx
-from scipy.sparse import csr_matrix
+#from scipy.sparse import csr_matrix
 from exceptionsfenics import WrongInstanceError
 
 
@@ -94,19 +94,37 @@ class ObsPointwise(ObservationOperator):
         self.nbPts = len(self.Points)
         self.test = TestFunction(self.V)
         self.BtBu = Function(self.V)
-        # Build observation operator B and B^TB
         f = Constant('0')
         L = f*self.test*dx
         b = assemble(L)
-        Dobs = np.zeros(self.nbPts*b.size(), float) 
-        Dobs = Dobs.reshape((self.nbPts, b.size()), order='C')
-        for index, pts in enumerate(self.Points):
+        self.B = []
+        for pts in self.Points:
             delta = PointSource(self.V, self.list2point(pts))
             bs = b.copy()
             delta.apply(bs)
-            Dobs[index,:] = bs.array().transpose()
-        self.B = csr_matrix(Dobs)
-        self.BtB = csr_matrix((self.B.T).dot(self.B)) 
+            bs[:] = self.PointSourcecorrection(bs)
+            #bs = as_backend_type(bs)   # Turn GenericVector into PETScVector
+            self.B.append(bs)
+# OLD VERSION:
+#        Dobs = np.zeros(self.nbPts*b.size(), float) 
+#        Dobs = Dobs.reshape((self.nbPts, b.size()), order='C')
+#        for index, pts in enumerate(self.Points):
+#            delta = PointSource(self.V, self.list2point(pts))
+#            bs = b.copy()
+#            delta.apply(bs)
+#            Dobs[index,:] = bs.array().transpose()
+#        self.B = csr_matrix(Dobs)
+#        self.BtB = csr_matrix((self.B.T).dot(self.B)) 
+
+
+    def PointSourcecorrection(self, b):
+        """Correct PointSource in parallel"""
+        # TODO: TO BE TESTED!!
+        scale = b.array().sum()
+        if abs(scale) > 1e-12:  
+            return b.array()/scale
+        else:   return b.array()
+        
 
     def list2point(self, list_in):
         """Turn a list of coord into a Fenics Point
@@ -114,23 +132,45 @@ class ObsPointwise(ObservationOperator):
         dim = np.size(list_in)
         return Point(dim, np.array(list_in, dtype=float))
 
+
+    def Bdot(self, uin):
+        """uin must be a Function(self.V)"""
+        Bu = np.zeros(self.nbPts)
+        for ii, bb in enumerate(self.B):
+            Bu[ii] = bb.inner(uin.vector()) # Note: this returns the global inner-product
+        return Bu
+
+
+    def BTdot(self, uin):
+        """uin must be a np.array"""
+        u = Function(self.V)
+        out = u.vector()
+        for ii, bb in enumerate(self.B):
+            out += bb*uin[ii]
+        return out.array()
+
+
     def obs(self, uin):
         self.isFunction(uin)
-        return self.B.dot(uin.vector().array())
+        return self.Bdot(uin)
 
+
+    # TODO: will require to fix PostProcess
     def costfct(self, uin, udin):
         self.isarray(uin, udin)
         diff = uin - udin
         return 0.5*np.dot(diff, diff)
 
+
     def assemble_rhsadj(self, uin, udin, outp, bc):
         self.isarray(uin, udin)
         self.isFunction(outp)
         diff = uin - udin
-        outp.vector()[:] = - (self.B.T).dot(diff)
+        outp.vector()[:] = -1.0 * self.BTdot(diff)
         bc.apply(outp.vector())
+
 
     def incradj(self, uin):
         self.isFunction(uin)
-        self.BtBu.vector()[:] = self.BtB.dot(uin.vector().array())
+        self.BtBu.vector()[:] = self.BTdot( self.Bdot(uin) )
         return self.BtBu.vector()
