@@ -51,6 +51,10 @@ def isVector(m_in):
     if not isinstance(m_in, GenericVector):
      raise WrongInstanceError("m_in should be a Dolfin Generic Vector")
 
-def isarray(uin, udin):
+def isarray(uin):
+    if not isinstance(uin, np.ndarray):
+     raise WrongInstanceError("uin should be a Numpy array")
+
+def arearrays(uin, udin):
     if not (isinstance(uin, np.ndarray) and isinstance(udin, np.ndarray)):
      raise WrongInstanceError("uin and udin should be a Numpy array")

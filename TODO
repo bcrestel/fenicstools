@@ -1,8 +1,7 @@
 TODO list
-* Finish ptwise obs in parallel (PostProcessor,...)
+* Check what is global/local result (regularization?)
 * Implement mixed (Dirich-Neum) BCs in Poisson pb
-* test prior (especially BiLaplacian)
-* test observationoperator
+* test prior, observationoperator
 * Bayesian example, sampling, ...
 * multiple sources
 * non-symmetric fwd pb

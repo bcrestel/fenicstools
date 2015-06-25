@@ -73,6 +73,10 @@ class ObjectiveFunctional(LinearOperator):
         self._set_plots(plot)
         # MPI:
         self.mycomm = mycomm
+        try:
+            self.myrank = MPI.rank(self.mycomm)
+        except:
+            self.myrank = 0
 
     def copy(self):
         """Define a copy method"""
@@ -145,6 +149,7 @@ class ObjectiveFunctional(LinearOperator):
     def solvefwd(self, cost=False):
         """Solve fwd operators for given RHS"""
         self.nbfwdsolves += 1
+        if self.ObsOp.noise:    self.noise = 0.0
         if self.plot:
             self.plotu = PlotFenics(self.plotoutdir)
             self.plotu.set_varname('u{0}'.format(self.nbfwdsolves))
@@ -152,8 +157,9 @@ class ObjectiveFunctional(LinearOperator):
         for ii, rhs in enumerate(self.RHS):
             self.solve_A(self.u.vector(), rhs)
             if self.plot:   self.plotu.plot_vtk(self.u, ii)
-            u_obs = self.ObsOp.obs(self.u)
+            u_obs, noiselevel = self.ObsOp.obs(self.u)
             self.U.append(u_obs)
+            if self.ObsOp.noise:    self.noise += noiselevel
             if cost:
                 self.misfitloc += self.ObsOp.costfct(u_obs, self.UD[ii])
             self.C.append(assemble(self.c))
@@ -165,6 +171,9 @@ class ObjectiveFunctional(LinearOperator):
                 self.cost = MPI.sum(self.mycomm, self.costloc)
             except:
                 self.cost = self.costloc
+        if self.ObsOp.noise and self.myrank == 0:
+            print 'Total noise in data misfit={:.5e}\n'.\
+            format(self.noise*.5/len(self.U))
         if self.plot:   self.plotu.gather_vtkplots()
 
     def solvefwd_cost(self):

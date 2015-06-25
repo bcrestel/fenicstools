@@ -31,6 +31,7 @@ class GaussianPrior():
     def get_precond(self):
         return self.precond
 
+    # TODO: Check if this returns global or local result??
     def cost(self, m_in):
         isFunction(m_in)
         diff = m_in.vector() - self.m0.vector()

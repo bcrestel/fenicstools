@@ -36,18 +36,16 @@ def run_problem():
     f = Expression("1.0")
 
     # Compute target data:
-    ObsOp = ObsEntireDomain({'V': V})
+    noisepercent = 0.05   # e.g., 0.02 = 2% noise level
+    ObsOp = ObsEntireDomain({'V': V,'noise':noisepercent})
     goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp)
     goal.update_m(mtrue)
     goal.solvefwd()
-    UD = goal.U
-    # Add noise:
-    noisepercent = 0.05   # e.g., 0.02 = 2% noise level
-    UDnoise, objnoise = apply_noise(UD, noisepercent)
-    print 'Noise in data misfit={:.5e}'.format(objnoise*.5/len(UD))
+    UDnoise = goal.U
 
     # Solve reconstruction problem:
     Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-3,'beta':1e-14})
+    ObsOp.noise = False
     InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul, [], False)
     InvPb.update_m(1.0) # Set initial medium
     InvPb.solvefwd_cost()

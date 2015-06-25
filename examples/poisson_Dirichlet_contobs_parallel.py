@@ -44,21 +44,21 @@ mtrue = interpolate(mtrue_exp, Vme)
 f = Expression("1.0")
 
 # Compute target data:
-ObsOp = ObsEntireDomain({'V': V})
+noisepercent = 0.05   # e.g., 0.02 = 2% noise level
+ObsOp = ObsEntireDomain({'V': V,'noise':noisepercent})
 goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False, mycomm)
 goal.update_m(mtrue)
 goal.solvefwd()
-#print 'P{0}: max(UD[0])={1}\n'.format(myrank, max(goal.U[0]))
-UD = goal.U
+UDnoise = goal.U
 # Add noise:
-noisepercent = 0.05   # e.g., 0.02 = 2% noise level
-UDnoise, objnoise = apply_noise(UD, noisepercent, mycomm)
-total_objnoise = MPI.sum(mycomm, objnoise)
-if myrank == 0:
-    print 'Total noise in data misfit={:.5e}\n'.format(total_objnoise*.5/len(UD))
+#UDnoise, objnoise = apply_noise(UD, noisepercent, mycomm)
+#total_objnoise = MPI.sum(mycomm, objnoise)
+#if myrank == 0:
+#    print 'Total noise in data misfit={:.5e}\n'.format(total_objnoise*.5/len(UD))
 
 # Solve reconstruction problem:
 Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-5,'beta':1e-14})
+ObsOp.noise = False
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul, [], False, mycomm)
 InvPb.update_m(1.0) # Set initial medium
 InvPb.solvefwd_cost()

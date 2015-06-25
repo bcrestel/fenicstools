@@ -1,12 +1,14 @@
 import abc
 import numpy as np
+from numpy import sqrt
+from numpy.linalg import norm
+from numpy.random import randn
 
 from dolfin import Function, TrialFunction, TestFunction, \
 Constant, Point, PointSource, as_backend_type, \
 assemble, inner, dx
-#from scipy.sparse import csr_matrix
 from exceptionsfenics import WrongInstanceError
-from miscfenics import isFunction, isarray
+from miscfenics import isFunction, isarray, arearrays
 
 
 class ObservationOperator():
@@ -17,6 +19,11 @@ class ObservationOperator():
     #Instantiation
     def __init__(self, parameters=None):
         self.parameters = parameters
+        if self.parameters.has_key('noise'):
+            self.noise = True
+            self.noisepercent = self.parameters['noise']
+        else:
+            self.noise = False
         self._assemble()
 
     @abc.abstractmethod
@@ -34,6 +41,28 @@ class ObservationOperator():
     @abc.abstractmethod
     def incradj(self, uin):    print "Needs to be implemented"
 
+    def apply_noise(self, uin):
+        """Apply Gaussian noise to np.array of data.
+        noisepercent = 0.02 => 2% noise level, i.e.,
+        || u - ud || / || ud || = || noise || / || ud || = 0.02"""
+        isarray(uin)
+        noisevect = randn(len(uin))
+        # Get norm of entire random vector:
+        try:
+            normrand = sqrt(MPI.sum(mycomm, norm(noisevect)**2))
+        except:
+            normrand = norm(noisevect)
+        noisevect /= normrand
+        # Get norm of entire vector ud (not just local part):
+        try:
+            normud = sqrt(MPI.sum(mycomm, norm(uin)**2))
+        except:
+            normud = norm(uin)
+        noisevect *= self.noisepercent * normud
+        objnoise_glob = (self.noisepercent * normud)**2
+        UDnoise = uin + noisevect
+
+        return UDnoise, objnoise_glob
 
 
 ###########################################################
@@ -53,26 +82,32 @@ class ObsEntireDomain(ObservationOperator):
         self.test = TestFunction(self.V)
         self.W = assemble(inner(self.trial, self.test)*dx)
 
+
     def obs(self, uin):
         isFunction(uin)
-        return uin.vector().array()
+        if not(self.noise): return uin.vector().array(), 0.0
+        else:   return self.apply_noise(uin.vector().array())
+
 
     def costfct(self, uin, udin):
-        isarray(uin, udin)
+        arearrays(uin, udin)
         self.diff.vector()[:] = uin - udin
         return 0.5*np.dot(self.diff.vector().array(), \
         (self.W * self.diff.vector()).array())
 
+
     def assemble_rhsadj(self, uin, udin, outp, bc):
-        isarray(uin, udin)
+        arearrays(uin, udin)
         isFunction(outp)
         self.diff.vector()[:] = uin - udin
         outp.vector()[:] = - (self.W * self.diff.vector()).array()
         bc.apply(outp.vector())
+
         
     def incradj(self, uin):
         isFunction(uin)
         return self.W * uin.vector()
+
 
 
 class ObsPointwise(ObservationOperator):
@@ -98,16 +133,6 @@ class ObsPointwise(ObservationOperator):
             bs[:] = self.PointSourcecorrection(bs)
             #bs = as_backend_type(bs)   # Turn GenericVector into PETScVector
             self.B.append(bs)
-# OLD VERSION:
-#        Dobs = np.zeros(self.nbPts*b.size(), float) 
-#        Dobs = Dobs.reshape((self.nbPts, b.size()), order='C')
-#        for index, pts in enumerate(self.Points):
-#            delta = PointSource(self.V, self.list2point(pts))
-#            bs = b.copy()
-#            delta.apply(bs)
-#            Dobs[index,:] = bs.array().transpose()
-#        self.B = csr_matrix(Dobs)
-#        self.BtB = csr_matrix((self.B.T).dot(self.B)) 
 
 
     def PointSourcecorrection(self, b):
@@ -128,6 +153,7 @@ class ObsPointwise(ObservationOperator):
 
     def Bdot(self, uin):
         """uin must be a Function(self.V)"""
+        isFunction(uin)
         Bu = np.zeros(self.nbPts)
         for ii, bb in enumerate(self.B):
             Bu[ii] = bb.inner(uin.vector()) # Note: this returns the global inner-product
@@ -136,6 +162,7 @@ class ObsPointwise(ObservationOperator):
 
     def BTdot(self, uin):
         """uin must be a np.array"""
+        isarray(uin)
         u = Function(self.V)
         out = u.vector()
         for ii, bb in enumerate(self.B):
@@ -144,19 +171,29 @@ class ObsPointwise(ObservationOperator):
 
 
     def obs(self, uin):
-        isFunction(uin)
-        return self.Bdot(uin)
+        """uin must be a Function(V)"""
+        if not(self.noise): return self.Bdot(uin), 0.0
+        else:
+            Bref = self.Bdot(uin)
+            uin_noise, tmp = self.apply_noise(uin.vector().array())
+            unoise = Function(self.V)
+            unoise.vector()[:] = uin_noise
+            Bnoise = self.Bdot(unoise)
+            diff = Bref - Bnoise
+            noiselevel = np.dot(diff, diff)
+            return Bnoise, noiselevel
 
 
     # TODO: will require to fix PostProcess
+    # Needs to check what is global, what is local (regularization?)
     def costfct(self, uin, udin):
-        isarray(uin, udin)
+        arearrays(uin, udin)
         diff = uin - udin
         return 0.5*np.dot(diff, diff)
 
 
     def assemble_rhsadj(self, uin, udin, outp, bc):
-        isarray(uin, udin)
+        arearrays(uin, udin)
         isFunction(outp)
         diff = uin - udin
         outp.vector()[:] = -1.0 * self.BTdot(diff)

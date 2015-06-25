@@ -49,19 +49,20 @@ f = Expression("1.0")
 
 # Compute target data:
 obspts = [[ii/5.,jj/5.] for ii in range(1,5) for jj in range(1,5)]
-ObsOp = ObsPointwise({'V': V, 'Points':obspts})
+noisepercent = 0.10   # e.g., 0.02 = 2% noise level
+ObsOp = ObsPointwise({'V': V, 'Points':obspts,'noise':noisepercent})
 goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False, mycomm)
 goal.update_m(mtrue)
 goal.solvefwd()
-UD = goal.U
+UDnoise = goal.U
 # Add noise:
-noisepercent = 0.05   # e.g., 0.02 = 2% noise level
-UDnoise, objnoise = apply_noise(UD, noisepercent, mycomm)
-print 'Noise in data misfit={:.5e}'.format(objnoise*.5/len(UD))
+#UDnoise, objnoise = apply_noise(UD, noisepercent, mycomm)
+#print 'Noise in data misfit={:.5e}'.format(objnoise*.5/len(UD))
 
 # Solve reconstruction problem:
 Regul = LaplacianPrior({'Vm':Vm,'gamma':5e-8,'beta':1e-14})
 plot_option = False
+ObsOp.noise = False
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul, \
 [], plot_option, mycomm)
 InvPb.update_m(1.0) # Set initial medium
