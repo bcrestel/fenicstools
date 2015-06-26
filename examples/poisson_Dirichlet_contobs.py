@@ -28,7 +28,7 @@ from fenicstools.postprocessor import PostProcessor
 
 
 # Domain, f-e spaces and boundary conditions:
-mesh = UnitSquareMesh(20,20)
+mesh = UnitSquareMesh(150,150)
 V = FunctionSpace(mesh, 'Lagrange', 2)  # space for state and adjoint variables
 Vm = FunctionSpace(mesh, 'Lagrange', 1) # space for medium parameter
 Vme = FunctionSpace(mesh, 'Lagrange', 5)    # sp for target med param
@@ -43,20 +43,16 @@ mtrue_exp = Expression('1 + 7*(pow(pow(x[0] - 0.5,2) +' + \
 mtrue = interpolate(mtrue_exp, Vme)
 f = Expression("1.0")
 
-# Compute target data:
+print 'p{}: Compute target data'.format(myrank)
 noisepercent = 0.00   # e.g., 0.02 = 2% noise level
 ObsOp = ObsEntireDomain({'V': V,'noise':noisepercent}, mycomm)
 goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False, mycomm)
 goal.update_m(mtrue)
 goal.solvefwd()
+print 'p{}'.format(myrank)
 UDnoise = goal.U
-# Add noise:
-#UDnoise, objnoise = apply_noise(UD, noisepercent, mycomm)
-#total_objnoise = MPI.sum(mycomm, objnoise)
-#if myrank == 0:
-#    print 'Total noise in data misfit={:.5e}\n'.format(total_objnoise*.5/len(UD))
 
-# Solve reconstruction problem:
+print 'p{}: Solve reconstruction problem'.format(myrank)
 Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-5,'beta':1e-14})
 ObsOp.noise = False
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul, [], False, mycomm)

@@ -28,8 +28,8 @@ from fenicstools.postprocessor import PostProcessor
 
 
 # Domain, f-e spaces and boundary conditions:
-#mesh = UnitSquareMesh(20,20)
-mesh = UnitSquareMesh(5,5)
+mesh = UnitSquareMesh(50,50)
+#mesh = UnitSquareMesh(5,5)
 V = FunctionSpace(mesh, 'Lagrange', 2)  # space for state and adjoint variables
 Vm = FunctionSpace(mesh, 'Lagrange', 1) # space for medium parameter
 Vme = FunctionSpace(mesh, 'Lagrange', 5)    # sp for target med param
@@ -44,7 +44,7 @@ mtrue_exp = Expression('1 + 7*(pow(pow(x[0] - 0.5,2) +' + \
 mtrue = interpolate(mtrue_exp, Vme)
 f = Expression("1.0")
 
-# Compute target data:
+print 'p{}: Compute target data'.format(myrank)
 obspts = [[ii/5.,jj/5.] for ii in range(1,5) for jj in range(1,5)]
 noisepercent = 0.00   # e.g., 0.02 = 2% noise level
 ObsOp = ObsPointwise({'V': V, 'Points':obspts,'noise':noisepercent}, mycomm)
@@ -53,7 +53,7 @@ goal.update_m(mtrue)
 goal.solvefwd()
 UDnoise = goal.U
 
-# Solve reconstruction problem:
+print 'p{}: Solve reconstruction problem'.format(myrank)
 Regul = LaplacianPrior({'Vm':Vm,'gamma':5e-8,'beta':1e-14})
 plot_option = False
 ObsOp.noise = False

@@ -1,11 +1,11 @@
 TODO list
-* fix postprocess for ptwise case (when no receiver in local mesh)
-* test prior, observationoperator, ... (serial and parallel)
+* Clarify point of solver in parallel (see examples/poisson_..._contobs_parallel2.py)
+* Build unit test for: prior, observation operator,... (serial and parallel)
 * implement mixed (Dirich-Neum) BCs in Poisson pb
 * acoustic wave equation
 
 * Bayesian example, sampling, ...
-* multiple sources
+* multiple sources (re-think global variables in parallel; too much comm right now)
 
 * Helmholtz example (?)
 

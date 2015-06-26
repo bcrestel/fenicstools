@@ -4,7 +4,7 @@ Test parallel computation with fenics
 
 import numpy as np
 from dolfin import UnitSquareMesh, FunctionSpace, Constant, DirichletBC, \
-Expression, interpolate, parameters, \
+Expression, interpolate, parameters, PETScKrylovSolver, \
 MPI, mpi_comm_world, \
 TrialFunction, TestFunction, assemble, inner, nabla_grad, dx, LUSolver, Function
 from fenicstools.objectivefunctional import ObjFctalElliptic
@@ -16,7 +16,7 @@ mycomm = mpi_comm_world()
 myrank = MPI.rank(mycomm)
 
 # Domain, f-e spaces and boundary conditions:
-mesh = UnitSquareMesh(20,20)
+mesh = UnitSquareMesh(150,150)
 V = FunctionSpace(mesh, 'Lagrange', 2)  # space for state and adjoint variables
 Vm = FunctionSpace(mesh, 'Lagrange', 1) # space for medium parameter
 Vme = FunctionSpace(mesh, 'Lagrange', 5)    # sp for target med param
@@ -38,8 +38,9 @@ test = TestFunction(V)
 a_true = inner(mtrue*nabla_grad(trial), nabla_grad(test))*dx
 A_true = assemble(a_true)
 bc.apply(A_true)
-solver = LUSolver()
-solver.parameters['reuse_factorization'] = True
+solver = PETScKrylovSolver('cg')    # doesn't work with ilu preconditioner
+#solver = LUSolver()    # doesn't work in parallel !?
+#solver.parameters['reuse_factorization'] = True
 solver.set_operator(A_true)
 # Assemble rhs
 L = f*test*dx
@@ -51,6 +52,7 @@ solver.solve(u_true.vector(), b)
 if myrank == 0: print 'By hand:\n'
 print 'P{0}: max(u)={1}\n'.format(myrank, max(u_true.vector().array()))
 
+"""
 MPI.barrier(mycomm)
 
 # Same with object
@@ -60,3 +62,4 @@ Goal.update_m(mtrue)
 Goal.solvefwd()
 if myrank == 0: print 'With ObjFctalElliptic class:\n'
 print 'P{0}: max(u)={1}\n'.format(myrank, max(Goal.U[0]))
+"""
