@@ -7,7 +7,7 @@ try:
     from dolfin import TrialFunction, TestFunction, Function, Vector, \
     PETScKrylovSolver, LUSolver, set_log_active, LinearOperator, Expression, \
     assemble, inner, nabla_grad, dx, \
-    MPI, mpi_comm_world
+    MPI 
 except:
     from dolfin import TrialFunction, TestFunction, Function, Vector, \
     PETScKrylovSolver, LUSolver, set_log_active, LinearOperator, Expression, \
@@ -40,7 +40,6 @@ class ObjectiveFunctional(LinearOperator):
         self.delta_m = Function(Vm)
         self.MG = Function(Vm)
         self.Grad = Function(Vm)
-        self.Gradnormloc = 0.0
         self.Gradnorm = 0.0
         self.lenm = len(self.m.vector().array())
         self.u = Function(V)
@@ -168,6 +167,7 @@ class ObjectiveFunctional(LinearOperator):
         if self.ObsOp.noise and self.myrank == 0:
             print 'Total noise in data misfit={:.5e}\n'.\
             format(self.noise*.5/len(self.U))
+            self.ObsOp.noise = False    # Safety
         if self.plot:   self.plotu.gather_vtkplots()
 
     def solvefwd_cost(self):
@@ -193,12 +193,7 @@ class ObjectiveFunctional(LinearOperator):
         if grad:
             self.MG.vector().axpy(1.0, self.Regul.grad(self.m))
             self.solverM.solve(self.Grad.vector(), self.MG.vector())
-            self.Gradnormloc = np.sqrt(np.dot(self.getGradarray(), \
-            self.getMGarray()))
-            try:
-                self.Gradnorm = np.sqrt(MPI.sum(self.mycomm, self.Gradnormloc**2))
-            except:
-                self.Gradnorm = self.Gradnormloc
+            self.Gradnorm = np.sqrt(self.Grad.vector().inner(self.MG.vector()))
         if self.plot:   self.plotp.gather_vtkplots()
 
     def solveadj_constructgrad(self):
@@ -215,6 +210,7 @@ class ObjectiveFunctional(LinearOperator):
     def solve_A(self, b, f):
         """Solve system of the form A.b = f, 
         with b and f in form to be used in solver."""
+        print 'p{}'.format(self.myrank)
         self.solver.solve(b, f)
         self.nbPDEsolves += 1
 
