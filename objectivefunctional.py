@@ -120,9 +120,8 @@ class ObjectiveFunctional(LinearOperator):
     def getGradnorm(self):  return self.Gradnorm
     def getsrchdirarray(self):    return self.srchdir.vector().array()
     def getsrchdirvec(self):    return self.srchdir.vector()
-    def getsrchdirnorm(self):   
-        return np.sqrt(np.dot(self.getsrchdirarray(), \
-        (self.MM*self.getsrchdirvec()).array()))
+    def getsrchdirnorm(self):
+        return np.sqrt((self.MM*self.getsrchdirvec()).inner(self.getsrchdirvec()))
     def getgradxdir(self): return self.gradxdir
     def getcost(self):  return self.cost, self.misfit, self.regul
     def getprecond(self):

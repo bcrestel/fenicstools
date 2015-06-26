@@ -72,7 +72,7 @@ nbLS = 20   # Max nb of line searches
 # Prepare results outputs:
 PP = PostProcessor(meth, Vm, mtrue, mycomm)
 PP.getResults0(InvPb)    # Get results for index 0 (before first iteration)
-PP.printResults()
+PP.printResults(myrank)
 # Start iteration:
 maxiter = 50
 for it in range(1, maxiter+1):
@@ -93,8 +93,8 @@ for it in range(1, maxiter+1):
     #InvPb.plotm(it) # Plot current medium reconstruction
     # Print results:
     PP.getResults(InvPb, LSresults, CGresults)
-    PP.printResults()
-    if PP.Stop():   break   # Stopping criterion
+    PP.printResults(myrank)
+    if PP.Stop(myrank):   break   # Stopping criterion
     alpha_init = PP.alpha_init()    # Initialize next alpha when using sd
 #InvPb.gatherm() # Create one plot for all intermediate reconstructions
 if it == maxiter and myrank == 0:   print "Max nb of iterations reached."
