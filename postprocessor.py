@@ -55,6 +55,7 @@ class PostProcessor():
             self.dataline = self.dataline + '{:10.1e} {:3d} {:10.1e}'
 
     def errornorm(self, MM, m):
+        #TODO: make it global here
         self.diff.vector()[:] = (m.vector() - self.mtrue.vector()).array()
         return np.sqrt(np.dot(self.diff.vector().array(), \
         (MM * self.diff.vector()).array()))
@@ -63,15 +64,7 @@ class PostProcessor():
         """Get results before first step of iteration"""
         self.index = 0
         # Cost
-        self.costloc, self.misfitloc, self.regulloc = Obj.getcostloc()
-        try:
-            self.misfit = MPI.sum(self.mycomm, self.misfitloc)
-            self.regul = MPI.sum(self.mycomm, self.regulloc)
-            self.cost = MPI.sum(self.mycomm, self.costloc)
-        except:
-            self.misfit = self.misfitloc
-            self.regul = self.regulloc
-            self.cost = self.costloc
+        self.cost, self.misfit, self.regul= Obj.getcost()
         # Med Misfit
         self.medmisfitloc = self.errornorm(Obj.getMass(), Obj.getm())
         try:
@@ -93,15 +86,7 @@ class PostProcessor():
             raise ValueError(\
             "CGresults must be provided when using Newton method")
         # Cost
-        self.costloc, self.misfitloc, self.regulloc = Obj.getcostloc()
-        try:
-            self.misfit = MPI.sum(self.mycomm, self.misfitloc)
-            self.regul = MPI.sum(self.mycomm, self.regulloc)
-            self.cost = MPI.sum(self.mycomm, self.costloc)
-        except:
-            self.misfit = self.misfitloc
-            self.regul = self.regulloc
-            self.cost = self.costloc
+        self.cost, self.misfit, self.regul= Obj.getcost()
         # Med Misfit
         self.medmisfitloc = self.errornorm(Obj.getMass(), Obj.getm())
         try:

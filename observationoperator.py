@@ -7,7 +7,7 @@ from numpy.random import randn
 try:
     from dolfin import Function, TrialFunction, TestFunction, \
     Constant, Point, PointSource, as_backend_type, \
-    assemble, inner, dx, MPI, mpi_comm_world
+    assemble, inner, dx, MPI 
 except:
     from dolfin import Function, TrialFunction, TestFunction, \
     Constant, Point, PointSource, as_backend_type, \
@@ -22,7 +22,7 @@ class ObservationOperator():
     __metaclass__ = abc.ABCMeta
 
     #Instantiation
-    def __init__(self, parameters=None, mycomm=None):
+    def __init__(self, parameters, mycomm):
         self.parameters = parameters
         if self.parameters.has_key('noise'):
             self.noise = True
@@ -38,6 +38,7 @@ class ObservationOperator():
     @abc.abstractmethod
     def obs(self, uin): print "Needs to be implemented"
 
+    # Note: This must return the global value (in parallel)
     @abc.abstractmethod
     def costfct(self, uin, udin):   print "Needs to be implemented"
 
@@ -54,20 +55,17 @@ class ObservationOperator():
         isarray(uin)
         noisevect = randn(len(uin))
         # Get norm of entire random vector:
-        try:
+        if self.mycomm == None: normrand = norm(noisevect)
+        else:
             normrand = sqrt(MPI.sum(self.mycomm, norm(noisevect)**2))
-        except:
-            normrand = norm(noisevect)
         noisevect /= normrand
         # Get norm of entire vector ud (not just local part):
-        try:
+        if self.mycomm == None: normud = norm(uin)
+        else:
             normud = sqrt(MPI.sum(self.mycomm, norm(uin)**2))
-        except:
-            normud = norm(uin)
         noisevect *= self.noisepercent * normud
         objnoise_glob = (self.noisepercent * normud)**2
         UDnoise = uin + noisevect
-
         return UDnoise, objnoise_glob
 
 
@@ -95,11 +93,11 @@ class ObsEntireDomain(ObservationOperator):
         else:   return self.apply_noise(uin.vector().array())
 
 
+    # Note: this returns global value (in parallel)
     def costfct(self, uin, udin):
         arearrays(uin, udin)
         self.diff.vector()[:] = uin - udin
-        return 0.5*np.dot(self.diff.vector().array(), \
-        (self.W * self.diff.vector()).array())
+        return 0.5 * (self.W*self.diff.vector()).inner(self.diff.vector())
 
 
     def assemble_rhsadj(self, uin, udin, outp, bc):
@@ -157,13 +155,20 @@ class ObsPointwise(ObservationOperator):
         return Point(dim, np.array(list_in, dtype=float))
 
 
+    def Bdotlocal(self, uin):
+        """uin must be a Function(self.V)"""
+        isFunction(uin)
+        Bu = np.zeros(self.nbPts)
+        for ii, bb in enumerate(self.B):
+            Bu[ii] = np.dot(bb.array(), uin.vector().array())   # Note: local inner-product
+        return Bu
+
     def Bdot(self, uin):
         """uin must be a Function(self.V)"""
         isFunction(uin)
         Bu = np.zeros(self.nbPts)
         for ii, bb in enumerate(self.B):
-            Bu[ii] = np.dot(bb.array(), uin.vector().array())   # local result
-            #Bu[ii] = bb.inner(uin.vector()) # Note: this returns global inner-product
+            Bu[ii] = bb.inner(uin.vector()) # Note: global inner-product
         return Bu
 
 
@@ -211,5 +216,5 @@ class ObsPointwise(ObservationOperator):
 
     def incradj(self, uin):
         isFunction(uin)
-        self.BtBu.vector()[:] = self.BTdot( self.Bdot(uin) )
+        self.BtBu.vector()[:] = self.BTdot( self.Bdotlocal(uin) )
         return self.BtBu.vector()

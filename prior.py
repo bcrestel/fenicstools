@@ -31,11 +31,11 @@ class GaussianPrior():
     def get_precond(self):
         return self.precond
 
-    # TODO: Check if this returns global or local result??
+    # Note: this returns global value (in parallel)
     def cost(self, m_in):
         isFunction(m_in)
         diff = m_in.vector() - self.m0.vector()
-        return 0.5*np.dot(diff.array(), self.Minvpriordot(diff).array())
+        return 0.5 * self.Minvpriordot(diff).inner(diff)
 
     def grad(self, m_in):
         isFunction(m_in)

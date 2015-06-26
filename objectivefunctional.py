@@ -124,8 +124,7 @@ class ObjectiveFunctional(LinearOperator):
         return np.sqrt(np.dot(self.getsrchdirarray(), \
         (self.MM*self.getsrchdirvec()).array()))
     def getgradxdir(self): return self.gradxdir
-    def getcostloc(self):  return self.costloc, self.misfitloc, self.regulloc
-    def getcost(self):  return self.cost
+    def getcost(self):  return self.cost, self.misfit, self.regul
     def getprecond(self):
         Prec = PETScKrylovSolver("richardson", "amg")
         Prec.parameters["maximum_iterations"] = 1
@@ -153,7 +152,7 @@ class ObjectiveFunctional(LinearOperator):
         if self.plot:
             self.plotu = PlotFenics(self.plotoutdir)
             self.plotu.set_varname('u{0}'.format(self.nbfwdsolves))
-        if cost:    self.misfitloc = 0.0
+        if cost:    self.misfit = 0.0
         for ii, rhs in enumerate(self.RHS):
             self.solve_A(self.u.vector(), rhs)
             if self.plot:   self.plotu.plot_vtk(self.u, ii)
@@ -161,16 +160,12 @@ class ObjectiveFunctional(LinearOperator):
             self.U.append(u_obs)
             if self.ObsOp.noise:    self.noise += noiselevel
             if cost:
-                self.misfitloc += self.ObsOp.costfct(u_obs, self.UD[ii])
+                self.misfit += self.ObsOp.costfct(u_obs, self.UD[ii])
             self.C.append(assemble(self.c))
         if cost:
-            self.misfitloc /= len(self.U)
-            self.regulloc = self.Regul.cost(self.m)
-            self.costloc = self.misfitloc + self.regulloc
-            try:
-                self.cost = MPI.sum(self.mycomm, self.costloc)
-            except:
-                self.cost = self.costloc
+            self.misfit /= len(self.U)
+            self.regul = self.Regul.cost(self.m)
+            self.cost = self.misfit + self.regul
         if self.ObsOp.noise and self.myrank == 0:
             print 'Total noise in data misfit={:.5e}\n'.\
             format(self.noise*.5/len(self.U))
