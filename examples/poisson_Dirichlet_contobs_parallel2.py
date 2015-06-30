@@ -16,25 +16,27 @@ mycomm = mpi_comm_world()
 myrank = MPI.rank(mycomm)
 
 # Domain, f-e spaces and boundary conditions:
-mesh = UnitSquareMesh(150,150)
+mesh = UnitSquareMesh(500,500)
 V = FunctionSpace(mesh, 'Lagrange', 2)  # space for state and adjoint variables
 Vm = FunctionSpace(mesh, 'Lagrange', 1) # space for medium parameter
 Vme = FunctionSpace(mesh, 'Lagrange', 5)    # sp for target med param
+
 # Define zero Boundary conditions:
 def u0_boundary(x, on_boundary):
     return on_boundary
 u0 = Constant("0.0")
 bc = DirichletBC(V, u0, u0_boundary)
+
 # Define target medium and rhs:
 mtrue_exp = Expression('1 + 7*(pow(pow(x[0] - 0.5,2) +' + \
 ' pow(x[1] - 0.5,2),0.5) > 0.2)')
-mtrue = interpolate(mtrue_exp, Vme)
+#mtrue = interpolate(mtrue_exp, Vme)
+mtrue = interpolate(mtrue_exp, Vm)
 f = Expression("1.0")
 
+# Assemble weak form
 trial = TrialFunction(V)
 test = TestFunction(V)
-
-# Assemble weak form
 a_true = inner(mtrue*nabla_grad(trial), nabla_grad(test))*dx
 A_true = assemble(a_true)
 bc.apply(A_true)
@@ -48,11 +50,12 @@ b = assemble(L)
 bc.apply(b)
 # Solve:
 u_true = Function(V)
+
+"""
 solver.solve(u_true.vector(), b)
 if myrank == 0: print 'By hand:\n'
 print 'P{0}: max(u)={1}\n'.format(myrank, max(u_true.vector().array()))
 
-"""
 MPI.barrier(mycomm)
 
 # Same with object
