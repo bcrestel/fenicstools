@@ -1,7 +1,8 @@
 import abc
 
 from dolfin import TestFunction, TrialFunction, Function, \
-assemble, div, dx
+assemble, div, dx, LUSolver
+from miscfenics import isFunction, isVector
 
 
 class PDESolver():
@@ -41,53 +42,96 @@ class PDESolver():
 
 class Wave(PDESolver):
 
+    def update(self, parameters_m):
+        self.setfct(self.lda, parameters_m['lambda'])
+        if self.elastic == True:    self.setfct(self.mu, parameters_m['mu'])
+        self.A = assemble(self.weak_a)
+
+        if parameters_m.has_key('rho'):
+            #TODO: lump mass matrix
+            self.setfct(self.rho, parameters['rho'])
+            self.M = assemble(self.weak_m)
+            self.solverM = LUSolver()
+            self.solverM.parameters['reuse_factorization'] = True
+            self.solverM.parameters['symmetric'] = True
+            self.solverM.set_operator(self.M)
+
+
+    def solve(self, rhs):
+        #TODO: Check src term and time
+        # u0:
+        self.setfct(self.u_nm2, self.u0)
+        tt = self.t0 
+        # u1:
+        self.setfct(self.u_nm1, self.u_nm2)
+        self.u_nm1.vector().axpy(self.Dt, self.du0.vector())
+        self.u_nm1.vector().axpy(0.5*self.Dt**2, self.rhs(self.src(tt), self.u_nm2))
+        tt += self.Dt
+        # Iteration
+        while tt < self.tf:
+            self.setfct(self.u_n, 0.0)
+            self.u_n.vector().axpy(2.0, self.u_nm1.vector())
+            self.u_n.vector().axpy(-1.0, self.u_nm2.vector())
+            self.u_n.vector().axpy(self.Dt**2, self.rhs(self.src(tt), self.u_nm1))
+            # Advance time by Dt:
+            self.setfct(self.u_nm2, self.u_nm1)
+            self.setfct(self.u_nm1, self.u_n)
+            tt += self.Dt
+
+
+    def rhs(self, f, u):
+        """Compute M^{-1}(f - A * u)
+        where f = Vector(V) and u = Function(V)"""
+        f.axpy(-1.0, self.A*u.vector())
+        out = Function(self.V)
+        self.solverM.solve(out.vector(), f)
+        return out.vector()
+
+
+    def src(self, tt):
+        """Compute f(x,t) at time tt"""
+        return self.ftime(tt) * self.f
+
+
     def readV(self, functionspaces_V):
+        # Solutions:
         self.V = functionspaces_V['V']
         self.test = TestFunction(self.V)
         self.trial = TrialFunction(self.V)
-        self.u_n = Function(self.V)
-        self.u_n1 = Function(self.V)
-        self.u_n2 = Function(self.V)
-
+        self.u_n = Function(self.V)     # u(t)
+        self.u_nm1 = Function(self.V)    # u(t-Dt)
+        self.u_nm2 = Function(self.V)    # u(t-2Dt)
+        # Parameters:
         self.Vl = functionspaces_V['Vl']
         self.lda = Function(self.Vl)
         self.Vr = functionspaces_V['Vr']
         self.rho = Function(self.Vr)
-        if len(functionspaces_V) > 3:
+        if functionspaces_V.has_key('Vm'):
             self.Vm = functionspaces_V['Vm']
             self.mu = Function(self.Vm)
             self.elastic = True
         else:   
             self.elastic = False
-            # TODO: Define absorbing BCs
+            #TODO: Define absorbing BCs
             self.weak_a = self.lda * div(self.test)*div(self.trial)*dx
             self.weak_m = self.rho * self.test*self.trial*dx
 
 
     def readoptions(self, options):
         if options.has_key('t0'):   self.t0 = options['t0'] # initial time
-        if options.has_key('tf'):   self.tf = options['tf'] # final time
-        if options.has_key('Dt'):   self.Dt = options['Dt'] # time step size
+        else:   self.t0 = 0.0
+        self.tf = options['tf'] # final time
+        self.Dt = options['Dt'] # time step size
         if options.has_key('u0'):   self.u0 = options['u0'] # IC u(x,0)
+        else:   self.u0 = Function(self.V)
         if options.has_key('du0'):   self.du0 = options['du0']  # IC du/dt(x,0)
+        else:   self.du0 = Function(self.V)
+        self.f = options['f']   # spatial component of source term
+        self.ftime = options['ftime']   # ftime(t) = time component of src term
+        #TODO: Add option for fwd or adj pb
+
+        isFunction(self.u0)
+        isFunction(self.du0)
+        isVector(self.f)        
 
 
-    def update(self, parameters_m):
-        self.setfct(self.lda, parameters_m['lambda']
-        if self.elastic = True: self.setfct(self.mu, parameters_m['mu'])
-        self.A = assemble(self.weak_a)
-
-        if parameters_m.has_key('rho'):
-            self.setfct(self.rho, parameters['rho'])
-            self.M = assemble(self.weak_m)
-            # TODO: lump mass matrix
-            # TODO: set up solver for M
-
-
-    def solve(self, rhs):
-        tt = self.t0
-        self.setfct(self.u_n, self.u0)
-
-        while tt < self.tf:
-
-            tt += self.Dt
