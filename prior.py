@@ -51,10 +51,11 @@ class GaussianPrior():
         raise NotImplementedError("Subclasses should implement this!")
 
     def sample(self):
-        self.sample.assign(self.m0)
-        self.draw.vector()[:] = np.random.standard_normal(self.Vm.dim())
-        self.sample.vector().axpy(1.0, self.Ldot(self.draw.vector()))
-        return self.sample
+        self.mysample.assign(self.m0)
+        self.draw.vector()[:] = \
+        np.random.standard_normal(len(self.draw.vector().array()))
+        self.mysample.vector().axpy(1.0, self.Ldot(self.draw.vector()))
+        return self.mysample
 
 
 ############################################################3
@@ -81,7 +82,7 @@ class LaplacianPrior(GaussianPrior):
         else:   self.m0 = Function(self.Vm)
         self.mtrial = TrialFunction(self.Vm)
         self.mtest = TestFunction(self.Vm)
-        self.sample = Function(self.Vm)
+        self.mysample = Function(self.Vm)
         self.draw = Function(self.Vm)
         # Assemble:
         self.R = assemble(inner(nabla_grad(self.mtrial), \
@@ -118,12 +119,12 @@ class BilaplacianPrior(GaussianPrior):
         else:   self.m0 = Function(self.Vm)
         self.mtrial = TrialFunction(self.Vm)
         self.mtest = TestFunction(self.Vm)
-        self.sample = Function(self.Vm)
+        self.mysample = Function(self.Vm)
         self.draw = Function(self.Vm)
         # Assemble:
         self.R = assemble(inner(nabla_grad(self.mtrial), \
         nabla_grad(self.mtest))*dx)
-        M = PETScMatrix()
+        self.M = PETScMatrix()
         assemble(inner(self.mtrial, self.mtest)*dx, tensor=self.M)
         # preconditioner is Gamma^{-1}:
         if self.beta > 1e-16: self.precond = self.gamma*self.R + self.beta*self.M

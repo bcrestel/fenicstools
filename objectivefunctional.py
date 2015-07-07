@@ -210,7 +210,6 @@ class ObjectiveFunctional(LinearOperator):
     def solve_A(self, b, f):
         """Solve system of the form A.b = f, 
         with b and f in form to be used in solver."""
-        print 'p{}'.format(self.myrank)
         self.solver.solve(b, f)
         self.nbPDEsolves += 1
 
