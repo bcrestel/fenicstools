@@ -13,6 +13,8 @@ class PDESolver():
 
     def __init__(self, functionspaces_V):
         self.readV(functionspaces_V)
+        self.verbose = False    # print info
+        self.exact = None   # exact(time tt, solution pn) = relative error
 
     @abc.abstractmethod
     def readV(self, functionspaces_V):  return None
@@ -24,6 +26,15 @@ class PDESolver():
 
     @abc.abstractmethod
     def solve(self, rhs):   return None
+
+    def printsolve(self, tt):
+        if self.verbose: 
+            if self.exact == None:
+                print 'time t={}, max(|p|)={}'.\
+                format(tt, np.max(np.abs(self.u_n.vector().array())))
+            else:
+                print 'time t={}, error(p)={}'.\
+                format(tt, self.exact(tt, self.u_n))
 
     def setfct(self, fct, value):
         if isinstance(value, np.ndarray):
@@ -45,9 +56,14 @@ class Wave(PDESolver):
 
     def update(self, parameters_m):
         self.setfct(self.lam, parameters_m['lambda'])
-        if self.elastic == True:    self.setfct(self.mu, parameters_m['mu'])
+        if self.verbose: print 'updated lambda'
+        if self.elastic == True:    
+            self.setfct(self.mu, parameters_m['mu'])
+            if self.verbose: print 'updated mu'
         self.K = assemble(self.weak_k)
+        if self.verbose: print 'assembled K'
         self.D = assemble(self.weak_d)
+        if self.verbose: print 'assembled D'
 
         if parameters_m.has_key('rho'):
             #TODO: lump mass matrix
@@ -57,6 +73,7 @@ class Wave(PDESolver):
             self.solverM.parameters['reuse_factorization'] = True
             self.solverM.parameters['symmetric'] = True
             self.solverM.set_operator(self.M)
+            if self.verbose: print 'assembled M'
 
         # Time options:
         if parameters_m.has_key('t0'):   self.t0 = parameters_m['t0'] 
@@ -65,33 +82,61 @@ class Wave(PDESolver):
         #TODO: Add option for fwd or adj pb
 
 
-    def solve(self, rhs):
+    def solve(self, ttout=None):
+        solout = []
+        tti = 0
+        if self.verbose: print 'Solve acoustic wave\ntime t=0'
         # u0:
         self.setfct(self.u_nm1, 0.0)
         tt = self.t0 
+        if not ttout==None and np.abs(tt-ttout[tti])<1e-14:
+            solout.append([tt,self.u_nm1.vector().array()])
+            tti += 1
         # u1:
+        if self.verbose:
+            print 'max(f)={}, min(f)={}'.format(np.max(self.src(tt).array()),np.min(self.src(tt).array()))
         self.solverM.solve(self.u_n.vector(), 0.5*self.Dt**2*self.src(tt))
         tt += self.Dt
+        self.printsolve(tt)
+        if not ttout==None and np.abs(tt-ttout[tti])<1e-14:
+            solout.append([tt,self.u_n.vector().array()])
+            tti += 1
         # Iteration
+        out = Function(self.V)
         while tt < self.tf:
             self.setfct(self.u_np1, 0.0)
             self.u_np1.vector().axpy(2.0, self.u_n.vector())
             self.u_np1.vector().axpy(-1.0, self.u_nm1.vector())
-            self.u_np1.vector().axpy(self.Dt, \
-            self.rhs(self.src(tt), self.u_n, self.u_nm1, self.Dt))
+#            self.u_np1.vector().axpy(self.Dt, \
+#            self.rhs(self.src(tt), self.u_n, self.u_nm1, self.Dt))
+            #TODO: TEMPORARY!!
+            self.solverM.solve(out.vector(), self.K * self.u_n.vector())
+            self.u_np1.vector().axpy(-self.Dt**2, out.vector())
             # Advance time by Dt:
             self.setfct(self.u_nm1, self.u_n)
             self.setfct(self.u_n, self.u_np1)
             tt += self.Dt
+            self.printsolve(tt)
+            if not ttout==None and np.abs(tt-ttout[tti])<1e-14:
+                solout.append([tt,self.u_n.vector().array()])
+                tti += 1
+        return solout
 
 
     def rhs(self, f, un, unm1, Dt):
         """Compute rhs for wave equation
         where f = Vector(V) and u = Function(V)"""
-        rhs = self.D * (unm1.vector() - un.vector())
-        rhs.axpy(Dt, f - self.K*un.vector())
+        #rhs = self.D * (unm1.vector() - un.vector())
+        rhs = 0.0 * unm1.vector()  #TODO: Remove this.
+        rhs.axpy(Dt, f - self.K * un.vector())
         out = Function(self.V)
         self.solverM.solve(out.vector(), rhs)
+        if self.verbose: 
+            print 'max(f)={}, min(f)={}'.format(np.max(f.array()), np.min(f.array()))
+            fK = (f - self.K*un.vector())*Dt
+            print 'max(f-Ku)={}, min(f-Ku)={}'.format(np.max(fK.array()),np.min(fK.array()))
+            print 'max(out)={}, min(out)={}'.format(\
+            np.max(out.vector().array()),np.min(out.vector().array()))
         return out.vector()
 
 
@@ -120,10 +165,10 @@ class Wave(PDESolver):
             assert(False)   # TODO: Define elastic case
         else:   
             self.elastic = False
-            self.weak_k = self.lam * inner(nabla_grad(self.test), \
-            nabla_grad(self.trial)) *dx
-            self.weak_d = sqrt(self.lam*self.rho) * self.test*self.trial*ds
-            self.weak_m = self.rho * self.test*self.trial*dx
+            self.weak_k = inner(self.lam*nabla_grad(self.trial), \
+            nabla_grad(self.test))*dx
+            self.weak_d = inner(sqrt(self.lam*self.rho)*self.trial,self.test)*ds
+            self.weak_m = inner(self.rho*self.trial,self.test)*dx
 
 
     def definesource(self, inputf, timestamp):
@@ -138,7 +183,6 @@ class Wave(PDESolver):
             self.f = ff.vector()
         elif isinstance(inputf, dict):
             if inputf['type'] == 'delta':
-                assert inputf.has_key('point')
                 f = Constant('0')
                 L = f*self.test*dx
                 self.f = assemble(L)
@@ -146,7 +190,7 @@ class Wave(PDESolver):
                 delta.apply(self.f)
                 self.f[:] = self.PointSourcecorrection(self.f)
             elif inputf['type'] == 'ricker':
-                # TODO
+                # TODO: Implement Ricker wavelet
                 assert False
             else:   assert False
         else:   assert False

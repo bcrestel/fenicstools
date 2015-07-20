@@ -1,8 +1,9 @@
 TODO list
+* acoustic wave equation: continue debugging (run 1D case? run w/o delta but w/ non-zero ICs? run with Ricker source? check theory/physics),
+when code works re-apply temporary corrections (BCs, rhs computation, ....)
 * Clarify point of solver in parallel (see examples/poisson_..._contobs_parallel2.py)
 * Build unit test for: prior, observation operator,... (serial and parallel)
 * implement mixed (Dirich-Neum) BCs in Poisson pb
-* acoustic wave equation
 
 * Bayesian example, sampling, ...
 * multiple sources (re-think global variables in parallel; too much comm right now)
