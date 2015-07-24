@@ -29,12 +29,8 @@ class PDESolver():
 
     def printsolve(self, tt):
         if self.verbose: 
-            if self.exact == None:
-                print 'time t={}, max(|p|)={}'.\
-                format(tt, np.max(np.abs(self.u_n.vector().array())))
-            else:
-                print 'time t={}, error(p)={}'.\
-                format(tt, self.exact(tt, self.u_n))
+            print 'time t={}, max(|p|)={}'.\
+            format(tt, np.max(np.abs(self.u_n.vector().array())))
 
     def setfct(self, fct, value):
         if isinstance(value, np.ndarray):
@@ -45,6 +41,14 @@ class PDESolver():
             fct.vector()[:] = value
         elif isinstance(value, int):
             fct.vector()[:] = float(value)
+
+    def computeerror(self):
+        if not self.exact == None:
+            MM = assemble(inner(self.trial, self.test)*dx)
+            norm_ex = np.sqrt((MM*self.exact.vector()).inner(self.exact.vector()))
+            diff = self.exact.vector() - self.u_n.vector()
+            return np.sqrt((MM*diff).inner(diff))/normpex
+            
 
 
 
@@ -110,8 +114,8 @@ class Wave(PDESolver):
 #            self.u_np1.vector().axpy(self.Dt, \
 #            self.rhs(self.src(tt), self.u_n, self.u_nm1, self.Dt))
             #TODO: TEMPORARY!!
-            self.solverM.solve(out.vector(), self.K * self.u_n.vector())
-            self.u_np1.vector().axpy(-self.Dt**2, out.vector())
+            self.solverM.solve(out.vector(), self.src(tt) - self.K * self.u_n.vector())
+            self.u_np1.vector().axpy(self.Dt**2, out.vector())
             # Advance time by Dt:
             self.setfct(self.u_nm1, self.u_n)
             self.setfct(self.u_n, self.u_np1)
