@@ -47,7 +47,9 @@ class PDESolver():
             MM = assemble(inner(self.trial, self.test)*dx)
             norm_ex = np.sqrt((MM*self.exact.vector()).inner(self.exact.vector()))
             diff = self.exact.vector() - self.u_n.vector()
-            return np.sqrt((MM*diff).inner(diff))/normpex
+            print norm_ex
+            return np.sqrt((MM*diff).inner(diff))/norm_ex
+        else:   return []
             
 
 
@@ -57,6 +59,32 @@ class PDESolver():
 ############################################################################
 
 class Wave(PDESolver):
+
+    def readV(self, functionspaces_V):
+        # Solutions:
+        self.V = functionspaces_V['V']
+        self.test = TestFunction(self.V)
+        self.trial = TrialFunction(self.V)
+        self.u_nm1 = Function(self.V)    # u(t-Dt)
+        self.u_n = Function(self.V)     # u(t)
+        self.u_np1 = Function(self.V)    # u(t+Dt)
+        # Parameters:
+        self.Vl = functionspaces_V['Vl']
+        self.lam = Function(self.Vl)
+        self.Vr = functionspaces_V['Vr']
+        self.rho = Function(self.Vr)
+        if functionspaces_V.has_key('Vm'):
+            self.Vm = functionspaces_V['Vm']
+            self.mu = Function(self.Vm)
+            self.elastic = True
+            assert(False)   # TODO: Define elastic case
+        else:   
+            self.elastic = False
+            self.weak_k = inner(self.lam*nabla_grad(self.trial), \
+            nabla_grad(self.test))*dx
+            self.weak_d = inner(sqrt(self.lam*self.rho)*self.trial,self.test)*ds
+            self.weak_m = inner(self.rho*self.trial,self.test)*dx
+
 
     def update(self, parameters_m):
         self.setfct(self.lam, parameters_m['lambda'])
@@ -86,6 +114,33 @@ class Wave(PDESolver):
         #TODO: Add option for fwd or adj pb
 
 
+    def definesource(self, inputf, timestamp):
+        """
+        inputf can be either: Vector(V) or dict containing a keyword (delta or
+        ricker) and location of source term (+ frequency for ricker)
+        timestamp is a function of time
+        """
+        if isinstance(inputf, GenericVector):
+            ff = Function(self.V)
+            ff.vector()[:] = inputf.array()
+            self.f = ff.vector()
+        elif isinstance(inputf, dict):
+            if inputf['type'] == 'delta':
+                if self.verbose: print 'Create Delta source term'
+                f = Constant('0')
+                L = f*self.test*dx
+                self.f = assemble(L)
+                delta = PointSource(self.V, self.list2point(inputf['point']))
+                delta.apply(self.f)
+                self.f[:] = self.PointSourcecorrection(self.f)
+            elif inputf['type'] == 'ricker':
+                # TODO: Implement Ricker wavelet
+                assert False
+            else:   assert False
+        else:   assert False
+        self.ftime = timestamp
+
+
     def solve(self, ttout=None):
         solout = []
         tti = 0
@@ -98,7 +153,8 @@ class Wave(PDESolver):
             tti += 1
         # u1:
         if self.verbose:
-            print 'max(f)={}, min(f)={}'.format(np.max(self.src(tt).array()),np.min(self.src(tt).array()))
+            print 'max(f)={}, min(f)={}'.\
+            format(np.max(self.src(tt).array()),np.min(self.src(tt).array()))
         self.solverM.solve(self.u_n.vector(), 0.5*self.Dt**2*self.src(tt))
         tt += self.Dt
         self.printsolve(tt)
@@ -124,7 +180,7 @@ class Wave(PDESolver):
             if not ttout==None and np.abs(tt-ttout[tti])<1e-14:
                 solout.append([tt,self.u_n.vector().array()])
                 tti += 1
-        return solout
+        return solout, self.computeerror()
 
 
     def rhs(self, f, un, unm1, Dt):
@@ -147,59 +203,6 @@ class Wave(PDESolver):
     def src(self, time):
         """Compute f(x,t) at given time"""
         return self.ftime(time) * self.f
-
-
-    def readV(self, functionspaces_V):
-        # Solutions:
-        self.V = functionspaces_V['V']
-        self.test = TestFunction(self.V)
-        self.trial = TrialFunction(self.V)
-        self.u_nm1 = Function(self.V)    # u(t-Dt)
-        self.u_n = Function(self.V)     # u(t)
-        self.u_np1 = Function(self.V)    # u(t+Dt)
-        # Parameters:
-        self.Vl = functionspaces_V['Vl']
-        self.lam = Function(self.Vl)
-        self.Vr = functionspaces_V['Vr']
-        self.rho = Function(self.Vr)
-        if functionspaces_V.has_key('Vm'):
-            self.Vm = functionspaces_V['Vm']
-            self.mu = Function(self.Vm)
-            self.elastic = True
-            assert(False)   # TODO: Define elastic case
-        else:   
-            self.elastic = False
-            self.weak_k = inner(self.lam*nabla_grad(self.trial), \
-            nabla_grad(self.test))*dx
-            self.weak_d = inner(sqrt(self.lam*self.rho)*self.trial,self.test)*ds
-            self.weak_m = inner(self.rho*self.trial,self.test)*dx
-
-
-    def definesource(self, inputf, timestamp):
-        """
-        inputf can be either: Vector(V) or dict containing a keyword (delta or
-        ricker) and location of source term (+ frequency for ricker)
-        timestamp is a function of time
-        """
-        if isinstance(inputf, GenericVector):
-            ff = Function(self.V)
-            ff.vector()[:] = inputf.array()
-            self.f = ff.vector()
-        elif isinstance(inputf, dict):
-            if inputf['type'] == 'delta':
-                f = Constant('0')
-                L = f*self.test*dx
-                self.f = assemble(L)
-                delta = PointSource(self.V, self.list2point(inputf['point']))
-                delta.apply(self.f)
-                self.f[:] = self.PointSourcecorrection(self.f)
-            elif inputf['type'] == 'ricker':
-                # TODO: Implement Ricker wavelet
-                assert False
-            else:   assert False
-        else:   assert False
-
-        self.ftime = timestamp
 
 
     #TODO: create separate class for point source

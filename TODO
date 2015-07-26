@@ -1,5 +1,5 @@
 TODO list
-* acoustic wave equation: continue debugging (run 1D case? run w/o delta but w/ non-zero ICs? run with Ricker source? check theory/physics),
+* acoustic wave equation: continue debugging (convergence analysis for simple solution -> needs to check exact solution)
 when code works re-apply temporary corrections (BCs, rhs computation, ....)
 * Clarify point of solver in parallel (see examples/poisson_..._contobs_parallel2.py)
 * Build unit test for: prior, observation operator,... (serial and parallel)
