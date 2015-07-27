@@ -21,6 +21,7 @@ class PlotFenics:
         """set output directory and creates it if needed"""
         if new_dir_in == None:  new_dir = 'Outputs/Plots/'
         else:   new_dir = new_dir_in
+        if not new_dir[-1] == '/':  new_dir += '/'
         self.outdir = new_dir
         if not isdir(new_dir):  os.makedirs(new_dir)
 
