@@ -47,7 +47,6 @@ class PDESolver():
             MM = assemble(inner(self.trial, self.test)*dx)
             norm_ex = np.sqrt((MM*self.exact.vector()).inner(self.exact.vector()))
             diff = self.exact.vector() - self.u_n.vector()
-            print norm_ex
             return np.sqrt((MM*diff).inner(diff))/norm_ex
         else:   return []
             
@@ -88,24 +87,26 @@ class Wave(PDESolver):
 
     def update(self, parameters_m):
         self.setfct(self.lam, parameters_m['lambda'])
-        if self.verbose: print 'updated lambda'
+        if self.verbose: print 'lambda updated '
         if self.elastic == True:    
             self.setfct(self.mu, parameters_m['mu'])
-            if self.verbose: print 'updated mu'
+            if self.verbose: print 'mu updated'
+        if self.verbose: print 'assemble K',
         self.K = assemble(self.weak_k)
-        if self.verbose: print 'assembled K'
+        if self.verbose: print ' -- K assembled\nassemble D',
         self.D = assemble(self.weak_d)
-        if self.verbose: print 'assembled D'
+        if self.verbose: print ' -- D assembled'
 
         if parameters_m.has_key('rho'):
             #TODO: lump mass matrix
             self.setfct(self.rho, parameters_m['rho'])
+            if self.verbose: print 'rho updated\nassemble M',
             self.M = assemble(self.weak_m)
             self.solverM = LUSolver()
             self.solverM.parameters['reuse_factorization'] = True
             self.solverM.parameters['symmetric'] = True
             self.solverM.set_operator(self.M)
-            if self.verbose: print 'assembled M'
+            if self.verbose: print ' -- M assembled'
 
         # Time options:
         if parameters_m.has_key('t0'):   self.t0 = parameters_m['t0'] 
@@ -148,7 +149,7 @@ class Wave(PDESolver):
         # u0:
         self.setfct(self.u_nm1, 0.0)
         tt = self.t0 
-        if not ttout==None and np.abs(tt-ttout[tti])<1e-14:
+        if not ttout==None and (ttout == [] or np.abs(tt-ttout[tti])<1e-14):
             solout.append([tt,self.u_nm1.vector().array()])
             tti += 1
         # u1:
@@ -158,7 +159,7 @@ class Wave(PDESolver):
         self.solverM.solve(self.u_n.vector(), 0.5*self.Dt**2*self.src(tt))
         tt += self.Dt
         self.printsolve(tt)
-        if not ttout==None and np.abs(tt-ttout[tti])<1e-14:
+        if not ttout==None and (ttout == [] or np.abs(tt-ttout[tti])<1e-14):
             solout.append([tt,self.u_n.vector().array()])
             tti += 1
         # Iteration
@@ -177,7 +178,7 @@ class Wave(PDESolver):
             self.setfct(self.u_n, self.u_np1)
             tt += self.Dt
             self.printsolve(tt)
-            if not ttout==None and np.abs(tt-ttout[tti])<1e-14:
+            if not ttout==None and (ttout == [] or np.abs(tt-ttout[tti])<1e-14):
                 solout.append([tt,self.u_n.vector().array()])
                 tti += 1
         return solout, self.computeerror()
