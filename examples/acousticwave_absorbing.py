@@ -13,10 +13,10 @@ from fenicstools.pdesolver import Wave
 from fenicstools.plotfenics import PlotFenics
 import matplotlib.pyplot as plt
 
-invh = 100
+invh = 200
 h = 1./invh
-Dt = h/5. # Safeguard for CFL condition
-tf = 0.1
+Dt = h/25. # Safeguard for CFL condition
+tf = 0.11
 print 'h={}, Dt={}, tf={}'.format(h, Dt, tf)
 mesh = UnitSquareMesh(invh, invh, "crossed")
 V = FunctionSpace(mesh, 'Lagrange', 1)  # space for solution
@@ -76,18 +76,15 @@ fig.savefig(filename + '/finaltimesolution.eps')
 myplot.set_varname('p_ex')
 plotp.vector()[:] = pexact.vector().array()
 myplot.plot_vtk(plotp)
-# Test pexact
-normerr = PWave.computeerror()
-print normerr
-assert(False)
 
+# Solve problem:
 outtime = []    # save all time steps
 Pout, normerr = PWave.solve(outtime)
-print 'Relative error at time={}: {}',format(tf, normerr)
+print 'Relative error at time={}: {}'.format(tf, normerr)
 
 # Plot solutions
 myplot.set_varname('p_n')
 for index, pp in enumerate(Pout):
-    plotp.vector()[:] = pp[1]
+    plotp.vector()[:] = pp[0]
     myplot.plot_vtk(plotp, index)
 myplot.gather_vtkplots()

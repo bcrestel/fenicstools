@@ -150,7 +150,7 @@ class Wave(PDESolver):
         self.setfct(self.u_nm1, 0.0)
         tt = self.t0 
         if not ttout==None and (ttout == [] or np.abs(tt-ttout[tti])<1e-14):
-            solout.append([tt,self.u_nm1.vector().array()])
+            solout.append([self.u_nm1.vector().array(),tt])
             tti += 1
         # u1:
         if self.verbose:
@@ -160,7 +160,7 @@ class Wave(PDESolver):
         tt += self.Dt
         self.printsolve(tt)
         if not ttout==None and (ttout == [] or np.abs(tt-ttout[tti])<1e-14):
-            solout.append([tt,self.u_n.vector().array()])
+            solout.append([self.u_n.vector().array(),tt])
             tti += 1
         # Iteration
         out = Function(self.V)
@@ -179,7 +179,7 @@ class Wave(PDESolver):
             tt += self.Dt
             self.printsolve(tt)
             if not ttout==None and (ttout == [] or np.abs(tt-ttout[tti])<1e-14):
-                solout.append([tt,self.u_n.vector().array()])
+                solout.append([self.u_n.vector().array(),tt])
                 tti += 1
         return solout, self.computeerror()
 
