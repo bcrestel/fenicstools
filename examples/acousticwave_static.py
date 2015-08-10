@@ -30,7 +30,7 @@ solver.set_operator(M)
 sol = []
 # IC:
 tt = 0.0
-p0 = interpolate(Expression('sin(pi*x[0])*sin(pi*x[1])'), V)
+p0 = interpolate(Expression('sin(2*pi*x[0])*sin(2*pi*x[1])'), V)
 sol.append([p0.vector().array(), tt])
 print 'time={}, max(p)={}, min(p)={}'.format(tt, \
 p0.vector().array().max(), p0.vector().array().min())

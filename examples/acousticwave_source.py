@@ -10,7 +10,7 @@ Nxy = 100
 h = 1./Nxy
 mesh = UnitSquareMesh(Nxy, Nxy, "crossed")
 Dt = h/20.
-tf = 1e-1
+tf = 5e-2
 
 V = FunctionSpace(mesh, 'Lagrange', 1)
 test = TestFunction(V)
@@ -28,10 +28,10 @@ solver.parameters['reuse_factorization'] = True
 solver.parameters['symmetric'] = True
 solver.set_operator(M)
 sol = []
-foriginal = interpolate(Constant('2'), V)
+foriginal = assemble(Constant('2')*test*dx)
 f = Function(V)
 def sourcef(tt):
-    return tt*foriginal.vector().array()
+    return tt*foriginal.array()
 # Define plots:
 filename, ext = splitext(sys.argv[0])
 if isdir(filename + '/'):   rmtree(filename + '/')
