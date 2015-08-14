@@ -4,69 +4,30 @@ import numpy as np
 from dolfin import TestFunction, TrialFunction, Function, GenericVector, \
 assemble, inner, nabla_grad, dx, ds, LUSolver, sqrt, \
 PointSource, Point, Constant
-from miscfenics import isFunction, isVector
+from miscfenics import isFunction, isVector, setfct
 
 
-class PDESolver():
-    """Defines abstract class to compute solution of a PDE"""
-    __metaclass__ = abc.ABCMeta
+class AcousticWave():
 
     def __init__(self, functionspaces_V):
         self.readV(functionspaces_V)
         self.verbose = False    # print info
         self.exact = None   # exact(time tt, solution pn) = relative error
+        self.utinit = None
+        self.u1init = None
+        self.bc = None
 
-    @abc.abstractmethod
-    def readV(self, functionspaces_V):  return None
-
-    def readoptions(self, options):  return None
-
-    @abc.abstractmethod
-    def update(self, parameters_m): return None
-
-    @abc.abstractmethod
-    def solve(self, rhs):   return None
-
-    def printsolve(self, tt):
-        if self.verbose: 
-            print 'time t={}, max(|p|)={}'.\
-            format(tt, np.max(np.abs(self.u_n.vector().array())))
-
-    def setfct(self, fct, value):
-        if isinstance(value, np.ndarray):
-            fct.vector()[:] = value
-        elif isinstance(value, Function):
-            fct.assign(value)
-        elif isinstance(value, float):
-            fct.vector()[:] = value
-        elif isinstance(value, int):
-            fct.vector()[:] = float(value)
-
-    def computeerror(self):
-        if not self.exact == None:
-            MM = assemble(inner(self.trial, self.test)*dx)
-            norm_ex = np.sqrt((MM*self.exact.vector()).inner(self.exact.vector()))
-            diff = self.exact.vector() - self.u_n.vector()
-            return np.sqrt((MM*diff).inner(diff))/norm_ex
-        else:   return []
-            
-
-
-
-############################################################################
-# Derived classes
-############################################################################
-
-class Wave(PDESolver):
 
     def readV(self, functionspaces_V):
         # Solutions:
         self.V = functionspaces_V['V']
         self.test = TestFunction(self.V)
         self.trial = TrialFunction(self.V)
-        self.u_nm1 = Function(self.V)    # u(t-Dt)
-        self.u_n = Function(self.V)     # u(t)
-        self.u_np1 = Function(self.V)    # u(t+Dt)
+        self.u0 = Function(self.V)    # u(t-Dt)
+        self.u1 = Function(self.V)     # u(t)
+        self.u2 = Function(self.V)    # u(t+Dt)
+        self.rhs = Function(self.V)
+        self.sol = Function(self.V)
         # Parameters:
         self.Vl = functionspaces_V['Vl']
         self.lam = Function(self.Vl)
@@ -76,20 +37,24 @@ class Wave(PDESolver):
             self.Vm = functionspaces_V['Vm']
             self.mu = Function(self.Vm)
             self.elastic = True
-            assert(False)   # TODO: Define elastic case
+            assert(False)
         else:   
             self.elastic = False
             self.weak_k = inner(self.lam*nabla_grad(self.trial), \
             nabla_grad(self.test))*dx
-            self.weak_d = inner(sqrt(self.lam*self.rho)*self.trial,self.test)*ds
+            #TODO: Make weak_d only on some part of the boundary
+            #see Fenics exple: http://fenicsproject.org/documentation/dolfin/dev/python/demo/pde/subdomains-poisson/python/documentation.html
+            self.abc = True # False means zero-Neumann all-around
+            self.weak_d = inner(self.abc*sqrt(self.lam*self.rho)*self.trial,\
+            self.test)*ds
             self.weak_m = inner(self.rho*self.trial,self.test)*dx
 
 
     def update(self, parameters_m):
-        self.setfct(self.lam, parameters_m['lambda'])
+        setfct(self.lam, parameters_m['lambda'])
         if self.verbose: print 'lambda updated '
         if self.elastic == True:    
-            self.setfct(self.mu, parameters_m['mu'])
+            setfct(self.mu, parameters_m['mu'])
             if self.verbose: print 'mu updated'
         if self.verbose: print 'assemble K',
         self.K = assemble(self.weak_k)
@@ -99,9 +64,10 @@ class Wave(PDESolver):
 
         if parameters_m.has_key('rho'):
             #TODO: lump mass matrix
-            self.setfct(self.rho, parameters_m['rho'])
+            setfct(self.rho, parameters_m['rho'])
             if self.verbose: print 'rho updated\nassemble M',
             self.M = assemble(self.weak_m)
+            if not self.bc == None: self.bc.apply(self.M)
             self.solverM = LUSolver()
             self.solverM.parameters['reuse_factorization'] = True
             self.solverM.parameters['symmetric'] = True
@@ -112,6 +78,10 @@ class Wave(PDESolver):
         if parameters_m.has_key('t0'):   self.t0 = parameters_m['t0'] 
         if parameters_m.has_key('tf'):   self.tf = parameters_m['tf'] 
         if parameters_m.has_key('Dt'):   self.Dt = parameters_m['Dt'] 
+        # Initial conditions:
+        if parameters_m.has_key('u0init'):   self.u0init = parameters_m['u0init'] 
+        if parameters_m.has_key('utinit'):   self.utinit = parameters_m['utinit'] 
+        if parameters_m.has_key('u1init'):   self.u1init = parameters_m['u1init'] 
         #TODO: Add option for fwd or adj pb
 
 
@@ -143,44 +113,40 @@ class Wave(PDESolver):
 
 
     def solve(self, ttout=None):
-        solout = []
-        tti = 0
-        if self.verbose: print 'Solve acoustic wave\ntime t=0'
+        solout = [] # Store computed solution
         # u0:
-        self.setfct(self.u_nm1, 0.0)
         tt = self.t0 
-        if not ttout==None and (ttout == [] or np.abs(tt-ttout[tti])<1e-14):
-            solout.append([self.u_nm1.vector().array(),tt])
-            tti += 1
+        self.u0 = self.u0init
+        solout.append([self.u0.vector().array(), tt])
         # u1:
-        if self.verbose:
-            print 'max(f)={}, min(f)={}'.\
-            format(np.max(self.src(tt).array()),np.min(self.src(tt).array()))
-        self.solverM.solve(self.u_n.vector(), 0.5*self.Dt**2*self.src(tt))
+        if not self.u1init == None: self.u1 = self.u1init
+        else:
+            assert(not self.utinit == None)
+            self.rhs.vector()[:] = self.ftime(tt) - \
+            (self.D*self.utinit.vector()).array() - \
+            (self.K*self.u0.vector()).array()
+            if not self.bc == None: self.bc.apply(self.rhs.vector())
+            self.solverM.solve(self.sol.vector(), self.rhs.vector())
+            self.u1.vector()[:] = self.u0.vector().array() + \
+            self.Dt*self.utinit.vector().array() + \
+            0.5*self.Dt**2*self.sol.vector().array()
         tt += self.Dt
-        self.printsolve(tt)
-        if not ttout==None and (ttout == [] or np.abs(tt-ttout[tti])<1e-14):
-            solout.append([self.u_n.vector().array(),tt])
-            tti += 1
+        solout.append([self.u1.vector().array(), tt])
         # Iteration
-        out = Function(self.V)
         while tt < self.tf:
-            self.setfct(self.u_np1, 0.0)
-            self.u_np1.vector().axpy(2.0, self.u_n.vector())
-            self.u_np1.vector().axpy(-1.0, self.u_nm1.vector())
-#            self.u_np1.vector().axpy(self.Dt, \
-#            self.rhs(self.src(tt), self.u_n, self.u_nm1, self.Dt))
-            #TODO: TEMPORARY!!
-            self.solverM.solve(out.vector(), self.src(tt) - self.K * self.u_n.vector())
-            self.u_np1.vector().axpy(self.Dt**2, out.vector())
-            # Advance time by Dt:
-            self.setfct(self.u_nm1, self.u_n)
-            self.setfct(self.u_n, self.u_np1)
+            self.rhs.vector()[:] = self.Dt*(self.ftime(tt) - \
+            (self.K*self.u1.vector()).array()) - \
+            (self.D*(self.u1.vector()-self.u0.vector())).array()
+            if not self.bc == None: self.bc.apply(self.rhs.vector())
+            self.solverM.solve(self.sol.vector(), self.rhs.vector())
+            self.u2.vector()[:] = 2*self.u1.vector().array() - \
+            self.u0.vector().array() + self.Dt*self.sol.vector().array()
+            # Advance to next time step
+            self.u0.vector()[:] = self.u1.vector().array()
+            self.u1.vector()[:] = self.u2.vector().array()
             tt += self.Dt
-            self.printsolve(tt)
-            if not ttout==None and (ttout == [] or np.abs(tt-ttout[tti])<1e-14):
-                solout.append([self.u_n.vector().array(),tt])
-                tti += 1
+            solout.append([self.u1.vector().array(),tt])
+
         return solout, self.computeerror()
 
 
@@ -222,5 +188,13 @@ class Wave(PDESolver):
             return b.array()/scale
         else:   return b.array()
         
+
+    def computeerror(self):
+        if not self.exact == None:
+            MM = assemble(inner(self.trial, self.test)*dx)
+            norm_ex = np.sqrt((MM*self.exact.vector()).inner(self.exact.vector()))
+            diff = self.exact.vector() - self.u_n.vector()
+            return np.sqrt((MM*diff).inner(diff))/norm_ex
+        else:   return []
 
 

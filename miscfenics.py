@@ -58,3 +58,13 @@ def isarray(uin):
 def arearrays(uin, udin):
     if not (isinstance(uin, np.ndarray) and isinstance(udin, np.ndarray)):
      raise WrongInstanceError("uin and udin should be a Numpy array")
+
+def setfct(fct, value):
+    if isinstance(value, np.ndarray):
+        fct.vector()[:] = value
+    elif isinstance(value, Function):
+        fct.assign(value)
+    elif isinstance(value, float):
+        fct.vector()[:] = value
+    elif isinstance(value, int):
+        fct.vector()[:] = float(value)
