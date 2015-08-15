@@ -12,10 +12,11 @@ class AcousticWave():
     def __init__(self, functionspaces_V):
         self.readV(functionspaces_V)
         self.verbose = False    # print info
-        self.exact = None   # exact(time tt, solution pn) = relative error
+        self.exact = None   # exact solution at final time
         self.utinit = None
         self.u1init = None
         self.bc = None
+        self.ftime = lambda x: 0.0
 
 
     def readV(self, functionspaces_V):
@@ -112,10 +113,12 @@ class AcousticWave():
         self.ftime = timestamp
 
 
-    def solve(self, ttout=None):
+    def solve(self):
+        if self.verbose:    print 'Compute solution'
         solout = [] # Store computed solution
         # u0:
         tt = self.t0 
+        if self.verbose:    print 'Compute solution -- time {}'.format(tt)
         self.u0 = self.u0init
         solout.append([self.u0.vector().array(), tt])
         # u1:
@@ -131,9 +134,10 @@ class AcousticWave():
             self.Dt*self.utinit.vector().array() + \
             0.5*self.Dt**2*self.sol.vector().array()
         tt += self.Dt
+        if self.verbose:    print 'Compute solution -- time {}'.format(tt)
         solout.append([self.u1.vector().array(), tt])
         # Iteration
-        while tt < self.tf:
+        while tt + self.Dt < self.tf*(1.0 + 1e-14):
             self.rhs.vector()[:] = self.Dt*(self.ftime(tt) - \
             (self.K*self.u1.vector()).array()) - \
             (self.D*(self.u1.vector()-self.u0.vector())).array()
@@ -145,8 +149,9 @@ class AcousticWave():
             self.u0.vector()[:] = self.u1.vector().array()
             self.u1.vector()[:] = self.u2.vector().array()
             tt += self.Dt
+            if self.verbose:    print 'Compute solution -- time {}'.format(tt)
             solout.append([self.u1.vector().array(),tt])
-
+        assert (abs(tt - self.tf)/self.tf < 1e-14)
         return solout, self.computeerror()
 
 
@@ -193,8 +198,9 @@ class AcousticWave():
         if not self.exact == None:
             MM = assemble(inner(self.trial, self.test)*dx)
             norm_ex = np.sqrt((MM*self.exact.vector()).inner(self.exact.vector()))
-            diff = self.exact.vector() - self.u_n.vector()
-            return np.sqrt((MM*diff).inner(diff))/norm_ex
+            diff = self.exact.vector() - self.u1.vector()
+            if norm_ex > 1e-16: return np.sqrt((MM*diff).inner(diff))/norm_ex
+            else:   return np.sqrt((MM*diff).inner(diff))
         else:   return []
 
 
