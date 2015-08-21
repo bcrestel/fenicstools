@@ -16,7 +16,7 @@ class AcousticWave():
         self.utinit = None
         self.u1init = None
         self.bc = None
-        self.ftime = lambda x: 0.0
+        self.ftime = lambda x: 0.0  # ftime(tt) = source term at time tt (in np.array())
 
 
     def readV(self, functionspaces_V):
@@ -86,33 +86,6 @@ class AcousticWave():
         #TODO: Add option for fwd or adj pb
 
 
-    def definesource(self, inputf, timestamp):
-        """
-        inputf can be either: Vector(V) or dict containing a keyword (delta or
-        ricker) and location of source term (+ frequency for ricker)
-        timestamp is a function of time
-        """
-        if isinstance(inputf, GenericVector):
-            ff = Function(self.V)
-            ff.vector()[:] = inputf.array()
-            self.f = ff.vector()
-        elif isinstance(inputf, dict):
-            if inputf['type'] == 'delta':
-                if self.verbose: print 'Create Delta source term'
-                f = Constant('0')
-                L = f*self.test*dx
-                self.f = assemble(L)
-                delta = PointSource(self.V, self.list2point(inputf['point']))
-                delta.apply(self.f)
-                self.f[:] = self.PointSourcecorrection(self.f)
-            elif inputf['type'] == 'ricker':
-                # TODO: Implement Ricker wavelet
-                assert False
-            else:   assert False
-        else:   assert False
-        self.ftime = timestamp
-
-
     def solve(self):
         if self.verbose:    print 'Compute solution'
         solout = [] # Store computed solution
@@ -155,44 +128,44 @@ class AcousticWave():
         return solout, self.computeerror()
 
 
-    def rhs(self, f, un, unm1, Dt):
-        """Compute rhs for wave equation
-        where f = Vector(V) and u = Function(V)"""
-        #rhs = self.D * (unm1.vector() - un.vector())
-        rhs = 0.0 * unm1.vector()  #TODO: Remove this.
-        rhs.axpy(Dt, f - self.K * un.vector())
-        out = Function(self.V)
-        self.solverM.solve(out.vector(), rhs)
-        if self.verbose: 
-            print 'max(f)={}, min(f)={}'.format(np.max(f.array()), np.min(f.array()))
-            fK = (f - self.K*un.vector())*Dt
-            print 'max(f-Ku)={}, min(f-Ku)={}'.format(np.max(fK.array()),np.min(fK.array()))
-            print 'max(out)={}, min(out)={}'.format(\
-            np.max(out.vector().array()),np.min(out.vector().array()))
-        return out.vector()
+#    def rhs(self, f, un, unm1, Dt):
+#        """Compute rhs for wave equation
+#        where f = Vector(V) and u = Function(V)"""
+#        #rhs = self.D * (unm1.vector() - un.vector())
+#        rhs = 0.0 * unm1.vector()  #TODO: Remove this.
+#        rhs.axpy(Dt, f - self.K * un.vector())
+#        out = Function(self.V)
+#        self.solverM.solve(out.vector(), rhs)
+#        if self.verbose: 
+#            print 'max(f)={}, min(f)={}'.format(np.max(f.array()), np.min(f.array()))
+#            fK = (f - self.K*un.vector())*Dt
+#            print 'max(f-Ku)={}, min(f-Ku)={}'.format(np.max(fK.array()),np.min(fK.array()))
+#            print 'max(out)={}, min(out)={}'.format(\
+#            np.max(out.vector().array()),np.min(out.vector().array()))
+#        return out.vector()
 
 
-    def src(self, time):
-        """Compute f(x,t) at given time"""
-        return self.ftime(time) * self.f
+#    def src(self, time):
+#        """Compute f(x,t) at given time"""
+#        return self.ftime(time) * self.f
 
 
     #TODO: create separate class for point source
-    def list2point(self, list_in):
-        """Turn a list of coord into a Fenics Point
-        list_in = list containing coordinates of the Point"""
-        dim = np.size(list_in)
-        return Point(dim, np.array(list_in, dtype=float))
-
-
-    def PointSourcecorrection(self, b):
-        """Correct PointSource in parallel"""
-        # TODO: TO BE TESTED!!
-        scale = b.array().sum()
-        if abs(scale) > 1e-12:  
-            return b.array()/scale
-        else:   return b.array()
-        
+#    def list2point(self, list_in):
+#        """Turn a list of coord into a Fenics Point
+#        list_in = list containing coordinates of the Point"""
+#        dim = np.size(list_in)
+#        return Point(dim, np.array(list_in, dtype=float))
+#
+#
+#    def PointSourcecorrection(self, b):
+#        """Correct PointSource in parallel"""
+#        # TODO: TO BE TESTED!!
+#        scale = b.array().sum()
+#        if abs(scale) > 1e-12:  
+#            return b.array()/scale
+#        else:   return b.array()
+#        
 
     def computeerror(self):
         if not self.exact == None:
@@ -202,5 +175,32 @@ class AcousticWave():
             if norm_ex > 1e-16: return np.sqrt((MM*diff).inner(diff))/norm_ex
             else:   return np.sqrt((MM*diff).inner(diff))
         else:   return []
+
+
+#    def definesource(self, inputf, timestamp):
+#        """
+#        inputf can be either: Vector(V) or dict containing a keyword (delta or
+#        ricker) and location of source term (+ frequency for ricker)
+#        timestamp is a function of time
+#        """
+#        if isinstance(inputf, GenericVector):
+#            ff = Function(self.V)
+#            ff.vector()[:] = inputf.array()
+#            self.f = ff.vector()
+#        elif isinstance(inputf, dict):
+#            if inputf['type'] == 'delta':
+#                if self.verbose: print 'Create Delta source term'
+#                f = Constant('0')
+#                L = f*self.test*dx
+#                self.f = assemble(L)
+#                delta = PointSource(self.V, self.list2point(inputf['point']))
+#                delta.apply(self.f)
+#                self.f[:] = self.PointSourcecorrection(self.f)
+#            elif inputf['type'] == 'ricker':
+#                # TODO: Implement Ricker wavelet
+#                assert False
+#            else:   assert False
+#        else:   assert False
+#        self.ftime = timestamp
 
 
