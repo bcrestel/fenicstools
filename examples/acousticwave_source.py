@@ -13,11 +13,12 @@ NN = np.array((25, 50, 100, 200))
 ERROR = []
 
 tf = 0.052  # Final time
-exact_expr = Expression('x[0]*(1-x[0])*t', t=tf)
-utinit_expr = Expression('x[0]*(1-x[0])')
+direction = 1
+exact_expr = Expression('x[i]*(1-x[i])*t', i=direction, t=tf)
+utinit_expr = Expression('x[i]*(1-x[i])', i=direction)
 # Boundary conditions:
 def u0_boundary(x, on_boundary):
-    return (x[0] < 1e-16 or x[0] > 1.0-1e-16) and on_boundary
+    return (x[direction] < 1e-16 or x[direction] > 1.0-1e-16) and on_boundary
 ubc = Constant("0.0")
 
 for Nxy in NN:
