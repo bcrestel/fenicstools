@@ -12,7 +12,7 @@ assemble, interpolate, Expression, Function, TestFunction, dx
 NN = np.array((25, 50, 100, 200))
 ERROR = []
 
-tf = 0.052  # Final time
+tf = 0.048  # Final time
 direction = 1
 exact_expr = Expression('x[i]*(1-x[i])*t', i=direction, t=tf)
 utinit_expr = Expression('x[i]*(1-x[i])', i=direction)
@@ -25,9 +25,10 @@ for Nxy in NN:
     h = 1./Nxy
     print '\n\th = {}'.format(h)
     mesh = UnitSquareMesh(Nxy, Nxy, "crossed")
-    Dt = h/10.
+    q = 1   # This example is solved 'exactly' for q>=2
+    V = FunctionSpace(mesh, 'Lagrange', q)
+    Dt = h/(q*5.)
 
-    V = FunctionSpace(mesh, 'Lagrange', 1)
     Wave = AcousticWave({'V':V, 'Vl':V, 'Vr':V})
     Wave.verbose = True
     Wave.abc = False    # No absorbing boundary conditions
