@@ -124,7 +124,10 @@ class AcousticWave():
             tt += self.Dt
             if self.verbose:    print 'Compute solution -- time {}'.format(tt)
             solout.append([self.u1.vector().array(),tt])
-        assert (abs(tt - self.tf)/self.tf < 1e-14)
+        timeerror = abs(tt - self.tf)/self.tf
+        if timeerror > 1e-12:
+            raise RuntimeError('Final time is {} instead of {}'.format(tt, \
+            self.tf), 'Relative error is {}'.format(timeerror))
         return solout, self.computeerror()
 
 
