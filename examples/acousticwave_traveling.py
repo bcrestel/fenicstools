@@ -12,9 +12,14 @@ interpolate, Expression, Function
 NN = np.array((25, 50, 100, 200))
 ERROR = []
 
-tf = 2. # Final time
+tf = 1. # Final time
 direction = 0
-u0_expr = Expression('100*pow(x[i],2)*pow(x[i]-0.5,2)*(x[i]<=0.5)', i=direction)
+u0_expr = \
+Expression('100*pow(x[i]-.25,2)*pow(x[i]-0.75,2)*(x[i]<=0.75)*(x[i]>=0.25)', \
+i=direction)
+uex_expr = \
+Expression('-100*pow(x[i]-.25,2)*pow(x[i]-0.75,2)*(x[i]<=0.75)*(x[i]>=0.25)', \
+i=direction)
 def u0_boundary(x, on_boundary):
     return (x[0] < 1e-16 or x[0] > 1.0-1e-16) and on_boundary
 ubc = Constant("0.0")
@@ -30,7 +35,7 @@ for Nxy in NN:
     Wave = AcousticWave({'V':V, 'Vl':V, 'Vr':V})
     Wave.verbose = True
     Wave.abc = False
-    Wave.exact = interpolate(u0_expr, V)
+    Wave.exact = interpolate(uex_expr, V)
     Wave.bc = DirichletBC(V, ubc, u0_boundary)
     Wave.update({'lambda':1.0, 'rho':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
     'u0init':interpolate(u0_expr, V), 'utinit':Function(V)})
