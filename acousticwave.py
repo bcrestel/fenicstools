@@ -3,7 +3,7 @@ import numpy as np
 
 from dolfin import TestFunction, TrialFunction, Function, GenericVector, \
 assemble, inner, nabla_grad, dx, ds, LUSolver, sqrt, \
-PointSource, Point, Constant
+PointSource, Point, Constant, FacetFunction, Measure
 from miscfenics import isFunction, isVector, setfct
 
 
@@ -16,6 +16,7 @@ class AcousticWave():
         self.utinit = None
         self.u1init = None
         self.bc = None
+        self.abc = False
         self.ftime = lambda x: 0.0  # ftime(tt) = source term at time tt (in np.array())
 
 
@@ -43,12 +44,21 @@ class AcousticWave():
             self.elastic = False
             self.weak_k = inner(self.lam*nabla_grad(self.trial), \
             nabla_grad(self.test))*dx
-            #TODO: Make weak_d only on some part of the boundary
-            #see Fenics exple: http://fenicsproject.org/documentation/dolfin/dev/python/demo/pde/subdomains-poisson/python/documentation.html
-            self.abc = True # False means zero-Neumann all-around
-            self.weak_d = inner(self.abc*sqrt(self.lam*self.rho)*self.trial,\
-            self.test)*ds
             self.weak_m = inner(self.rho*self.trial,self.test)*dx
+
+
+    def set_abc(self, mesh, class_bc_abc):
+        self.abc = True # False means zero-Neumann all-around
+        abc_boundaryparts = FacetFunction("size_t", mesh)
+        class_bc_abc.mark(abc_boundaryparts, 1)
+        self.ds = Measure("ds")[abc_boundaryparts]
+        self.weak_d = inner(self.trial, self.test)*self.ds(1)
+        #TODO: Define for general values of lambda and rho (right now,
+        # definition below does not work (returns zero matrix).
+        # Maybe this has to do with function spaces: lambda and rho are defined
+        # in Vl and Vr while test and trial are defined in V.
+        #self.weak_d = inner(sqrt(self.lam*self.rho)*self.trial, \
+        #self.test)*self.ds(0)
 
 
     def update(self, parameters_m):
@@ -59,10 +69,13 @@ class AcousticWave():
             if self.verbose: print 'mu updated'
         if self.verbose: print 'assemble K',
         self.K = assemble(self.weak_k)
-        if self.verbose: print ' -- K assembled\nassemble D',
-        self.D = assemble(self.weak_d)
-        if self.verbose: print ' -- D assembled'
-
+        if self.verbose: print ' -- K assembled'
+        if self.abc == True:    
+            if self.verbose:    print 'assemble D',
+            self.D = assemble(self.weak_d)
+            if self.verbose:    print ' -- D assembled'
+        else:   self.D = 0.0
+        # Mass matrix:
         if parameters_m.has_key('rho'):
             #TODO: lump mass matrix
             setfct(self.rho, parameters_m['rho'])
@@ -74,15 +87,14 @@ class AcousticWave():
             self.solverM.parameters['symmetric'] = True
             self.solverM.set_operator(self.M)
             if self.verbose: print ' -- M assembled'
-
         # Time options:
         if parameters_m.has_key('t0'):   self.t0 = parameters_m['t0'] 
         if parameters_m.has_key('tf'):   self.tf = parameters_m['tf'] 
         if parameters_m.has_key('Dt'):   self.Dt = parameters_m['Dt'] 
         # Initial conditions:
-        if parameters_m.has_key('u0init'):   self.u0init = parameters_m['u0init'] 
-        if parameters_m.has_key('utinit'):   self.utinit = parameters_m['utinit'] 
-        if parameters_m.has_key('u1init'):   self.u1init = parameters_m['u1init'] 
+        if parameters_m.has_key('u0init'):   self.u0init = parameters_m['u0init']
+        if parameters_m.has_key('utinit'):   self.utinit = parameters_m['utinit']
+        if parameters_m.has_key('u1init'):   self.u1init = parameters_m['u1init']
         #TODO: Add option for fwd or adj pb
 
 
@@ -131,26 +143,14 @@ class AcousticWave():
         return solout, self.computeerror()
 
 
-#    def rhs(self, f, un, unm1, Dt):
-#        """Compute rhs for wave equation
-#        where f = Vector(V) and u = Function(V)"""
-#        #rhs = self.D * (unm1.vector() - un.vector())
-#        rhs = 0.0 * unm1.vector()  #TODO: Remove this.
-#        rhs.axpy(Dt, f - self.K * un.vector())
-#        out = Function(self.V)
-#        self.solverM.solve(out.vector(), rhs)
-#        if self.verbose: 
-#            print 'max(f)={}, min(f)={}'.format(np.max(f.array()), np.min(f.array()))
-#            fK = (f - self.K*un.vector())*Dt
-#            print 'max(f-Ku)={}, min(f-Ku)={}'.format(np.max(fK.array()),np.min(fK.array()))
-#            print 'max(out)={}, min(out)={}'.format(\
-#            np.max(out.vector().array()),np.min(out.vector().array()))
-#        return out.vector()
-
-
-#    def src(self, time):
-#        """Compute f(x,t) at given time"""
-#        return self.ftime(time) * self.f
+    def computeerror(self):
+        if not self.exact == None:
+            MM = assemble(inner(self.trial, self.test)*dx)
+            norm_ex = np.sqrt((MM*self.exact.vector()).inner(self.exact.vector()))
+            diff = self.exact.vector() - self.u1.vector()
+            if norm_ex > 1e-16: return np.sqrt((MM*diff).inner(diff))/norm_ex
+            else:   return np.sqrt((MM*diff).inner(diff))
+        else:   return []
 
 
     #TODO: create separate class for point source
@@ -169,17 +169,6 @@ class AcousticWave():
 #            return b.array()/scale
 #        else:   return b.array()
 #        
-
-    def computeerror(self):
-        if not self.exact == None:
-            MM = assemble(inner(self.trial, self.test)*dx)
-            norm_ex = np.sqrt((MM*self.exact.vector()).inner(self.exact.vector()))
-            diff = self.exact.vector() - self.u1.vector()
-            if norm_ex > 1e-16: return np.sqrt((MM*diff).inner(diff))/norm_ex
-            else:   return np.sqrt((MM*diff).inner(diff))
-        else:   return []
-
-
 #    def definesource(self, inputf, timestamp):
 #        """
 #        inputf can be either: Vector(V) or dict containing a keyword (delta or
