@@ -14,6 +14,9 @@ ERROR = []
 
 tf = 1./(4*np.sqrt(2))  # Final time
 u0_expr = Expression('sin(2*pi*x[0])*sin(2*pi*x[1])')
+def u0_boundary(x, on_boundary):
+    return on_boundary
+ubc = Constant("0.0")
 
 for Nxy in NN:
     h = 1./Nxy
@@ -25,13 +28,8 @@ for Nxy in NN:
 
     Wave = AcousticWave({'V':V, 'Vl':V, 'Vr':V})
     Wave.verbose = True
-    Wave.abc = False
     Wave.exact = Function(V)
-    def u0_boundary(x, on_boundary):
-        return on_boundary
-    ubc = Constant("0.0")
-    bc = DirichletBC(V, ubc, u0_boundary)
-    Wave.bc = bc
+    Wave.bc = DirichletBC(V, ubc, u0_boundary)
     Wave.update({'lambda':1.0, 'rho':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
     'u0init':interpolate(u0_expr, V), 'utinit':Function(V)})
     sol, error = Wave.solve()

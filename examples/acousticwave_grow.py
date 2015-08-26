@@ -23,13 +23,12 @@ for Nxy in NN:
     h = 1./Nxy
     print '\n\th = {}'.format(h)
     mesh = UnitSquareMesh(Nxy, Nxy, "crossed")
-    q = 2   # Polynomial order
+    q = 1   # Polynomial order
     V = FunctionSpace(mesh, 'Lagrange', q)
     Dt = h/(q*5.)
 
     Wave = AcousticWave({'V':V, 'Vl':V, 'Vr':V})
     Wave.verbose = True
-    Wave.abc = False    # No absorbing boundary conditions
     Wave.exact = interpolate(exact_expr, V)
     Wave.update({'lambda':1.0, 'rho':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
     'u0init':Function(V), 'utinit':Function(V)})

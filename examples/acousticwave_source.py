@@ -31,7 +31,6 @@ for Nxy in NN:
 
     Wave = AcousticWave({'V':V, 'Vl':V, 'Vr':V})
     Wave.verbose = True
-    Wave.abc = False    # No absorbing boundary conditions
     Wave.exact = interpolate(exact_expr, V)
     Wave.bc = DirichletBC(V, ubc, u0_boundary)
     Wave.update({'lambda':1.0, 'rho':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
