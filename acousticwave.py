@@ -18,6 +18,7 @@ class AcousticWave():
         self.bc = None
         self.abc = False
         self.ftime = lambda x: 0.0  # ftime(tt) = source term at time tt (in np.array())
+        self.set_fwd()  # default is forward problem
 
 
     def readV(self, functionspaces_V):
@@ -52,13 +53,13 @@ class AcousticWave():
         abc_boundaryparts = FacetFunction("size_t", mesh)
         class_bc_abc.mark(abc_boundaryparts, 1)
         self.ds = Measure("ds")[abc_boundaryparts]
-        self.weak_d = inner(self.trial, self.test)*self.ds(1)
-        #TODO: Define for general values of lambda and rho (right now,
-        # definition below does not work (returns zero matrix).
-        # Maybe this has to do with function spaces: lambda and rho are defined
-        # in Vl and Vr while test and trial are defined in V.
-        #self.weak_d = inner(sqrt(self.lam*self.rho)*self.trial, \
-        #self.test)*self.ds(0)
+        self.weak_d = inner(sqrt(self.lam*self.rho)*self.trial, 
+        self.test)*self.ds(1)
+
+
+    def set_fwd(self):  self.fwdadj = 1.0
+
+    def set_adj(self):  self.fwdadj = -1.0
 
 
     def update(self, parameters_m):
@@ -70,11 +71,6 @@ class AcousticWave():
         if self.verbose: print 'assemble K',
         self.K = assemble(self.weak_k)
         if self.verbose: print ' -- K assembled'
-        if self.abc == True:    
-            if self.verbose:    print 'assemble D',
-            self.D = assemble(self.weak_d)
-            if self.verbose:    print ' -- D assembled'
-        else:   self.D = 0.0
         # Mass matrix:
         if parameters_m.has_key('rho'):
             #TODO: lump mass matrix
@@ -87,6 +83,12 @@ class AcousticWave():
             self.solverM.parameters['symmetric'] = True
             self.solverM.set_operator(self.M)
             if self.verbose: print ' -- M assembled'
+        # Matrix D for abs BC
+        if self.abc == True:    
+            if self.verbose:    print 'assemble D',
+            self.D = assemble(self.weak_d)
+            if self.verbose:    print ' -- D assembled'
+        else:   self.D = 0.0
         # Time options:
         if parameters_m.has_key('t0'):   self.t0 = parameters_m['t0'] 
         if parameters_m.has_key('tf'):   self.tf = parameters_m['tf'] 
@@ -95,14 +97,14 @@ class AcousticWave():
         if parameters_m.has_key('u0init'):   self.u0init = parameters_m['u0init']
         if parameters_m.has_key('utinit'):   self.utinit = parameters_m['utinit']
         if parameters_m.has_key('u1init'):   self.u1init = parameters_m['u1init']
-        #TODO: Add option for fwd or adj pb
 
 
     def solve(self):
         if self.verbose:    print 'Compute solution'
         solout = [] # Store computed solution
         # u0:
-        tt = self.t0 
+        if self.fwdadj > 0: tt = self.t0 
+        else:   tt = self.tf
         if self.verbose:    print 'Compute solution -- time {}'.format(tt)
         self.u0 = self.u0init
         solout.append([self.u0.vector().array(), tt])
@@ -111,18 +113,22 @@ class AcousticWave():
         else:
             assert(not self.utinit == None)
             self.rhs.vector()[:] = self.ftime(tt) - \
-            (self.D*self.utinit.vector()).array() - \
+            self.fwdadj*(self.D*self.utinit.vector()).array() - \
             (self.K*self.u0.vector()).array()
             if not self.bc == None: self.bc.apply(self.rhs.vector())
             self.solverM.solve(self.sol.vector(), self.rhs.vector())
             self.u1.vector()[:] = self.u0.vector().array() + \
-            self.Dt*self.utinit.vector().array() + \
+            self.fwdadj*self.Dt*self.utinit.vector().array() + \
             0.5*self.Dt**2*self.sol.vector().array()
-        tt += self.Dt
+        tt += self.fwdadj*self.Dt
         if self.verbose:    print 'Compute solution -- time {}'.format(tt)
         solout.append([self.u1.vector().array(), tt])
         # Iteration
-        while tt + self.Dt < self.tf*(1.0 + 1e-14):
+        if self.fwdadj > 0.:    target = self.tf*(1.0 + 1e-12)
+        else:   
+            if abs(self.t0) < 1e-14:    target = self.t0 - 1e-12
+            else:   target = self.t0*(1.0 - 1e-12)
+        while self.fwdadj(tt + self.fwdadj*self.Dt) < target:
             self.rhs.vector()[:] = self.Dt*(self.ftime(tt) - \
             (self.K*self.u1.vector()).array()) - \
             (self.D*(self.u1.vector()-self.u0.vector())).array()
@@ -133,10 +139,13 @@ class AcousticWave():
             # Advance to next time step
             self.u0.vector()[:] = self.u1.vector().array()
             self.u1.vector()[:] = self.u2.vector().array()
-            tt += self.Dt
+            tt += self.fwdadj*self.Dt
             if self.verbose:    print 'Compute solution -- time {}'.format(tt)
             solout.append([self.u1.vector().array(),tt])
-        timeerror = abs(tt - self.tf)/self.tf
+        if self.fwdadj > 0.:    timeerror = abs(tt - self.tf)/self.tf
+        else:    
+            if abs(self.t0) < 1e-14:    timeerror = abs(tt - self.t0)
+            else:   timeerror = abs(tt - self.t0)/self.t0
         if timeerror > 1e-12:
             raise RuntimeError('Final time is {} instead of {}'.format(tt, \
             self.tf), 'Relative error is {}'.format(timeerror))

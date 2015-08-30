@@ -1,5 +1,10 @@
 TODO list
-* acoustic wave equation: check that everything work with proper src term
+* acoustic wave equation: 
+    - keep modifying test cases to include varying wave speed
+    - profile
+    - test adjoint problem
+    - decide on source terms
+    - start inverse problem (first zero-Neumann)
 * Clarify point of solver in parallel (see examples/poisson_..._contobs_parallel2.py)
 * Build unit test for: prior, observation operator,... (serial and parallel)
 * implement mixed (Dirich-Neum) BCs in Poisson pb
