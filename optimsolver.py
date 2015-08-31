@@ -5,8 +5,19 @@ from linalg.cgsolverSteihaug import CGSolverSteihaug
 """Library to solve optimization problem"""
 
 def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6):
-    """Finite-difference check for the gradient of an ObjectiveFunctional
-    object"""
+    """
+    Finite-difference check for the gradient of an ObjectiveFunctional object
+        ObjFctal = object describing objective functional; must have methods:
+            - copy: create copy of object
+            - getmarray: return medium parameter in np.array format
+            - backup_m: create safe copy of current medium parameter
+            - getMGarray: return Mass*gradient in np.array format
+            - get mcopyarray: return copy of medium parameter in np.array format
+            - update_m: update medium parameter from a np.array
+            - solvefwd_cost: solve fwd pb and compute cost
+    and member:
+            - cost: value of cost function
+    """
     FDobj = ObjFctal.copy()
     lenm = len(FDobj.getmarray())
     ObjFctal.backup_m()
