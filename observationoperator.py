@@ -156,15 +156,18 @@ class ObsPointwise(ObservationOperator):
 
 
     def Bdotlocal(self, uin):
-        """uin must be a Function(self.V)"""
+        """Compute B.uin as a np.array, using only local info
+        uin must be a Function(self.V)"""
         isFunction(uin)
         Bu = np.zeros(self.nbPts)
         for ii, bb in enumerate(self.B):
             Bu[ii] = np.dot(bb.array(), uin.vector().array())   # Note: local inner-product
         return Bu
 
+
     def Bdot(self, uin):
-        """uin must be a Function(self.V)"""
+        """Compute B.uin as a np.array, using global info
+        uin must be a Function(self.V)"""
         isFunction(uin)
         Bu = np.zeros(self.nbPts)
         for ii, bb in enumerate(self.B):
@@ -173,7 +176,8 @@ class ObsPointwise(ObservationOperator):
 
 
     def BTdot(self, uin):
-        """uin must be a np.array"""
+        """Compute B^T.uin as a np.array
+        uin must be a np.array"""
         isarray(uin)
         u = Function(self.V)
         out = u.vector()
@@ -183,7 +187,8 @@ class ObsPointwise(ObservationOperator):
 
 
     def obs(self, uin):
-        """uin must be a Function(V)"""
+        """Compute B.uin + eps, where eps is noise
+        uin must be a Function(V)"""
         if not(self.noise): return self.Bdot(uin), 0.0
         else:
             Bref = self.Bdot(uin)
@@ -201,12 +206,20 @@ class ObsPointwise(ObservationOperator):
 
 
     def costfct(self, uin, udin):
+        """Compute cost functional from observed fwd and data, i.e.,
+        return .5*||uin - udin||^2.
+        uin & udin are np.arrays"""
         arearrays(uin, udin)
         diff = uin - udin
         return 0.5*np.dot(diff, diff)
 
 
     def assemble_rhsadj(self, uin, udin, outp, bc):
+        """Compute rhs term for adjoint equation and store it in outp, i.e.,
+        outp = - B^T( uin - udin), where uin = obs(fwd solution)
+        uin & udin = np.arrays
+        outp = Function(self.V)
+        bc = fenics' boundary conditons"""
         arearrays(uin, udin)
         isFunction(outp)
         diff = uin - udin
@@ -215,6 +228,9 @@ class ObsPointwise(ObservationOperator):
 
 
     def incradj(self, uin):
+        """Compute the observation part of the incremental adjoint equation, i.e,
+        return B^T.B.uin
+        uin = Function(self.V)"""
         isFunction(uin)
         self.BtBu.vector()[:] = self.BTdot( self.Bdotlocal(uin) )
         return self.BtBu.vector()
