@@ -12,7 +12,7 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6):
             - getmarray: return medium parameter in np.array format
             - backup_m: create safe copy of current medium parameter
             - getMGarray: return Mass*gradient in np.array format
-            - get mcopyarray: return copy of medium parameter in np.array format
+            - getmcopyarray: return copy of medium parameter in np.array format
             - update_m: update medium parameter from a np.array
             - solvefwd_cost: solve fwd pb and compute cost
     and member:
@@ -89,7 +89,18 @@ def compute_searchdirection(ObjFctal, keyword, gradnorm_init=None, maxtolcg=0.5)
     Whether we use full Hessian or GN Hessian in Newton's method depend on
     parameter ObjFctal.GN
     Inputs:
-        ObjFctal = object from class ObjectiveFunctional
+        ObjFctal = object for objective functional; should contain methods:
+            - setsrchdir: set search direction from np.array
+            - setgradxdir: set value gradient times search direction
+            - getsrchdirarray: return search direction in np.array
+            - getMGarray: return Mass*Gradient in np.array
+            for Newton's method, should also contain methods:
+            - getGradnorm: return norm of gradient
+            - mult: matrix operation A.x from fenics class LinearOperator
+            - getprecond: return preconditioner for computation Newton's step
+            and members:
+            - srchdir: search direction
+            - MG: Mass*Gradient
         keyword = 'sd' or 'Newt'
         gradnorminit = norm of gradient at first step of iteration
         maxtolcg = max value for tol CG
@@ -122,7 +133,16 @@ def compute_searchdirection(ObjFctal, keyword, gradnorm_init=None, maxtolcg=0.5)
 def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
     """Run backtracking line search in 'search_direction'. 
     Default 'search_direction is steepest descent.
-    'rho' is multiplicative factor for alpha."""
+    'rho' is multiplicative factor for alpha.
+    ObjFctal should contain methods:
+        - backup_m
+        - getcost
+        - getsrchdirarray
+        - getmcopyarray
+        - update_m
+        - solvefwd_cost
+        - getgradxdir
+    """
     # Check input parameters are correct:
     if c < 0. or c > 1.:    raise ValueError("c must be between 0 and 1")
     if rho < 0. or rho > 0.99:  

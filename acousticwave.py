@@ -55,6 +55,7 @@ class AcousticWave():
         self.ds = Measure("ds")[abc_boundaryparts]
         self.weak_d = inner(sqrt(self.lam*self.rho)*self.trial, 
         self.test)*self.ds(1)
+        self.class_bc_abc = class_bc_abc    # to make copies
 
 
     def set_fwd(self):  self.fwdadj = 1.0
@@ -155,7 +156,8 @@ class AcousticWave():
     def computeerror(self):
         if not self.exact == None:
             MM = assemble(inner(self.trial, self.test)*dx)
-            norm_ex = np.sqrt((MM*self.exact.vector()).inner(self.exact.vector()))
+            norm_ex = np.sqrt(\
+            (MM*self.exact.vector()).inner(self.exact.vector()))
             diff = self.exact.vector() - self.u1.vector()
             if norm_ex > 1e-16: return np.sqrt((MM*diff).inner(diff))/norm_ex
             else:   return np.sqrt((MM*diff).inner(diff))
