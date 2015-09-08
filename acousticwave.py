@@ -1,9 +1,20 @@
 import abc
 import numpy as np
 
-from dolfin import TestFunction, TrialFunction, Function, GenericVector, \
-assemble, inner, nabla_grad, dx, ds, LUSolver, sqrt, \
-PointSource, Point, Constant, FacetFunction, Measure
+try:
+    from dolfin import TestFunction, TrialFunction, Function, GenericVector, \
+    assemble, inner, nabla_grad, dx, ds, LUSolver, KrylovSolver, sqrt, \
+    PointSource, Point, Constant, FacetFunction, Measure, MPI, mpi_comm_world
+    mycomm = mpi_comm_world()
+    myrank = MPI.rank(mycomm)
+    mpisize = MPI.size(mycomm)
+except:
+    from dolfin import TestFunction, TrialFunction, Function, GenericVector, \
+    assemble, inner, nabla_grad, dx, ds, LUSolver, KrylovSolver, sqrt, \
+    PointSource, Point, Constant, FacetFunction, Measure
+    mycomm = None
+    myrank = 0
+    mpisize = 1
 from miscfenics import isFunction, isVector, setfct
 
 
@@ -79,9 +90,14 @@ class AcousticWave():
             if self.verbose: print 'rho updated\nassemble M',
             self.M = assemble(self.weak_m)
             if not self.bc == None: self.bc.apply(self.M)
-            self.solverM = LUSolver()
-            self.solverM.parameters['reuse_factorization'] = True
-            self.solverM.parameters['symmetric'] = True
+            if mpisize == 1:
+                self.solverM = LUSolver()
+                self.solverM.parameters['reuse_factorization'] = True
+                self.solverM.parameters['symmetric'] = True
+            else:
+                #TODO: Find best preconditioner
+                self.solverM = KrylovSolver('cg', 'amg')
+                self.solverM.parameters['report'] = False
             self.solverM.set_operator(self.M)
             if self.verbose: print ' -- M assembled'
         # Matrix D for abs BC
@@ -129,7 +145,7 @@ class AcousticWave():
         else:   
             if abs(self.t0) < 1e-14:    target = self.t0 - 1e-12
             else:   target = self.t0*(1.0 - 1e-12)
-        while self.fwdadj(tt + self.fwdadj*self.Dt) < target:
+        while self.fwdadj*(tt + self.fwdadj*self.Dt) < target:
             self.rhs.vector()[:] = self.Dt*(self.ftime(tt) - \
             (self.K*self.u1.vector()).array()) - \
             (self.D*(self.u1.vector()-self.u0.vector())).array()
