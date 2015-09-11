@@ -6,8 +6,16 @@ import matplotlib.pyplot as plt
 
 from fenicstools.plotfenics import PlotFenics
 from fenicstools.acousticwave import AcousticWave
-from dolfin import UnitSquareMesh, FunctionSpace, Constant, DirichletBC, \
-interpolate, Expression, Function
+try:
+    from dolfin import UnitSquareMesh, FunctionSpace, Constant, DirichletBC, \
+    interpolate, Expression, Function, MPI, mpi_comm_world
+    mycomm = mpi_comm_world()
+    myrank = MPI.rank(mycomm)
+except:
+    from dolfin import UnitSquareMesh, FunctionSpace, Constant, DirichletBC, \
+    interpolate, Expression, Function
+    mycomm = None
+    myrank = 0
 
 NN = np.array((25, 50, 100, 200))
 ERROR = []
@@ -30,7 +38,7 @@ ubc = Constant("0.0")
 
 for Nxy in NN:
     h = 1./Nxy
-    print '\n\th = {}'.format(h)
+    if myrank == 0: print '\n\th = {}'.format(h)
     mesh = UnitSquareMesh(Nxy, Nxy, "crossed")
     q = 1   # Polynomial order
     V = FunctionSpace(mesh, 'Lagrange', q)
@@ -43,13 +51,15 @@ for Nxy in NN:
     'u0init':interpolate(u0_expr, V), 'utinit':Function(V)})
     sol, error = Wave.solve()
     ERROR.append(error)
-    print 'relative error = {:.5e}'.format(error)
+    if myrank == 0: print 'relative error = {:.5e}'.format(error)
+    MPI.barrier(mycomm)
 
-# Order of convergence:
-CONVORDER = []
-for ii in range(len(ERROR)-1):
-    CONVORDER.append(np.log(ERROR[ii+1]/ERROR[ii])/np.log((1./NN[ii+1])/(1./NN[ii])))
-print '\n\norder of convergence:', CONVORDER
+if myrank == 0:
+    # Order of convergence:
+    CONVORDER = []
+    for ii in range(len(ERROR)-1):
+        CONVORDER.append(np.log(ERROR[ii+1]/ERROR[ii])/np.log((1./NN[ii+1])/(1./NN[ii])))
+    print '\n\norder of convergence:', CONVORDER
 
 # Save plots:
 try:
@@ -58,7 +68,9 @@ except:
     boolplot = 0
 if boolplot > 0:
     filename, ext = splitext(sys.argv[0])
-    if isdir(filename + '/'):   rmtree(filename + '/')
+    if myrank == 0: 
+        if isdir(filename + '/'):   rmtree(filename + '/')
+    MPI.barrier(mycomm)
     myplot = PlotFenics(filename)
     myplot.set_varname('p')
     plotp = Function(V)
@@ -67,10 +79,11 @@ if boolplot > 0:
         myplot.plot_vtk(plotp, index)
     myplot.gather_vtkplots()
     # convergence plot:
-    fig = plt.figure()
-    ax = fig.add_subplot(111)
-    ax.loglog(1./NN, ERROR, '-o')
-    ax.set_xlabel('h')
-    ax.set_ylabel('error')
-    fig.savefig(filename + '/convergence.eps')
+    if myrank == 0:
+        fig = plt.figure()
+        ax = fig.add_subplot(111)
+        ax.loglog(1./NN, ERROR, '-o')
+        ax.set_xlabel('h')
+        ax.set_ylabel('error')
+        fig.savefig(filename + '/convergence.eps')
 
