@@ -3,7 +3,8 @@
 import os
 
 
-TESTS=['test_plotfenics', 'test_prior']
+#TESTS=['test_plotfenics', 'test_prior', 'test_lumped']
+TESTS=['test_lumped']
 
 
 for test in TESTS:

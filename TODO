@@ -1,5 +1,7 @@
 TODO list
+* Check Lumped Matrix Solver by looking at spectrum (invMdiag * M)
 * acoustic wave equation: 
+    - Check polynomial order and time-stepper -> Specfem doc
     - keep modifying test cases to include varying wave speed
     - profile
     - test adjoint problem
