@@ -15,7 +15,9 @@ except:
     mycomm = None
     myrank = 0
     mpisize = 1
+
 from miscfenics import isFunction, isVector, setfct
+from linalg.lumpedmatrixsolver import LumpedMatrixSolver, LumpedMatrixSolverS
 
 
 class AcousticWave():
@@ -23,6 +25,7 @@ class AcousticWave():
     def __init__(self, functionspaces_V):
         self.readV(functionspaces_V)
         self.verbose = False    # print info
+        self.lump = False   # Lump the mass matrix
         self.exact = None   # exact solution at final time
         self.utinit = None
         self.u1init = None
@@ -85,19 +88,21 @@ class AcousticWave():
         if self.verbose: print ' -- K assembled'
         # Mass matrix:
         if parameters_m.has_key('rho'):
-            #TODO: lump mass matrix
             setfct(self.rho, parameters_m['rho'])
             if self.verbose: print 'rho updated\nassemble M',
             self.M = assemble(self.weak_m)
             if not self.bc == None: self.bc.apply(self.M)
-            if mpisize == 1:
-                self.solverM = LUSolver()
-                self.solverM.parameters['reuse_factorization'] = True
-                self.solverM.parameters['symmetric'] = True
+            if self.lump:
+                self.solverM = LumpedMatrixSolver(self.V)
             else:
-                #TODO: Find best preconditioner
-                self.solverM = KrylovSolver('cg', 'amg')
-                self.solverM.parameters['report'] = False
+                if mpisize == 1:
+                    self.solverM = LUSolver()
+                    self.solverM.parameters['reuse_factorization'] = True
+                    self.solverM.parameters['symmetric'] = True
+                else:
+                    #TODO: Find best preconditioner
+                    self.solverM = KrylovSolver('cg', 'amg')
+                    self.solverM.parameters['report'] = False
             self.solverM.set_operator(self.M)
             if self.verbose: print ' -- M assembled'
         # Matrix D for abs BC
