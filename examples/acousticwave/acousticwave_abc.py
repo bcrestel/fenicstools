@@ -17,7 +17,7 @@ except:
     mycomm = None
     myrank = 0
 
-NN = np.array((20, 50, 100, 200))
+NN = np.array((10, 20, 50, 100))
 ERROR = []
 
 tf = 0.5 # Final time
@@ -32,15 +32,19 @@ class LeftRight(SubDomain):
         return (x[direction] < 1e-16 or x[direction] > 1.0 - 1e-16) \
         and on_boundary
 
+q = 4
+if myrank == 0: print '\npolynomial order = {}'.format(q)
+
 for Nxy in NN:
     h = 1./Nxy
     mesh = UnitSquareMesh(Nxy, Nxy, "crossed")
-    q = 1   # Polynomial order
     V = FunctionSpace(mesh, 'Lagrange', q)
-    Dt = h/(q*20.)
+    Vl = FunctionSpace(mesh, 'Lagrange', 1)
+    Dt = h/(q*10.)
     if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 
-    Wave = AcousticWave({'V':V, 'Vl':V, 'Vr':V})
+    Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
+    #Wave.verbose = True
     Wave.set_abc(mesh, LeftRight())
     Wave.exact = interpolate(exact_expr, V)
     Wave.update({'lambda':1.0, 'rho':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\

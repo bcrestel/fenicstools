@@ -32,9 +32,11 @@ for Nxy in NN:
     mesh = UnitSquareMesh(Nxy, Nxy, "crossed")
     q = 1   # Polynomial order
     V = FunctionSpace(mesh, 'Lagrange', q)
+    Vl = FunctionSpace(mesh, 'Lagrange', 1)
     Dt = h/(q*8.*np.sqrt(2))
 
-    Wave = AcousticWave({'V':V, 'Vl':V, 'Vr':V})
+    Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
+    Wave.lump = True
     Wave.exact = Function(V)
     Wave.bc = DirichletBC(V, ubc, u0_boundary)
     Wave.update({'lambda':8.0, 'rho':2.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
