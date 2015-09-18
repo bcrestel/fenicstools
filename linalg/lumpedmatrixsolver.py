@@ -1,19 +1,24 @@
 from dolfin import GenericLinearSolver, Function, Constant
 
+from miscroutines import get_diagonal
+
 class LumpedMatrixSolver(GenericLinearSolver):
-    """Lump matrix by row-sum technique"""
+    """ Lump matrix by row-sum technique """
 
     def __init__(self, V):
         u = Function(V)
         u.assign(Constant('1.0'))
         self.one = u.vector()
+        self.invMdiag = self.one.copy()
 
 
-    def set_operator(self, M):
+    def set_operator(self, M, bc=None):
         """ set_operator(self, M) sets M as the operator """
         self.Mdiag = M * self.one
-        assert(self.Mdiag.array().min() > 0)
-        self.invMdiag = self.Mdiag.copy()
+        assert self.Mdiag.array().min() > 0., self.Mdiag.array().min()
+        if not bc == None:
+            indexbc = bc.get_boundary_values().keys()
+            self.Mdiag[indexbc] = 1.0
         self.invMdiag[:] = 1./self.Mdiag.array()
 
 
@@ -24,9 +29,8 @@ class LumpedMatrixSolver(GenericLinearSolver):
 
 
 class LumpedMatrixSolverS(GenericLinearSolver):
-    """Lump matrix by special lumping technique, i.e.,
-    scaling diagonal to preserve total mass
-    Note: C++ has a get_diagonal command. May need to write that class in C++."""
+    """ Lump matrix by special lumping technique, i.e.,
+    scaling diagonal to preserve total mass """
 
     def __init__(self, V):
         u = Function(V)
@@ -36,14 +40,16 @@ class LumpedMatrixSolverS(GenericLinearSolver):
         self.invMdiag = self.one.copy()
 
 
-    def set_operator(self, M):
+    def set_operator(self, M, bc=None):
         """ set_operator(self, M) sets M as the operator """
         # Lump matrix:
-        self.Mdiag[:] = M.array().diagonal()
+        self.Mdiag[:] = get_diagonal(M)
         ratio = self.one.inner(M*self.one) / self.one.inner(self.Mdiag)
-        assert(ratio > 1.)
         self.Mdiag = ratio * self.Mdiag
-        assert(self.Mdiag.array().min() > 0)
+        assert self.Mdiag.array().min() > 0., self.Mdiag.array().min()
+        if not bc == None:
+            indexbc = bc.get_boundary_values().keys()
+            self.Mdiag[indexbc] = 1.0
         # Compute inverse action:
         self.invMdiag[:] = 1./self.Mdiag.array()
 

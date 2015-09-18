@@ -91,9 +91,9 @@ class AcousticWave():
             setfct(self.rho, parameters_m['rho'])
             if self.verbose: print 'rho updated\nassemble M',
             self.M = assemble(self.weak_m)
-            if not self.bc == None: self.bc.apply(self.M)
             if self.lump:
-                self.solverM = LumpedMatrixSolver(self.V)
+                self.solverM = LumpedMatrixSolverS(self.V)
+                self.solverM.set_operator(self.M, self.bc)
             else:
                 if mpisize == 1:
                     self.solverM = LUSolver()
@@ -103,7 +103,8 @@ class AcousticWave():
                     #TODO: Find best preconditioner
                     self.solverM = KrylovSolver('cg', 'amg')
                     self.solverM.parameters['report'] = False
-            self.solverM.set_operator(self.M)
+                if not self.bc == None: self.bc.apply(self.M)
+                self.solverM.set_operator(self.M)
             if self.verbose: print ' -- M assembled'
         # Matrix D for abs BC
         if self.abc == True:    
