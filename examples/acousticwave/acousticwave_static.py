@@ -17,7 +17,7 @@ except:
     mycomm = None
     myrank = 0
 
-NN = np.array((25, 50, 100, 200))
+NN = np.array((10, 20, 50, 100))
 ERROR = []
 
 tf = 1./(8.*np.sqrt(2))  # Final time
@@ -26,11 +26,13 @@ def u0_boundary(x, on_boundary):
     return on_boundary
 ubc = Constant("0.0")
 
+q = 3
+if myrank == 0: print '\npolynomial order = {}'.format(q)
+
 for Nxy in NN:
     h = 1./Nxy
     if myrank == 0: print '\n\th = {}'.format(h)
     mesh = UnitSquareMesh(Nxy, Nxy, "crossed")
-    q = 1   # Polynomial order
     V = FunctionSpace(mesh, 'Lagrange', q)
     Vl = FunctionSpace(mesh, 'Lagrange', 1)
     Dt = h/(q*8.*np.sqrt(2))

@@ -1,9 +1,10 @@
 TODO list
 * Check Lumped Matrix Solver by looking at spectrum (invMdiag * M)
 * acoustic wave equation: 
+    - Test get_diagonal in linalg/miscroutines
     - Check polynomial order and time-stepper -> Specfem doc (time-error seems
       to be limiting factor right now)
-    - keep modifying test cases to include varying wave speed
+    - keep modifying test cases to include varying wave speed (especially abc)
     - profile serial/parallel
     - test adjoint problem
     - decide on source terms

@@ -44,7 +44,8 @@ for Nxy in NN:
     if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 
     Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
-    #Wave.verbose = True
+    Wave.verbose = True
+    Wave.lump = True
     Wave.set_abc(mesh, LeftRight())
     Wave.exact = interpolate(exact_expr, V)
     Wave.update({'lambda':1.0, 'rho':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
