@@ -9,17 +9,11 @@ except:
     from dolfin import Function, GenericVector
 from exceptionsfenics import WrongInstanceError
 
-# TODO: Needs to be modified to account for ptwise observation
-# in that case UD is for all observation points whether they are in the local
-# mesh or not
-# Each proc sample rand values for diff experiments the gather 2 tables MPI.max
-# and MPI.min and sum them.
-# IDEA: Think about integrating (or making it part of) noise application with
-# observation operator
 def apply_noise(UD, noisepercent, mycomm=None):
-    """Apply Gaussian noise to data.
+    """ WARNING: SUPERCEDED BY CLASS OBSERVATIONOPERATOR
+    Apply Gaussian noise to data.
     noisepercent = 0.02 => 2% noise level, i.e.,
-    || u - ud || / || ud || = || noise || / || ud || = 0.02"""
+    || u - ud || / || ud || = || noise || / || ud || = 0.02 """
     UDnoise = []
     objnoise = 0.0
     for ud in UD:

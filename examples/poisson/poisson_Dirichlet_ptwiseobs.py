@@ -23,7 +23,6 @@ from fenicstools.observationoperator import ObsPointwise
 from fenicstools.prior import LaplacianPrior
 from fenicstools.optimsolver import checkgradfd, checkhessfd, \
 bcktrcklinesearch, compute_searchdirection
-from fenicstools.miscfenics import apply_noise
 from fenicstools.postprocessor import PostProcessor
 
 

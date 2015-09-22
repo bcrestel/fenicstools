@@ -15,7 +15,6 @@ from fenicstools.observationoperator import ObsPointwise
 from fenicstools.prior import BilaplacianPrior 
 from fenicstools.optimsolver import checkgradfd, checkhessfd, \
 bcktrcklinesearch, compute_searchdirection
-from fenicstools.miscfenics import apply_noise
 from fenicstools.postprocessor import PostProcessor
 from fenicstools.plotfenics import PlotFenics
 
