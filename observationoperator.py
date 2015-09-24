@@ -6,14 +6,15 @@ from numpy.random import randn
 
 try:
     from dolfin import Function, TrialFunction, TestFunction, \
-    Constant, Point, PointSource, as_backend_type, \
+    Constant, Point, as_backend_type, \
     assemble, inner, dx, MPI 
 except:
     from dolfin import Function, TrialFunction, TestFunction, \
-    Constant, Point, PointSource, as_backend_type, \
+    Constant, Point, as_backend_type, \
     assemble, inner, dx
 from exceptionsfenics import WrongInstanceError
 from miscfenics import isFunction, isarray, arearrays
+from sourceterms import PointSources
 
 
 class ObservationOperator():
@@ -124,35 +125,9 @@ class ObsPointwise(ObservationOperator):
         self.V = self.parameters['V']
         self.Points = self.parameters['Points']
         self.nbPts = len(self.Points)
-        self.test = TestFunction(self.V)
         self.BtBu = Function(self.V)
-        f = Constant('0')
-        L = f*self.test*dx
-        b = assemble(L)
-        self.B = []
-        for pts in self.Points:
-            delta = PointSource(self.V, self.list2point(pts))
-            bs = b.copy()
-            delta.apply(bs)
-            bs[:] = self.PointSourcecorrection(bs)
-            #bs = as_backend_type(bs)   # Turn GenericVector into PETScVector
-            self.B.append(bs)
-
-
-    def PointSourcecorrection(self, b):
-        """Correct PointSource in parallel"""
-        # TODO: TO BE TESTED!!
-        scale = b.array().sum()
-        if abs(scale) > 1e-12:  
-            return b.array()/scale
-        else:   return b.array()
-        
-
-    def list2point(self, list_in):
-        """Turn a list of coord into a Fenics Point
-        list_in = list containing coordinates of the Point"""
-        dim = np.size(list_in)
-        return Point(dim, np.array(list_in, dtype=float))
+        PtSrc = PointSources(self.V, self.Points)
+        self.B = PtSrc.PtSrc
 
 
     def Bdotlocal(self, uin):

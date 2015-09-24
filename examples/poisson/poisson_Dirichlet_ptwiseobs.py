@@ -45,7 +45,7 @@ f = Expression("1.0")
 
 print 'p{}: Compute target data'.format(myrank)
 obspts = [[ii/5.,jj/5.] for ii in range(1,5) for jj in range(1,5)]
-noisepercent = 0.00   # e.g., 0.02 = 2% noise level
+noisepercent = 0.05   # e.g., 0.02 = 2% noise level
 ObsOp = ObsPointwise({'V': V, 'Points':obspts,'noise':noisepercent}, mycomm)
 goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False, mycomm)
 goal.update_m(mtrue)

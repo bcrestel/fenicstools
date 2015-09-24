@@ -3,7 +3,7 @@ import numpy as np
 from dolfin import TestFunction, Constant, dx, assemble, PointSource, Point
 
 
-class PointSource():
+class PointSources():
     """ Create point source at different locations """
 
     def __init__(self, V, src_loc):
@@ -19,7 +19,7 @@ class PointSource():
         self.PtSrc = []
         for pts in self.src_loc:
             delta = PointSource(self.V, self.list2point(pts))
-            bs = b.copy()
+            bs = self.b.copy()
             delta.apply(bs)
             bs[:] = self.PointSourcecorrection(bs)
             self.PtSrc.append(bs)
@@ -59,7 +59,7 @@ class PointSource():
 
 
 
-
+#TODO: To be tested
 class RickerWavelet():
     """ Create function for Ricker wavelet """
 
