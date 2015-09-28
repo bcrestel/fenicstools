@@ -1,4 +1,5 @@
 import numpy as np
+import matplotlib.pyplot as plt
 
 from dolfin import TestFunction, Constant, dx, assemble, PointSource, Point
 
@@ -59,17 +60,40 @@ class PointSources():
 
 
 
-#TODO: To be tested
 class RickerWavelet():
     """ Create function for Ricker wavelet """
 
-    def __init__(self, peak_freq, cut_off=-16):
-        self.f = peak_freq
-        self.t_peak = np.sqrt(-np.log(10**(cut_off)))/(np.pi*self.f)
+    def __init__(self, peak_freq, cut_off=1e-16):
+        self.f = peak_freq  # Must be in Hz
+        self.t_peak = np.sqrt(-np.log(cut_off))/(np.pi*self.f)
 
 
     def __call__(self, tt):
         """ Overload () operator """
         TT = tt - self.t_peak
-        return (1.0-2.0*(np.pi**2)*(self.f**2)*(TT**2))*\
-        np.exp(-(np.pi**2)*(self.f**2)*(TT**2))
+        return (1.0 - 2.0*np.pi**2*self.f**2*TT**2)*\
+        np.exp(-np.pi**2*self.f**2*TT**2)
+
+
+    def freq(self, xi):
+        """ Frequency content (using Osgood def, i.e., in Hz) """
+        return 2.0*xi**2*np.exp(-xi**2/self.f**2)/(np.sqrt(np.pi)*self.f**3)
+
+
+    def plot(self, tt, xi):
+        """ Plot Ricker Wavelet along with frequency content """
+        Rw = self.__call__(tt)  # time-domain
+        Rwf = self.freq(xi) # exact Fourier transf
+        ff = np.fft.fft(Rw) # fft(time-domain)
+        ffn = np.sqrt(ff.real**2 + ff.imag**2)
+        ffxi = np.fft.fftfreq(len(Rw), d=tt[1]-tt[0])
+        fig = plt.figure()
+        ax1 = fig.add_subplot(121)
+        ax1.plot(tt, Rw)
+        ax2 = fig.add_subplot(122)
+        ax2.plot(xi, Rwf, label='ex')
+        ax2.plot(np.fft.fftshift(ffxi), np.fft.fftshift(ffn)/ffn.max()*Rwf.max(), label='dft')
+        ax2.set_xlim(xi.min(), xi.max())
+        ax2.legend()
+        fig.suptitle('{} Hz'.format(self.f))
+        return fig
