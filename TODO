@@ -1,20 +1,23 @@
 TODO list
-* Check Lumped Matrix Solver by looking at spectrum (invMdiag * M)
-* acoustic wave equation: 
-    - Test get_diagonal in linalg/miscroutines
-    - Check polynomial order and time-stepper -> Specfem doc (time-error seems
-      to be limiting factor right now)
-    - keep modifying test cases to include varying wave speed (especially abc)
-    - profile serial/parallel
-    - test adjoint problem
-    - decide on source terms
-    - start inverse problem (first zero-Neumann)
-* Clarify point of solver in parallel (see examples/poisson_..._contobs_parallel2.py)
+
+    - CHECKS:
+* Test get_diagonal in linalg/miscroutines
 * Build unit test for: prior, observation operator,... (serial and parallel)
-* implement mixed (Dirich-Neum) BCs in Poisson pb
+* Parallel computations (what solver?), scaling, ...
 
-* Bayesian example, sampling, ...
-* multiple sources (re-think global variables in parallel; too much comm right now)
 
-* Helmholtz example (?)
 
+    - ACOUSTIC:
+* Keep modifying test cases to include varying wave speed (especially abc)
+* Create and check convergence of point source w/ Ricker wavelet.
+* Better time-stepper (see Hughes & Specfem)?
+* profile serial/parallel
+* Assemble gradient
+
+
+
+    - BAYESIAN:
+* Implement elliptic pb with log-permeability (i.e., -div(exp(m)grad(u))) and mixed (Dirich-Neum) BCs.
+* Check convergence of fwd pb.
+* Check/clarify definition of prior covariance + check sampling (compute mean and variance)
+* Run MCMC
