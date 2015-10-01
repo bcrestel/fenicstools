@@ -22,8 +22,8 @@ h = 1./Nxy
 q = 5   # Polynomial order for solution
 V = FunctionSpace(mesh, 'Lagrange', q)
 Vl = FunctionSpace(mesh, 'Lagrange', 1)
-Dt = h/(q*10.)
-tf = 0.4    # Final time
+Dt = h/(q*6.)
+tf = 0.1    # Final time
 # Source term:
 Pt = PointSources(V, [[.5,.5]])
 mydelta = Pt[0].array()
@@ -35,9 +35,10 @@ def mysrc(tt):
 if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
 Wave.verbose = True
-#Wave.lump = True
+Wave.lump = True
 Wave.update({'lambda':1.0, 'rho':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
 'u0init':Function(V), 'utinit':Function(V)})
+#'um1init':Function(V), 'u0init':Function(V)})
 Wave.ftime = mysrc
 sol, error = Wave.solve()
 MPI.barrier(mycomm)

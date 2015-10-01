@@ -29,6 +29,7 @@ class AcousticWave():
         self.exact = None   # exact solution at final time
         self.utinit = None
         self.u1init = None
+        self.um1init = None
         self.bc = None
         self.abc = False
         self.ftime = lambda x: 0.0  # ftime(tt) = source term at time tt (in np.array())
@@ -120,6 +121,7 @@ class AcousticWave():
         if parameters_m.has_key('u0init'):   self.u0init = parameters_m['u0init']
         if parameters_m.has_key('utinit'):   self.utinit = parameters_m['utinit']
         if parameters_m.has_key('u1init'):   self.u1init = parameters_m['u1init']
+        if parameters_m.has_key('um1init'):   self.um1init = parameters_m['um1init']
 
 
     def solve(self):
@@ -132,20 +134,24 @@ class AcousticWave():
         self.u0 = self.u0init
         solout.append([self.u0.vector().array(), tt])
         # u1:
-        if not self.u1init == None: self.u1 = self.u1init
+        if self.um1init == None: 
+            if not self.u1init == None: self.u1 = self.u1init
+            else:
+                assert(not self.utinit == None)
+                self.rhs.vector()[:] = self.ftime(tt) - \
+                self.fwdadj*(self.D*self.utinit.vector()).array() - \
+                (self.K*self.u0.vector()).array()
+                if not self.bc == None: self.bc.apply(self.rhs.vector())
+                self.solverM.solve(self.sol.vector(), self.rhs.vector())
+                self.u1.vector()[:] = self.u0.vector().array() + \
+                self.fwdadj*self.Dt*self.utinit.vector().array() + \
+                0.5*self.Dt**2*self.sol.vector().array()
+            tt += self.fwdadj*self.Dt
+            if self.verbose:    print 'Compute solution -- time {}'.format(tt)
+            solout.append([self.u1.vector().array(), tt])
         else:
-            assert(not self.utinit == None)
-            self.rhs.vector()[:] = self.ftime(tt) - \
-            self.fwdadj*(self.D*self.utinit.vector()).array() - \
-            (self.K*self.u0.vector()).array()
-            if not self.bc == None: self.bc.apply(self.rhs.vector())
-            self.solverM.solve(self.sol.vector(), self.rhs.vector())
-            self.u1.vector()[:] = self.u0.vector().array() + \
-            self.fwdadj*self.Dt*self.utinit.vector().array() + \
-            0.5*self.Dt**2*self.sol.vector().array()
-        tt += self.fwdadj*self.Dt
-        if self.verbose:    print 'Compute solution -- time {}'.format(tt)
-        solout.append([self.u1.vector().array(), tt])
+            self.u1.vector()[:] = self.u0.vector().array()
+            self.u0 = self.um1init
         # Iteration
         if self.fwdadj > 0.:    target = self.tf*(1.0 + 1e-12)
         else:   

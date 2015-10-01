@@ -9,7 +9,8 @@ from fenicstools.acousticwave import AcousticWave
 from dolfin import UnitSquareMesh, FunctionSpace, Constant, DirichletBC, \
 assemble, interpolate, Expression, Function, TestFunction, dx
 
-NN = np.array((25, 50, 100, 200))
+NN = np.array((25, 50))
+#NN = np.array((25, 50, 100, 200))
 ERROR = []
 
 # Medium ppties:
