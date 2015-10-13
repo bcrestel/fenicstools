@@ -10,7 +10,7 @@ TODO list
     - ACOUSTIC:
 * Keep modifying test cases to include varying wave speed (especially abc)
 * Create and check convergence of point source w/ Ricker wavelet.
-* Better time-stepper (see Hughes & Specfem)?
+* Better time-stepper (see Hughes & Specfem)? Check requirement for size Dx
 * profile serial/parallel
 * Assemble gradient
 
