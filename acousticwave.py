@@ -124,6 +124,7 @@ class AcousticWave():
         if parameters_m.has_key('um1init'):   self.um1init = parameters_m['um1init']
 
 
+    #@profile
     def solve(self):
         if self.verbose:    print 'Compute solution'
         solout = [] # Store computed solution
@@ -158,16 +159,18 @@ class AcousticWave():
             if abs(self.t0) < 1e-14:    target = self.t0 - 1e-12
             else:   target = self.t0*(1.0 - 1e-12)
         while self.fwdadj*(tt + self.fwdadj*self.Dt) < target:
-            self.rhs.vector()[:] = self.Dt*(self.ftime(tt) - \
-            (self.K*self.u1.vector()).array()) - \
-            (self.D*(self.u1.vector()-self.u0.vector())).array()
+            self.rhs.vector()[:] = self.Dt*self.ftime(tt)
+            self.rhs.vector().axpy(-self.Dt, self.K*self.u1.vector())
+            self.rhs.vector().axpy(-1.0, self.D*(self.u1.vector()-self.u0.vector()))
             if not self.bc == None: self.bc.apply(self.rhs.vector())
             self.solverM.solve(self.sol.vector(), self.rhs.vector())
-            self.u2.vector()[:] = 2*self.u1.vector().array() - \
-            self.u0.vector().array() + self.Dt*self.sol.vector().array()
+            self.u2.vector()[:] = 0.0
+            self.u2.vector().axpy(2.0, self.u1.vector())
+            self.u2.vector().axpy(-1.0, self.u0.vector())
+            self.u2.vector().axpy(self.Dt, self.sol.vector())
             # Advance to next time step
-            self.u0.vector()[:] = self.u1.vector().array()
-            self.u1.vector()[:] = self.u2.vector().array()
+            setfct(self.u0, self.u1)
+            setfct(self.u1, self.u2)
             tt += self.fwdadj*self.Dt
             if self.verbose:    print 'Compute solution -- time {}'.format(tt)
             solout.append([self.u1.vector().array(),tt])
