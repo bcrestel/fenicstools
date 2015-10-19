@@ -17,7 +17,6 @@ except:
     mycomm = None
     myrank = 0
 
-#NN = np.array((10, 25, 50, 100))
 NN = np.array((10, 25, 50, 100))
 ERROR = []
 
@@ -57,7 +56,7 @@ for Nxy in NN:
     sol, error = Wave.solve()
     ERROR.append(error)
     if myrank == 0: print 'relative error = {:.5e}'.format(error)
-    MPI.barrier(mycomm)
+    if not mycomm == None:  MPI.barrier(mycomm)
 
 if myrank == 0:
     # Order of convergence:

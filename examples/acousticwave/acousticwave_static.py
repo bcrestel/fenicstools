@@ -46,7 +46,7 @@ for Nxy in NN:
     sol, error = Wave.solve()
     ERROR.append(error)
     if myrank == 0: print 'relative error = {:.5e}'.format(error)
-    MPI.barrier(mycomm)
+    if not mycomm == None:  MPI.barrier(mycomm)
 
 if myrank == 0:
     CONVORDER = []

@@ -57,7 +57,8 @@ def setfct(fct, value):
     if isinstance(value, np.ndarray):
         fct.vector()[:] = value
     elif isinstance(value, Function):
-        fct.assign(value)
+        fct.vector()[:] = 0.0
+        fct.vector().axpy(1.0, value.vector())
     elif isinstance(value, float):
         fct.vector()[:] = value
     elif isinstance(value, int):

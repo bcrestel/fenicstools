@@ -3,8 +3,7 @@
 import os
 
 
-TESTS=['test_linalg']
-#TESTS=['test_plotfenics', 'test_prior', 'test_lumped', 'test_getdiagonal']
+TESTS=['test_plotfenics', 'test_prior', 'test_linalg']
 
 
 for test in TESTS:

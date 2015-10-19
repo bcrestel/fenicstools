@@ -1,7 +1,6 @@
 TODO list
 
     - CHECKS:
-* Test get_diagonal in linalg/miscroutines
 * Build unit test for: prior, observation operator,... (serial and parallel)
 * Parallel computations (what solver?), scaling, ...
 

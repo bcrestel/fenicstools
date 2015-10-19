@@ -32,7 +32,7 @@ class LeftRight(SubDomain):
         return (x[direction] < 1e-16 or x[direction] > 1.0 - 1e-16) \
         and on_boundary
 
-q = 4
+q = 2
 if myrank == 0: print '\npolynomial order = {}'.format(q)
 
 for Nxy in NN:
@@ -40,7 +40,7 @@ for Nxy in NN:
     mesh = UnitSquareMesh(Nxy, Nxy, "crossed")
     V = FunctionSpace(mesh, 'Lagrange', q)
     Vl = FunctionSpace(mesh, 'Lagrange', 1)
-    Dt = h/(q*10.)
+    Dt = h/(q*20.)
     if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 
     Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
@@ -53,7 +53,7 @@ for Nxy in NN:
     sol, error = Wave.solve()
     ERROR.append(error)
     if myrank == 0: print 'relative error = {:.5e}'.format(error)
-    MPI.barrier(mycomm)
+    if not mycomm == None:  MPI.barrier(mycomm)
 
 if myrank == 0:
     # Order of convergence:
