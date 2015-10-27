@@ -7,10 +7,10 @@ TODO list
 
 
     - ACOUSTIC:
-* Keep modifying test cases to include varying wave speed (especially abc)
+* Implement the 'central difference meth' described in Hughes, i.e., central-in-time for damping term
 * Create and check convergence of point source w/ Ricker wavelet.
-* Better time-stepper (see Hughes & Specfem)? Check requirement for size Dx
-* profile serial/parallel
+* Implement examples (abc, Ricker,...) with non-homogeneous medium.
+* profile parallel
 * Assemble gradient
 
 

@@ -17,10 +17,15 @@ except:
     mycomm = None
     myrank = 0
 
-NN = np.array((10, 20, 50, 100))
+#NN = np.array((10, 20, 50, 100))
+NN = np.array((10, 20, 30, 40))
 ERROR = []
 
-tf = 0.5 # Final time
+# Medium ppties:
+lam = 8.0
+rho = 2.0
+c = np.sqrt(lam/rho)
+tf = 0.5/c # Final time
 direction = 0
 u0_expr = Expression(\
 '100*pow(x[i]-.25,2)*pow(x[i]-0.75,2)*(x[i]<=0.75)*(x[i]>=0.25)', i=direction)
@@ -32,7 +37,7 @@ class LeftRight(SubDomain):
         return (x[direction] < 1e-16 or x[direction] > 1.0 - 1e-16) \
         and on_boundary
 
-q = 2
+q = 5
 if myrank == 0: print '\npolynomial order = {}'.format(q)
 
 for Nxy in NN:
@@ -40,15 +45,15 @@ for Nxy in NN:
     mesh = UnitSquareMesh(Nxy, Nxy, "crossed")
     V = FunctionSpace(mesh, 'Lagrange', q)
     Vl = FunctionSpace(mesh, 'Lagrange', 1)
-    Dt = h/(q*20.)
+    Dt = h/(q*11.*c)
     if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 
     Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
-    Wave.verbose = True
+    #Wave.verbose = True
     Wave.lump = True
     Wave.set_abc(mesh, LeftRight())
     Wave.exact = interpolate(exact_expr, V)
-    Wave.update({'lambda':1.0, 'rho':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
+    Wave.update({'lambda':lam, 'rho':rho, 't0':0.0, 'tf':tf, 'Dt':Dt,\
     'u0init':interpolate(u0_expr, V), 'utinit':Function(V)})
     sol, error = Wave.solve()
     ERROR.append(error)
@@ -71,13 +76,14 @@ if boolplot > 0:
     filename, ext = splitext(sys.argv[0])
     if myrank == 0: 
         if isdir(filename + '/'):   rmtree(filename + '/')
-    MPI.barrier(mycomm)
+    if not mycomm == None:  MPI.barrier(mycomm)
     myplot = PlotFenics(filename)
     myplot.set_varname('p')
     plotp = Function(V)
     for index, pp in enumerate(sol):
-        plotp.vector()[:] = pp[0]
-        myplot.plot_vtk(plotp, index)
+        if index%boolplot == 0:
+            plotp.vector()[:] = pp[0]
+            myplot.plot_vtk(plotp, index)
     myplot.gather_vtkplots()
     # convergence plot:
     if myrank == 0:
