@@ -17,7 +17,7 @@ except:
     mpisize = 1
 
 from miscfenics import isFunction, isVector, setfct
-from linalg.lumpedmatrixsolver import LumpedMatrixSolver, LumpedMatrixSolverS
+from linalg.lumpedmatrixsolver import LumpedMatrixSolverS
 
 
 class AcousticWave():
@@ -101,7 +101,6 @@ class AcousticWave():
                     self.solverM.parameters['reuse_factorization'] = True
                     self.solverM.parameters['symmetric'] = True
                 else:
-                    #TODO: Find best preconditioner
                     self.solverM = KrylovSolver('cg', 'amg')
                     self.solverM.parameters['report'] = False
                 if not self.bc == None: self.bc.apply(self.M)

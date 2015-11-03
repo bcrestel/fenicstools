@@ -17,7 +17,6 @@ except:
     mycomm = None
     myrank = 0
 
-#NN = np.array((10, 20, 50, 100))
 NN = np.array((10, 20, 30, 40))
 ERROR = []
 

@@ -7,6 +7,7 @@ TODO list
 
 
     - ACOUSTIC:
+* Allow Damping matrix D to be lumped
 * Implement the 'central difference meth' described in Hughes, i.e., central-in-time for damping term
 * Create and check convergence of point source w/ Ricker wavelet.
 * Implement examples (abc, Ricker,...) with non-homogeneous medium.
