@@ -38,7 +38,7 @@ def Wishart(m, C_cholesky):
     Gauss_samples = SampleMultivariateNormal(np.zeros((d,1)), C_cholesky, m)
     return Gauss_samples.dot(Gauss_samples.T)
 
-def Wishart_fromSigmaInverse(m, Sigma_inv):
+def Wishart_fromSigmaInverse(m, Sigma_inv, checktol=1e-14):
     """ Sample from Wishart distribution W(m, Sigma) where Sigma_inv = inv(Sigma)
     Inputs:
         m = parameter
@@ -46,8 +46,21 @@ def Wishart_fromSigmaInverse(m, Sigma_inv):
     Ouputs:
         sample = sample from Wishart distribution W(m, inv(Sigma_inv)) """
     U, Ssq, UT = np.linalg.svd(Sigma_inv)
-    checkvalue = np.linalg.norm(U.T-UT)
-    assert checkvalue < 1e-14, 'Check if Sigma_inv is SPD (err={0})'.format(checkvalue)
+    checkvalue = np.linalg.norm(U.T-UT)/np.linalg.norm(U)
+    assert checkvalue < checktol, 'Check if Sigma_inv is SPD (err={0})'.format(checkvalue)
     C_ch = U.dot(np.diag(1/np.sqrt(Ssq)))
+    return Wishart(m, C_ch)
+
+def Wishart_fromSigma(m, Sigma, checktol=1e-14):
+    """ Sample from Wishart distribution W(m, Sigma) 
+    Inputs:
+        m = parameter
+        Sigma
+    Ouputs:
+        sample = sample from Wishart distribution W(m, Sigma) """
+    U, Ssq, UT = np.linalg.svd(Sigma_inv)
+    checkvalue = np.linalg.norm(U.T-UT)/np.linalg.norm(U)
+    assert checkvalue < checktol, 'Check if Sigma_inv is SPD (err={0})'.format(checkvalue)
+    C_ch = U.dot(np.diag(np.sqrt(Ssq)))
     return Wishart(m, C_ch)
 
