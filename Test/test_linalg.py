@@ -62,8 +62,18 @@ class TestLumpedMass(unittest.TestCase):
         myobj = LumpedMatrixSolver(self.V)
         myobj.set_operator(self.M)
         myobj.solve(self.uMdiag.vector(), myobj.Mdiag)
-        diff = myobj.one.array() - self.uMdiag.vector().array()
-        self.assertTrue( np.sqrt((diff**2).sum()) < 1e-14 )
+        diff = (myobj.one - self.uMdiag.vector()).array()
+        self.assertTrue(np.linalg.norm(diff)/np.linalg.norm(myobj.one.array()) < 1e-14)
+
+
+    def test04_mult(self):
+        """ overloaded * operator """
+        myobj = LumpedMatrixSolver(self.V)
+        myobj.set_operator(self.M)
+        self.uMdiag.vector().axpy(1.0, myobj*myobj.one)
+        diff = (myobj.Mdiag - self.uMdiag.vector()).array()
+        self.assertTrue(np.linalg.norm(diff)/np.linalg.norm(myobj.Mdiag.array()) < 1e-14)
+
 
     def test10(self):
         """ Create a lumped solver """
@@ -100,7 +110,16 @@ class TestLumpedMass(unittest.TestCase):
         myobj.set_operator(self.M)
         myobj.solve(self.uMdiag.vector(), myobj.Mdiag)
         diff = myobj.one.array() - self.uMdiag.vector().array()
-        self.assertTrue( np.sqrt((diff**2).sum()) < 1e-14 )
+        self.assertTrue(np.linalg.norm(diff)/np.linalg.norm(myobj.one.array()) < 1e-14)
+
+
+    def test14_mult(self):
+        """ overloaded * operator """
+        myobj = LumpedMatrixSolverS(self.V)
+        myobj.set_operator(self.M)
+        self.uMdiag.vector().axpy(1.0, myobj*myobj.one)
+        diff = (myobj.Mdiag - self.uMdiag.vector()).array()
+        self.assertTrue(np.linalg.norm(diff)/np.linalg.norm(myobj.Mdiag.array()) < 1e-14)
 
 ###################################################################
 ###################################################################

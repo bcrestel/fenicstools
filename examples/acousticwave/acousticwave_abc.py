@@ -50,7 +50,7 @@ for Nxy in NN:
     Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
     #Wave.verbose = True
     Wave.lump = True
-    Wave.set_abc(mesh, LeftRight())
+    Wave.set_abc(mesh, LeftRight(), True)
     Wave.exact = interpolate(exact_expr, V)
     Wave.update({'lambda':lam, 'rho':rho, 't0':0.0, 'tf':tf, 'Dt':Dt,\
     'u0init':interpolate(u0_expr, V), 'utinit':Function(V)})

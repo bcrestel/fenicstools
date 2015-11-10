@@ -1,4 +1,4 @@
-import abc
+import sys
 import numpy as np
 
 try:
@@ -26,6 +26,8 @@ class AcousticWave():
         self.readV(functionspaces_V)
         self.verbose = False    # print info
         self.lump = False   # Lump the mass matrix
+        self.lumpD = False   # Lump the ABC matrix
+        self.timestepper = None # 'backward', 'centered'
         self.exact = None   # exact solution at final time
         self.utinit = None
         self.u1init = None
@@ -63,8 +65,9 @@ class AcousticWave():
             self.weak_m = inner(self.rho*self.trial,self.test)*dx
 
 
-    def set_abc(self, mesh, class_bc_abc):
+    def set_abc(self, mesh, class_bc_abc, lumpD=False):
         self.abc = True # False means zero-Neumann all-around
+        if lumpD:    self.lumpD = True
         abc_boundaryparts = FacetFunction("size_t", mesh)
         class_bc_abc.mark(abc_boundaryparts, 1)
         self.ds = Measure("ds")[abc_boundaryparts]
@@ -79,6 +82,7 @@ class AcousticWave():
 
 
     def update(self, parameters_m):
+        assert not self.timestepper == None, "You need to set a time stepping method"
         setfct(self.lam, parameters_m['lambda'])
         if self.verbose: print 'lambda updated '
         if self.elastic == True:    
@@ -87,9 +91,10 @@ class AcousticWave():
         if self.verbose: print 'assemble K',
         self.K = assemble(self.weak_k)
         if self.verbose: print ' -- K assembled'
-        # Mass matrix:
+        #TODO: implement solverM for centered scheme M+coeff*D
         if parameters_m.has_key('rho'):
             setfct(self.rho, parameters_m['rho'])
+            # Mass matrix:
             if self.verbose: print 'rho updated\nassemble M',
             self.M = assemble(self.weak_m)
             if self.lump:
@@ -109,7 +114,12 @@ class AcousticWave():
         # Matrix D for abs BC
         if self.abc == True:    
             if self.verbose:    print 'assemble D',
-            self.D = assemble(self.weak_d)
+            Dfull = assemble(self.weak_d)
+            if self.lumpD:
+                self.D = LumpedMatrixSolverS(self.V)
+                self.D.set_operator(Dfull, None, False)
+            else:
+                self.D = Dfull
             if self.verbose:    print ' -- D assembled'
         else:   self.D = 0.0
         # Time options:
@@ -125,6 +135,17 @@ class AcousticWave():
 
     #@profile
     def solve(self):
+        """ Wrapper for default way to solve """
+        if self.timestepper == 'backward':  self.solve_backward()
+        elif self.timestepper == 'centered':    self.solve_centered()
+        else:
+            print "Time stepper not implemented"
+            sys.exit(1)
+
+    def solve_centered(self):
+        #TODO: code it
+
+    def solve_backward(self):
         if self.verbose:    print 'Compute solution'
         solout = [] # Store computed solution
         # u0:
