@@ -36,7 +36,7 @@ class LeftRight(SubDomain):
         return (x[direction] < 1e-16 or x[direction] > 1.0 - 1e-16) \
         and on_boundary
 
-q = 5
+q = 3
 if myrank == 0: print '\npolynomial order = {}'.format(q)
 
 for Nxy in NN:
@@ -49,7 +49,9 @@ for Nxy in NN:
 
     Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
     #Wave.verbose = True
+    Wave.timestepper = 'centered'
     Wave.lump = True
+    Wave.lumpD = True
     Wave.set_abc(mesh, LeftRight(), True)
     Wave.exact = interpolate(exact_expr, V)
     Wave.update({'lambda':lam, 'rho':rho, 't0':0.0, 'tf':tf, 'Dt':Dt,\

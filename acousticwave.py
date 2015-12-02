@@ -83,45 +83,6 @@ class AcousticWave():
 
     def update(self, parameters_m):
         assert not self.timestepper == None, "You need to set a time stepping method"
-        setfct(self.lam, parameters_m['lambda'])
-        if self.verbose: print 'lambda updated '
-        if self.elastic == True:    
-            setfct(self.mu, parameters_m['mu'])
-            if self.verbose: print 'mu updated'
-        if self.verbose: print 'assemble K',
-        self.K = assemble(self.weak_k)
-        if self.verbose: print ' -- K assembled'
-        #TODO: implement solverM for centered scheme M+coeff*D
-        if parameters_m.has_key('rho'):
-            setfct(self.rho, parameters_m['rho'])
-            # Mass matrix:
-            if self.verbose: print 'rho updated\nassemble M',
-            self.M = assemble(self.weak_m)
-            if self.lump:
-                self.solverM = LumpedMatrixSolverS(self.V)
-                self.solverM.set_operator(self.M, self.bc)
-            else:
-                if mpisize == 1:
-                    self.solverM = LUSolver()
-                    self.solverM.parameters['reuse_factorization'] = True
-                    self.solverM.parameters['symmetric'] = True
-                else:
-                    self.solverM = KrylovSolver('cg', 'amg')
-                    self.solverM.parameters['report'] = False
-                if not self.bc == None: self.bc.apply(self.M)
-                self.solverM.set_operator(self.M)
-            if self.verbose: print ' -- M assembled'
-        # Matrix D for abs BC
-        if self.abc == True:    
-            if self.verbose:    print 'assemble D',
-            Dfull = assemble(self.weak_d)
-            if self.lumpD:
-                self.D = LumpedMatrixSolverS(self.V)
-                self.D.set_operator(Dfull, None, False)
-            else:
-                self.D = Dfull
-            if self.verbose:    print ' -- D assembled'
-        else:   self.D = 0.0
         # Time options:
         if parameters_m.has_key('t0'):   self.t0 = parameters_m['t0'] 
         if parameters_m.has_key('tf'):   self.tf = parameters_m['tf'] 
@@ -131,19 +92,118 @@ class AcousticWave():
         if parameters_m.has_key('utinit'):   self.utinit = parameters_m['utinit']
         if parameters_m.has_key('u1init'):   self.u1init = parameters_m['u1init']
         if parameters_m.has_key('um1init'):   self.um1init = parameters_m['um1init']
+        # Medium parameters:
+        setfct(self.lam, parameters_m['lambda'])
+        if self.verbose: print 'lambda updated '
+        if self.elastic == True:    
+            setfct(self.mu, parameters_m['mu'])
+            if self.verbose: print 'mu updated'
+        if self.verbose: print 'assemble K',
+        self.K = assemble(self.weak_k)
+        if self.verbose: print ' -- K assembled'
+        if parameters_m.has_key('rho'):
+            setfct(self.rho, parameters_m['rho'])
+            # Mass matrix:
+            if self.verbose: print 'rho updated\nassemble M',
+            Mfull = assemble(self.weak_m)
+            if self.lump:
+                self.solverM = LumpedMatrixSolverS(self.V)
+                self.solverM.set_operator(Mfull, self.bc)
+                self.M = self.solverM
+            else:
+                if mpisize == 1:
+                    self.solverM = LUSolver()
+                    self.solverM.parameters['reuse_factorization'] = True
+                    self.solverM.parameters['symmetric'] = True
+                else:
+                    self.solverM = KrylovSolver('cg', 'amg')
+                    self.solverM.parameters['report'] = False
+                self.M = Mfull
+                if not self.bc == None: self.bc.apply(Mfull)
+                self.solverM.set_operator(Mfull)
+            if self.verbose: print ' -- M assembled'
+        # Matrix D for abs BC
+        if self.abc == True:    
+            if self.verbose:    print 'assemble D',
+            Dfull = assemble(self.weak_d)
+            if self.lumpD:
+                self.D = LumpedMatrixSolverS(self.V)
+                self.D.set_operator(Dfull, None, False)
+                if self.lump:
+                    self.solverMplD = LumpedMatrixSolverS(self.V)
+                    self.solverMplD.set_operators(Mfull, Dfull, .5*self.Dt, self.bc)
+                    self.MminD = LumpedMatrixSolverS(self.V)
+                    self.MminD.set_operators(Mfull, Dfull, -.5*self.Dt, self.bc)
+            else:
+                self.D = Dfull
+            if self.verbose:    print ' -- D assembled'
+        else:   self.D = 0.0
 
 
     #@profile
     def solve(self):
         """ Wrapper for default way to solve """
-        if self.timestepper == 'backward':  self.solve_backward()
-        elif self.timestepper == 'centered':    self.solve_centered()
+        if self.timestepper == 'backward':  return self.solve_backward()
+        elif self.timestepper == 'centered':    return self.solve_centered()
         else:
             print "Time stepper not implemented"
             sys.exit(1)
 
     def solve_centered(self):
-        #TODO: code it
+        if self.verbose:    print 'Compute solution'
+        solout = [] # Store computed solution
+        # u0:
+        if self.fwdadj > 0: tt = self.t0 
+        else:   tt = self.tf
+        if self.verbose:    print 'Compute solution -- time {}'.format(tt)
+        self.u0 = self.u0init
+        solout.append([self.u0.vector().array(), tt])
+        # u1:
+        if self.um1init == None: 
+            if not self.u1init == None: self.u1 = self.u1init
+            else:
+                assert(not self.utinit == None)
+                self.rhs.vector()[:] = self.ftime(tt) - \
+                self.fwdadj*(self.D*self.utinit.vector()).array() - \
+                (self.K*self.u0.vector()).array()
+                if not self.bc == None: self.bc.apply(self.rhs.vector())
+                self.solverM.solve(self.sol.vector(), self.rhs.vector())
+                self.u1.vector()[:] = self.u0.vector().array() + \
+                self.fwdadj*self.Dt*self.utinit.vector().array() + \
+                0.5*self.Dt**2*self.sol.vector().array()
+            tt += self.fwdadj*self.Dt
+            if self.verbose:    print 'Compute solution -- time {}'.format(tt)
+            solout.append([self.u1.vector().array(), tt])
+        else:
+            self.u1.vector()[:] = self.u0.vector().array()
+            self.u0 = self.um1init
+        # Iteration
+        if self.fwdadj > 0.:    target = self.tf*(1.0 + 1e-12)
+        else:   
+            if abs(self.t0) < 1e-14:    target = self.t0 - 1e-12
+            else:   target = self.t0*(1.0 - 1e-12)
+        while self.fwdadj*(tt + self.fwdadj*self.Dt) < target:
+            self.rhs.vector()[:] = (self.Dt**2)*self.ftime(tt)
+            self.rhs.vector().axpy(-1.0, self.MminD*self.u0.vector())
+            self.rhs.vector().axpy(2.0, self.M*self.u1.vector())
+            self.rhs.vector().axpy(-self.Dt**2, self.K*self.u1.vector())
+            if not self.bc == None: self.bc.apply(self.rhs.vector())
+            self.solverMplD.solve(self.u2.vector(), self.rhs.vector())
+            # Advance to next time step
+            setfct(self.u0, self.u1)
+            setfct(self.u1, self.u2)
+            tt += self.fwdadj*self.Dt
+            if self.verbose:    print 'Compute solution -- time {}'.format(tt)
+            solout.append([self.u1.vector().array(),tt])
+        if self.fwdadj > 0.:    timeerror = abs(tt - self.tf)/self.tf
+        else:    
+            if abs(self.t0) < 1e-14:    timeerror = abs(tt - self.t0)
+            else:   timeerror = abs(tt - self.t0)/self.t0
+        if timeerror > 1e-12:
+            raise RuntimeError('Final time is {} instead of {}'.format(tt, \
+            self.tf), 'Relative error is {}'.format(timeerror))
+        return solout, self.computeerror()
+
 
     def solve_backward(self):
         if self.verbose:    print 'Compute solution'
