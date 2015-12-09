@@ -7,12 +7,12 @@ TODO list
 
 
     - ACOUSTIC:
-* Allow Damping matrix D to be lumped
-* Implement the 'central difference meth' described in Hughes, i.e., central-in-time for damping term
+* More realisitic check for abs bndy conditions
 * Create and check convergence of point source w/ Ricker wavelet.
 * Implement examples (abc, Ricker,...) with non-homogeneous medium.
 * profile parallel
 * Assemble gradient
+* Code C++ version of fwd and adj pbs
 
 
 

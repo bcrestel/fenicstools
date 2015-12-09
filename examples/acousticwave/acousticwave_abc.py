@@ -38,20 +38,20 @@ class LeftRight(SubDomain):
 
 q = 3
 if myrank == 0: print '\npolynomial order = {}'.format(q)
+alpha = 6.
 
 for Nxy in NN:
     h = 1./Nxy
     mesh = UnitSquareMesh(Nxy, Nxy, "crossed")
     V = FunctionSpace(mesh, 'Lagrange', q)
     Vl = FunctionSpace(mesh, 'Lagrange', 1)
-    Dt = h/(q*11.*c)
+    Dt = h/(q*alpha*c)
     if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 
     Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
     #Wave.verbose = True
     Wave.timestepper = 'centered'
     Wave.lump = True
-    Wave.lumpD = True
     Wave.set_abc(mesh, LeftRight(), True)
     Wave.exact = interpolate(exact_expr, V)
     Wave.update({'lambda':lam, 'rho':rho, 't0':0.0, 'tf':tf, 'Dt':Dt,\

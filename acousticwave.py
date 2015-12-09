@@ -149,6 +149,7 @@ class AcousticWave():
             print "Time stepper not implemented"
             sys.exit(1)
 
+    #TODO: check adjoint equation properly implemented
     def solve_centered(self):
         if self.verbose:    print 'Compute solution'
         solout = [] # Store computed solution
@@ -193,7 +194,7 @@ class AcousticWave():
             setfct(self.u0, self.u1)
             setfct(self.u1, self.u2)
             tt += self.fwdadj*self.Dt
-            if self.verbose:    print 'Compute solution -- time {}'.format(tt)
+            if self.verbose:    print 'Compute solution -- time {}, rhs {}'.format(tt, np.max(np.abs(self.ftime(tt))))
             solout.append([self.u1.vector().array(),tt])
         if self.fwdadj > 0.:    timeerror = abs(tt - self.tf)/self.tf
         else:    
@@ -252,7 +253,9 @@ class AcousticWave():
             setfct(self.u0, self.u1)
             setfct(self.u1, self.u2)
             tt += self.fwdadj*self.Dt
-            if self.verbose:    print 'Compute solution -- time {}'.format(tt)
+            if self.verbose:    
+                print 'Compute solution -- time {}, max(rhs) {}, min(rhs) {}'.format(\
+                tt, np.max(self.ftime(tt)), np.min(self.ftime(tt)))
             solout.append([self.u1.vector().array(),tt])
         if self.fwdadj > 0.:    timeerror = abs(tt - self.tf)/self.tf
         else:    

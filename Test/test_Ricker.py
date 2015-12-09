@@ -5,9 +5,9 @@ from fenicstools.sourceterms import RickerWavelet
 
 cut_off = 1e-10
 
-R1 = RickerWavelet(0.1, cut_off)
-T = 50.
-fig1 = R1.plot(np.linspace(0.0, T, 1000), np.linspace(-0.5, 0.5, 1000))
+R1 = RickerWavelet(0.4, cut_off)
+T = 10.
+fig1 = R1.plot(np.linspace(0.0, T, 1000), np.linspace(-2.5, 2.5, 1000))
 fig1.savefig('Plots/Ricker1.eps')
 print R1(0.0), R1(T)
 
