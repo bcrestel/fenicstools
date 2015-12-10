@@ -7,8 +7,6 @@ TODO list
 
 
     - ACOUSTIC:
-* More realisitic check for abs bndy conditions
-* Create and check convergence of point source w/ Ricker wavelet.
 * Implement examples (abc, Ricker,...) with non-homogeneous medium.
 * profile parallel
 * Assemble gradient
