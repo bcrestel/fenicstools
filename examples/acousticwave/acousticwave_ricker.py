@@ -16,7 +16,7 @@ except:
     mycomm = None
     myrank = 0
 
-RR = np.array((1, 2, 3, 4))
+RR = [1, 2, 3, 4]
 ERROR = []
 
 # Inputs:
