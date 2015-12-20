@@ -269,7 +269,8 @@ class AcousticWave():
 
     def computeerror(self):
         if not self.exact == None:
-            MM = assemble(inner(self.trial, self.test)*dx)
+            #MM = assemble(inner(self.trial, self.test)*dx)
+            MM = self.M
             norm_ex = np.sqrt(\
             (MM*self.exact.vector()).inner(self.exact.vector()))
             diff = self.exact.vector() - self.u1.vector()
