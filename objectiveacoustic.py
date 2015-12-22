@@ -1,5 +1,4 @@
-from dolfin import LinearOperator
-from acousticwave import AcousticWave
+from dolfin import LinearOperator, Function
 from miscfenics import setfct
 
 class ObjectiveAcoustic(LinearOperator):
@@ -7,44 +6,46 @@ class ObjectiveAcoustic(LinearOperator):
 inverse problem using acoustic wave data"""
 
     # CONSTRUCTORS:
-    def __init__(self, functionspaces):
+    def __init__(self, acousticwavePDE):
         """default constructor"""
-        self.acousticPDE = AcousticWave(functionspaces)
-        self.MG = Function(self.acousticPDE.Vl)
-        self.srchdir = Function(self.acousticPDE.Vl)
-        LinearOperator.__init__(self, self.acousticPDE.MG.vector(), \
-        self.acousticPDE.MG.vector())
-        self.ObsOp = None
+        self.PDE = acousticwavePDE
+        self.MG = Function(self.PDE.Vl)
+        self.srchdir = Function(self.PDE.Vl)
+        LinearOperator.__init__(self, self.MG.vector(), self.MG.vector())
+        self.ObsOp = None   # Observation operator
+        self.dd = None  # observations
 
 
     def copy(self):
         """(hard) copy constructor"""
-        V = self.acousticPDE.V
-        Vl = self.acousticPDE.Vl
-        Vr = self.acousticPDE.Vr
-        newobj = self.__class__({'V':V, 'Vl':Vl, 'Vr':Vr})
-        newobj.acousticPDE.bc = self.acousticPDE.bc
-        if self.acousticPDE.abc == True:
-            newobj.acousticPDE.set_abc(V.mesh(), self.acousticPDE.class_bc_abc)
-        newobj.acousticPDE.update({'lambda':self.acousticPDE.lam, \
-        'rho':self.acousticPDE.rho, 't0':self.acousticPDE.t0, \
-        'tf':self.acousticPDE.tf, 'Dt':self.acousticPDE.Dt, \
-        'u0init':self.acousticPDE.u0init, 'utinit':self.acousticPDE.utinit, \
-        'u1init':self.acousticPDE.u1init})
+        newobj = self.__class__(self.PDE.copy())
+        setfct(newobj.MG, self.MG)
+        setfct(newobj.srchdir, self.srchdir)
+        newobj.ObsOp = self.ObsOp
         return newobj
 
 
     # FORWARD PROBLEM + COST:
     def solvefwd(self, cost=False):
-        self.acousticPDE.set_fwd()
-        self.solution, tmp = self.acousticPDE.solve()
-        if cost == True:    #TODO:
+        self.PDE.set_fwd()
+        self.solfwd, tmp = self.PDE.solve()
+        if cost == True:
+            assert not self.dd == None, "Provide observations"
+            sol0, tmp = self.ObsOp.obs(self.solfwd[0][0])
+            sollast, tmp = self.ObsOp.obs(self.solfwd[-1][0])
+            self.misfit = .5*(self.ObsOp.costfc(sol0, self.dd[0]) + \
+            self.ObsOp.costfc(sollast, self.dd[-1]))
+            for pp, dd in zip(self.solfwd[1:-1], self.dd[1:-1]):
+                solii, tmp = self.ObsOp.obs(pp[0])
+                self.misfit += self.ObsOp.costfc(solii, dd)
+            self.misfit *= self.PDE.Dt
 
     def solvefwd_cost(self):    self.solvefwd(True)
 
 
     # ADJOINT PROBLEM + GRAD:
     def solveadj(self, grad=False):
+        self.PDE.set_adj()
         #TODO
 
     def solveadj_constructgrad(self):   self.solveadj(True)
@@ -62,20 +63,16 @@ inverse problem using acoustic wave data"""
 
 
     # SETTERS + UPDATE:
-    def update_PDE(self, parameters_m): self.acousticPDE.update(parameters_m)
-
-    def set_abc(self, mesh, class_bc_abc):  
-        self.acousticPDE.set_abc(mesh, class_bc_abc)
-
-    def update_m(self, lam):    self.acousticPDE.update({'lam':lam})
-
-    def backup_m(self): self.lam-bkup = self.getmarray()
-
-    def setsrcterm(self, ftime):    self.acousticPDE.ftime = ftime
+    def update_PDE(self, parameters_m): self.PDE.update(parameters_m)
+    def update_m(self, lam):    self.PDE.update({'lam':lam})
+    def set_abc(self, mesh, class_bc_abc, lumpD):  
+        self.PDE.set_abc(mesh, class_bc_abc, lumpD)
+    def backup_m(self): self.lam_bkup = self.getmarray()
+    def setsrcterm(self, ftime):    self.PDE.ftime = ftime
 
 
     # GETTERS:
-    def getmcopyarray(self):    return self.lam-bkup
-    def getmarray(self):    return self.acousticPDE.lam.vector().array()
+    def getmcopyarray(self):    return self.lam_bkup
+    def getmarray(self):    return self.PDE.lam.vector().array()
     def getMGarray(self):   return self.MG.vector().array()
 
