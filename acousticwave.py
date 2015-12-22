@@ -29,13 +29,31 @@ class AcousticWave():
         self.lumpD = False   # Lump the ABC matrix
         self.timestepper = None # 'backward', 'centered'
         self.exact = None   # exact solution at final time
-        self.utinit = None
-        self.u1init = None
-        self.um1init = None
+        self.u0init = None  # provides u(t=t0)
+        self.utinit = None  # provides u_t(t=t0)
+        self.u1init = None  # provides u1 = u(t=t0+/-Dt)
         self.bc = None
         self.abc = False
-        self.ftime = lambda x: 0.0  # ftime(tt) = source term at time tt (in np.array())
+        self.ftime = lambda x: 0.0  # ftime(tt) = src term @ t=tt (in np.array())
         self.set_fwd()  # default is forward problem
+
+
+    def copy(self):
+        """(hard) copy constructor"""
+        newobj = self.__class__({'V':self.V, 'Vl':self.Vl, 'Vr':self.Vr})
+        newobj.lump = self.lump
+        newobj.timestepper = self.timestepper
+        newobj.exact = self.exact
+        newobj.utinit = self.utinit
+        newobj.u1init = self.u1init
+        newobj.bc = self.bc
+        if self.abc == True:
+            newobj.set_abc(self.V.mesh(), self.class_bc_abc, self.lumpD)
+        newobj.ftime = self.ftime
+        newobj.update({'lambda':self.lam, 'rho':self.rho, \
+        't0':self.t0, 'tf':self.tf, 'Dt':self.Dt, \
+        'u0init':self.u0init, 'utinit':self.utinit, 'u1init':self.u1init})
+        return newobj
 
 
     def readV(self, functionspaces_V):
@@ -77,8 +95,9 @@ class AcousticWave():
 
 
     def set_fwd(self):  self.fwdadj = 1.0
-
-    def set_adj(self):  self.fwdadj = -1.0
+    def set_adj(self):  
+        self.fwdadj = -1.0
+        self.ftime = None
 
 
     def update(self, parameters_m):
@@ -149,7 +168,7 @@ class AcousticWave():
             print "Time stepper not implemented"
             sys.exit(1)
 
-    #TODO: check adjoint equation properly implemented
+
     def solve_centered(self):
         if self.verbose:    print 'Compute solution'
         solout = [] # Store computed solution
@@ -159,25 +178,21 @@ class AcousticWave():
         if self.verbose:    print 'Compute solution -- time {}'.format(tt)
         self.u0 = self.u0init
         solout.append([self.u0.vector().array(), tt])
-        # u1:
-        if self.um1init == None: 
-            if not self.u1init == None: self.u1 = self.u1init
-            else:
-                assert(not self.utinit == None)
-                self.rhs.vector()[:] = self.ftime(tt) - \
-                self.fwdadj*(self.D*self.utinit.vector()).array() - \
-                (self.K*self.u0.vector()).array()
-                if not self.bc == None: self.bc.apply(self.rhs.vector())
-                self.solverM.solve(self.sol.vector(), self.rhs.vector())
-                self.u1.vector()[:] = self.u0.vector().array() + \
-                self.fwdadj*self.Dt*self.utinit.vector().array() + \
-                0.5*self.Dt**2*self.sol.vector().array()
-            tt += self.fwdadj*self.Dt
-            if self.verbose:    print 'Compute solution -- time {}'.format(tt)
-            solout.append([self.u1.vector().array(), tt])
+        # Compute u1:
+        if not self.u1init == None: self.u1 = self.u1init
         else:
-            self.u1.vector()[:] = self.u0.vector().array()
-            self.u0 = self.um1init
+            assert(not self.utinit == None)
+            setfct(self.rhs, self.ftime(tt))
+            self.rhs.vector().axpy(-self.fwdadj, self.D*self.utinit.vector())
+            self.rhs.vector().axpy(-1.0, self.K*self.u0.vector())
+            if not self.bc == None: self.bc.apply(self.rhs.vector())
+            self.solverM.solve(self.sol.vector(), self.rhs.vector())
+            setfct(self.u1, self.u0)
+            self.u1.vector().axpy(self.fwdadj*self.Dt, self.utinit.vector())
+            self.u1.vector().axpy(0.5*self.Dt**2, self.sol.vector())
+        tt += self.fwdadj*self.Dt
+        if self.verbose:    print 'Compute solution -- time {}'.format(tt)
+        solout.append([self.u1.vector().array(), tt])
         # Iteration
         if self.fwdadj > 0.:    target = self.tf*(1.0 + 1e-12)
         else:   
@@ -194,7 +209,9 @@ class AcousticWave():
             setfct(self.u0, self.u1)
             setfct(self.u1, self.u2)
             tt += self.fwdadj*self.Dt
-            if self.verbose:    print 'Compute solution -- time {}, rhs {}'.format(tt, np.max(np.abs(self.ftime(tt))))
+            if self.verbose:    
+                print 'Compute solution -- time {}, rhs {}'.\
+                format(tt, np.max(np.abs(self.ftime(tt))))
             solout.append([self.u1.vector().array(),tt])
         if self.fwdadj > 0.:    timeerror = abs(tt - self.tf)/self.tf
         else:    
@@ -215,32 +232,36 @@ class AcousticWave():
         if self.verbose:    print 'Compute solution -- time {}'.format(tt)
         self.u0 = self.u0init
         solout.append([self.u0.vector().array(), tt])
-        # u1:
-        if self.um1init == None: 
-            if not self.u1init == None: self.u1 = self.u1init
-            else:
-                assert(not self.utinit == None)
-                self.rhs.vector()[:] = self.ftime(tt) - \
-                self.fwdadj*(self.D*self.utinit.vector()).array() - \
-                (self.K*self.u0.vector()).array()
-                if not self.bc == None: self.bc.apply(self.rhs.vector())
-                self.solverM.solve(self.sol.vector(), self.rhs.vector())
-                self.u1.vector()[:] = self.u0.vector().array() + \
-                self.fwdadj*self.Dt*self.utinit.vector().array() + \
-                0.5*self.Dt**2*self.sol.vector().array()
-            tt += self.fwdadj*self.Dt
-            if self.verbose:    print 'Compute solution -- time {}'.format(tt)
-            solout.append([self.u1.vector().array(), tt])
+        # Compute u1:
+        if not self.u1init == None: self.u1 = self.u1init
         else:
-            self.u1.vector()[:] = self.u0.vector().array()
-            self.u0 = self.um1init
+            assert(not self.utinit == None)
+            #self.rhs.vector()[:] = self.ftime(tt) - \
+            #self.fwdadj*(self.D*self.utinit.vector()).array() - \
+            #(self.K*self.u0.vector()).array()
+            setfct(self.rhs, self.ftime(tt))
+            self.rhs.vector().axpy(-self.fwdadj, self.D*self.utinit.vector())
+            self.rhs.vector().axpy(-1.0, self.K*self.u0.vector())
+            if not self.bc == None: self.bc.apply(self.rhs.vector())
+            self.solverM.solve(self.sol.vector(), self.rhs.vector())
+            #self.u1.vector()[:] = self.u0.vector().array() + \
+            #self.fwdadj*self.Dt*self.utinit.vector().array() + \
+            #0.5*self.Dt**2*self.sol.vector().array()
+            setfct(self.u1, self.u0)
+            self.u1.vector().axpy(self.fwdadj*self.Dt, self.utinit.vector())
+            self.u1.vector().axpy(0.5*self.Dt**2, self.sol.vector())
+        tt += self.fwdadj*self.Dt
+        if self.verbose:    print 'Compute solution -- time {}'.format(tt)
+        solout.append([self.u1.vector().array(), tt])
         # Iteration
+        # TODO: re-think about that; should include Dt
         if self.fwdadj > 0.:    target = self.tf*(1.0 + 1e-12)
         else:   
             if abs(self.t0) < 1e-14:    target = self.t0 - 1e-12
             else:   target = self.t0*(1.0 - 1e-12)
         while self.fwdadj*(tt + self.fwdadj*self.Dt) < target:
-            self.rhs.vector()[:] = self.Dt*self.ftime(tt)
+            #self.rhs.vector()[:] = self.Dt*self.ftime(tt)
+            setfct(self.rhs, self.Dt*self.ftime(tt))
             self.rhs.vector().axpy(-self.Dt, self.K*self.u1.vector())
             self.rhs.vector().axpy(-1.0, self.D*(self.u1.vector()-self.u0.vector()))
             if not self.bc == None: self.bc.apply(self.rhs.vector())
