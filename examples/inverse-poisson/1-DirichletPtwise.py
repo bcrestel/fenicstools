@@ -53,7 +53,7 @@ goal.solvefwd()
 UDnoise = goal.U
 
 print 'p{}: Solve reconstruction problem'.format(myrank)
-Regul = LaplacianPrior({'Vm':Vm,'gamma':5e-8,'beta':1e-14})
+Regul = LaplacianPrior({'Vm':Vm,'gamma':2e-8,'beta':1e-14})
 plot_option = False
 ObsOp.noise = False
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, UDnoise, Regul, \
@@ -65,7 +65,7 @@ METHODS = ['sd','Newt']
 meth = METHODS[1]
 if meth == 'sd':    alpha_init = 1e3
 elif meth == 'Newt':    alpha_init = 1.0
-nbcheck = 0 # Grad and Hessian checks
+nbcheck = 2 # Grad and Hessian checks
 nbLS = 20   # Max nb of line searches
 # Prepare results outputs:
 PP = PostProcessor(meth, Vm, mtrue, mycomm)
