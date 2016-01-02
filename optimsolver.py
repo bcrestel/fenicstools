@@ -18,8 +18,7 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6):
     and member:
             - cost: value of cost function
     """
-    FDobj = ObjFctal.copy()
-    lenm = len(FDobj.getmarray())
+    lenm = len(ObjFctal.getmarray())
     ObjFctal.backup_m()
     rnddirc = np.random.randn(nbgradcheck, lenm)
     H = [1e-5, 1e-6, 1e-4]
@@ -31,9 +30,9 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6):
         for hh in H:
             cost = []
             for fact in factor:
-                FDobj.update_m(ObjFctal.getmcopyarray() + fact*hh*dirct)
-                FDobj.solvefwd_cost()
-                cost.append(FDobj.cost)
+                ObjFctal.update_m(ObjFctal.getmcopyarray() + fact*hh*dirct)
+                ObjFctal.solvefwd_cost()
+                cost.append(ObjFctal.cost)
             FDgrad = (cost[0] - cost[1])/(2.0*hh)
             err = abs(mgdir - FDgrad) / abs(FDgrad)
             if err < tolgradchk:   
@@ -43,6 +42,11 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6):
             else:
                 print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e}'\
                 .format(hh, FDgrad, err)
+    # Restore initial value of m:
+    ObjFctal.restore_m()
+    ObjFctal.solvefwd_cost()
+    ObjFctal.solveadj_constructgrad()
+
 
 def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6):
     """Finite-difference check for the Hessian of an ObjectiveFunctional

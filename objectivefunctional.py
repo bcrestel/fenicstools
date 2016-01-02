@@ -271,6 +271,9 @@ class ObjectiveFunctional(LinearOperator):
     def backup_m(self):
         self.mcopy.assign(self.m)
 
+    def restore_m(self):
+        self.update_m(self.mcopy)
+
     def reset(self):
         """Reset U, C and E"""
         self.U = []
