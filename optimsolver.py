@@ -8,7 +8,6 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6):
     """
     Finite-difference check for the gradient of an ObjectiveFunctional object
         ObjFctal = object describing objective functional; must have methods:
-            - copy: create copy of object
             - getmarray: return medium parameter in np.array format
             - backup_m: create safe copy of current medium parameter
             - getMGarray: return Mass*gradient in np.array format
@@ -51,14 +50,13 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6):
 def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6):
     """Finite-difference check for the Hessian of an ObjectiveFunctional
     object"""
-    FDobj = ObjFctal.copy()
-    lenm = len(FDobj.getmarray())
+    lenm = len(ObjFctal.getmarray())
     ObjFctal.backup_m()
     rnddirc = np.random.randn(nbhesscheck, lenm)
     H = [1e-5, 1e-4, 1e-3]
     factor = [1.0, -1.0]
-    hessxdir = FDobj.srchdir
-    dirfct = FDobj.delta_m
+    hessxdir = ObjFctal.srchdir
+    dirfct = ObjFctal.delta_m
     for textnb, dirct in zip(range(lenm), rnddirc):
         # Do computations for analytical Hessian:
         dirfct.vector()[:] = dirct
@@ -70,10 +68,10 @@ def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6):
         for hh in H:
             MG = []
             for fact in factor:
-                FDobj.update_m(ObjFctal.getmarray() + fact*hh*dirct)
-                FDobj.solvefwd_cost()
-                FDobj.solveadj_constructgrad()
-                MG.append(FDobj.getMGarray())
+                ObjFctal.update_m(ObjFctal.getmcopyarray() + fact*hh*dirct)
+                ObjFctal.solvefwd_cost()
+                ObjFctal.solveadj_constructgrad()
+                MG.append(ObjFctal.getMGarray())
             FDHessx = (MG[0] - MG[1])/(2.0*hh)
             # Compute errors:
             normFDhess = np.linalg.norm(FDHessx)
@@ -86,6 +84,11 @@ def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6):
             else:
                 print '\th={0:.1e}: ||FDH.x||={1:.5e}, error={2:.2e}'\
                 .format(hh, np.linalg.norm(FDHessx), err)
+    # Restore initial value of m:
+    ObjFctal.restore_m()
+    ObjFctal.solvefwd_cost()
+    ObjFctal.solveadj_constructgrad()
+
 
 def compute_searchdirection(ObjFctal, keyword, gradnorm_init=None, maxtolcg=0.5):
     """Compute search direction for Line Search based on keyword.
@@ -133,6 +136,7 @@ def compute_searchdirection(ObjFctal, keyword, gradnorm_init=None, maxtolcg=0.5)
         sys.exit(1)
     if keyword == 'Newt':
         return [solver.iter, solver.final_norm, solver.reasonid, tolcg]
+
 
 def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
     """Run backtracking line search in 'search_direction'. 
