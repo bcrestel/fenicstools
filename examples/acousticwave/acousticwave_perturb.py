@@ -1,3 +1,8 @@
+"""
+Forward problem close to inverse problem sitation. Homogeneous medium with
+perturbation in the middle. Neumann boundary conditions all around.
+"""
+
 import sys
 from os.path import splitext, isdir
 from shutil import rmtree

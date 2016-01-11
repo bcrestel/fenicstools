@@ -1,3 +1,5 @@
+""" Example with nontrivial source term for which analytical solution is known """
+
 import sys
 from os.path import splitext, isdir
 from shutil import rmtree

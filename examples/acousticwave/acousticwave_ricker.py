@@ -1,3 +1,8 @@
+"""
+Ricker wavelet at the center of a unit square with dashpot absorbing boundary
+conditions on all 4 boundaries
+"""
+
 import sys
 from os.path import splitext, isdir
 from shutil import rmtree

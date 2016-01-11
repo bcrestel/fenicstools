@@ -1,3 +1,5 @@
+""" 1D (quadratic) wave to test dashpot absorbing boundary conditions """
+
 import sys
 from os.path import splitext, isdir
 from shutil import rmtree
@@ -25,7 +27,7 @@ lam = 8.0
 rho = 2.0
 c = np.sqrt(lam/rho)
 tf = 0.5/c # Final time
-direction = 0
+direction = 0   # direction of the 1D wave
 u0_expr = Expression(\
 '100*pow(x[i]-.25,2)*pow(x[i]-0.75,2)*(x[i]<=0.75)*(x[i]>=0.25)', i=direction)
 exact_expr = Expression(\

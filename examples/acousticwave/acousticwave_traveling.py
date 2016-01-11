@@ -1,3 +1,5 @@
+""" 1D travelling wave """
+
 import sys
 from os.path import splitext, isdir
 from shutil import rmtree

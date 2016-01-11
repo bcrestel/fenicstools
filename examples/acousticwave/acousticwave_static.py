@@ -1,3 +1,6 @@
+""" Static wave corresponding to an eigenmode of the wave operator """
+
+
 import sys
 from os.path import splitext, isdir
 from shutil import rmtree

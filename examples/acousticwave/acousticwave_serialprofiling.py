@@ -1,3 +1,5 @@
+""" 1D wave with absorbing boundary conditions formatter for profiler """
+
 import sys
 from os.path import splitext, isdir
 from shutil import rmtree

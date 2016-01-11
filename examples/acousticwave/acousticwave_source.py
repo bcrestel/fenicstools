@@ -1,3 +1,5 @@
+""" Example with time-dependent source term """
+
 import sys
 from os.path import splitext, isdir
 from shutil import rmtree

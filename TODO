@@ -5,6 +5,10 @@ TODO list
 * Parallel computations (what solver?), scaling, ...
 
 
+    - GENERAL:
+* Code TV regularization + test with denoising problem
+* Implement primal-dual solver for TV regularization
+
 
     - ACOUSTIC:
 * Implement examples (abc, Ricker,...) with non-homogeneous medium.
@@ -13,9 +17,9 @@ TODO list
 * Code C++ version of fwd and adj pbs
 
 
-
     - BAYESIAN:
 * Implement elliptic pb with log-permeability (i.e., -div(exp(m)grad(u))) and mixed (Dirich-Neum) BCs.
 * Check convergence of fwd pb.
 * Check/clarify definition of prior covariance + check sampling (compute mean and variance)
 * Run MCMC
+
