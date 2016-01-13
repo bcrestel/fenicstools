@@ -28,7 +28,7 @@ mesh = UnitSquareMesh(Nxy, Nxy, "crossed")
 h = 1./Nxy
 Vl = FunctionSpace(mesh, 'Lagrange', 1)
 r = 2
-Dt = 2e-3   #Dt = h/(r*alpha*c_max)
+Dt = 1e-3   #Dt = h/(r*alpha*c_max)
 tf = 6.0
 
 # Source term:
@@ -52,7 +52,7 @@ Wave.verbose = True
 Wave.timestepper = 'backward'
 Wave.lump = True
 #Wave.set_abc(mesh, AllFour(), True)
-lambda_target = Expression('1.0 + 0.0*(' \
+lambda_target = Expression('1.0 + 1.0*(' \
 '(x[0]>=0.3)*(x[0]<=0.7)*(x[1]>=0.3)*(x[1]<=0.7) +' \
 '((x[0]-0.2)*10*(x[0]>0.2)*(x[0]<0.3) +' \
 '(-x[0]+0.8)*10*(x[0]>0.7)*(x[0]<0.8))*(x[1]>0.2)*(x[1]<0.8) +' \
@@ -65,7 +65,7 @@ Wave.ftime = mysrc
 sol, tmp = Wave.solve()
 if not mycomm == None:  MPI.barrier(mycomm)
 #TODO: Add observation and check with paraview
-#TODO: Add observation along with fading filter
+#TODO: Add observation with a "fading" filter
 
 # Plots:
 try:
@@ -74,7 +74,7 @@ except:
     boolplot = 50
 if boolplot > 0:
     filename, ext = splitext(sys.argv[0])
-    filename = filename + '0'
+    #filename = filename + '0'
     if myrank == 0: 
         if isdir(filename + '/'):   rmtree(filename + '/')
     if not mycomm == None:  MPI.barrier(mycomm)
@@ -89,6 +89,3 @@ if boolplot > 0:
     # Plot medium
     myplot.set_varname('lambda')
     myplot.plot_vtk(lambda_target_fn)
-#TODO: Write python script to take different between homogeneous results (in
-#/ac..._perturb0/) and perturbed medium (in /ac.._perturb/).
-# Solutions, in vtu files are stored in the last section DataArray.

@@ -11,7 +11,7 @@ TODO list
 
 
     - ACOUSTIC:
-* Implement examples (abc, Ricker,...) with non-homogeneous medium.
+* Implement 1d wave exple with a layer to observe bouncing wave.
 * profile parallel
 * Assemble gradient
 * Code C++ version of fwd and adj pbs

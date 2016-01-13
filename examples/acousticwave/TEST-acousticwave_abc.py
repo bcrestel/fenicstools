@@ -1,4 +1,5 @@
 """ 1D (quadratic) wave to test dashpot absorbing boundary conditions """
+#TODO: Modify to have rebound on a layer
 
 import sys
 from os.path import splitext, isdir
