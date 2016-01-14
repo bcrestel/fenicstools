@@ -63,3 +63,20 @@ def setfct(fct, value):
         fct.vector()[:] = value
     elif isinstance(value, int):
         fct.vector()[:] = float(value)
+
+
+def checkdt(Dt, h, q, c_max, Mlump):
+    """ Checks if Dt is sufficiently small based on some numerical tests """
+    if Mlump:   alpha = 3.
+    else:   alpha = 4.
+    assert Dt <= h/(q*alpha*c_max), "Error: You need to choose a smaller Dt"
+
+def checkdt_abc(Dt, h, q, c_max, Mlump, Dlump, timestepper):
+    """ Checks if Dt is sufficiently small based on some numerical tests """
+    if Mlump:
+        if Dlump:
+            if timestepper == 'centered':    alpha = 3.
+            else:   alpha = 4.
+        else:   alpha = 3.
+    else:   alpha = 5.
+    assert Dt <= h/(q*alpha*c_max), "Error: You need to choose a smaller Dt"
