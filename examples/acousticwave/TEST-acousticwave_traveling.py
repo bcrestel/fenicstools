@@ -19,7 +19,7 @@ except:
     mycomm = None
     myrank = 0
 
-NN = np.array((10, 20, 30, 40))
+NN = np.array((10, 20, 40, 80))
 ERROR = []
 
 # Medium ppties:
@@ -38,19 +38,21 @@ def u0_boundary(x, on_boundary):
     return (x[direction] < 1e-16 or x[direction] > 1.0-1e-16) and on_boundary
 ubc = Constant("0.0")
 
-q = 5
+q = 3
 if myrank == 0: print '\npolynomial order = {}'.format(q)
+alpha = 3.
 
 for Nxy in NN:
     h = 1./Nxy
-    mesh = UnitSquareMesh(Nxy, Nxy, "crossed")
+    mesh = UnitSquareMesh(Nxy, Nxy)
     V = FunctionSpace(mesh, 'Lagrange', q)
     Vl = FunctionSpace(mesh, 'Lagrange', 1)
-    Dt = h/(q*6.*c)
+    Dt = h/(q*alpha*c)
     if myrank == 0: print '\n\th = {} - Dt = {}'.format(h, Dt)
 
     Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
     #Wave.verbose = True
+    Wave.timestepper = 'backward'
     Wave.lump = True
     Wave.exact = interpolate(uex_expr, V)
     Wave.bc = DirichletBC(V, ubc, u0_boundary)

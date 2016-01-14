@@ -1,5 +1,4 @@
 """ 1D (quadratic) wave to test dashpot absorbing boundary conditions """
-#TODO: Modify to have rebound on a layer
 
 import sys
 from os.path import splitext, isdir
@@ -20,7 +19,7 @@ except:
     mycomm = None
     myrank = 0
 
-NN = np.array((10, 20, 30, 40))
+NN = np.array((10, 20, 40, 80))
 ERROR = []
 
 # Medium ppties:
@@ -41,11 +40,11 @@ class LeftRight(SubDomain):
 
 q = 3
 if myrank == 0: print '\npolynomial order = {}'.format(q)
-alpha = 6.
+alpha = 3.
 
 for Nxy in NN:
     h = 1./Nxy
-    mesh = UnitSquareMesh(Nxy, Nxy, "crossed")
+    mesh = UnitSquareMesh(Nxy, Nxy)
     V = FunctionSpace(mesh, 'Lagrange', q)
     Vl = FunctionSpace(mesh, 'Lagrange', 1)
     Dt = h/(q*alpha*c)
