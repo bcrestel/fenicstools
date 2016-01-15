@@ -10,6 +10,7 @@ from shutil import rmtree
 from fenicstools.plotfenics import PlotFenics
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
+from fenicstools.miscfenics import checkdt
 try:
     from dolfin import UnitSquareMesh, FunctionSpace, Constant, DirichletBC, \
     interpolate, Expression, Function, SubDomain, MPI, mpi_comm_world
@@ -23,16 +24,18 @@ except:
 
 
 # Inputs:
-Nxy = 10
-mesh = UnitSquareMesh(Nxy, Nxy, "crossed")
+Nxy = 100
+mesh = UnitSquareMesh(Nxy, Nxy)
 h = 1./Nxy
 Vl = FunctionSpace(mesh, 'Lagrange', 1)
-r = 2
-Dt = 1e-3   #Dt = h/(r*alpha*c_max)
-tf = 6.0
+r = 5
+Dt = 2e-4   #Dt = h/(r*alpha*c_max)
+checkdt(Dt, h, r, 2.0, True)
+tf = 1.0
 
 # Source term:
-fpeak = .4 # .4Hz => up to 10Hz in input signal
+#fpeak = .4 # .4Hz => up to 10Hz in input signal
+fpeak = 10.
 Ricker = RickerWavelet(fpeak, 1e-10)
 
 # Boundary conditions:
@@ -48,16 +51,17 @@ def mysrc(tt):
 # Computation:
 if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
-Wave.verbose = True
+#Wave.verbose = True
 Wave.timestepper = 'backward'
 Wave.lump = True
 #Wave.set_abc(mesh, AllFour(), True)
-lambda_target = Expression('1.0 + 1.0*(' \
-'(x[0]>=0.3)*(x[0]<=0.7)*(x[1]>=0.3)*(x[1]<=0.7) +' \
-'((x[0]-0.2)*10*(x[0]>0.2)*(x[0]<0.3) +' \
-'(-x[0]+0.8)*10*(x[0]>0.7)*(x[0]<0.8))*(x[1]>0.2)*(x[1]<0.8) +' \
-'((x[1]-0.2)*10*(x[1]>0.2)*(x[1]<0.3) +' \
-'(-x[1]+0.8)*10*(x[1]>0.7)*(x[1]<0.8))*(x[0]>0.2)*(x[0]<0.8))')    # square perturbation in the middle
+lambda_target = Expression('1.0 + 3.0*(' \
+'(x[0]>=0.3)*(x[0]<=0.7)*(x[1]>=0.3)*(x[1]<=0.7))') 
+#'(x[0]>=0.3)*(x[0]<=0.7)*(x[1]>=0.3)*(x[1]<=0.7) +' \
+#'((x[0]-0.2)*10*(x[0]>0.2)*(x[0]<0.3) +' \
+#'(-x[0]+0.8)*10*(x[0]>0.7)*(x[0]<0.8))*(x[1]>0.2)*(x[1]<0.8) +' \
+#'((x[1]-0.2)*10*(x[1]>0.2)*(x[1]<0.3) +' \
+#'(-x[1]+0.8)*10*(x[1]>0.7)*(x[1]<0.8))*(x[0]>0.2)*(x[0]<0.8))')    # square perturbation in the middle
 lambda_target_fn = interpolate(lambda_target, Vl)
 Wave.update({'lambda':lambda_target_fn, 'rho':1.0, \
 't0':0.0, 'tf':tf, 'Dt':Dt, 'u0init':Function(V), 'utinit':Function(V)})
