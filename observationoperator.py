@@ -3,6 +3,7 @@ import numpy as np
 from numpy import sqrt
 from numpy.linalg import norm
 from numpy.random import randn
+import matplotlib.pyplot as plt
 
 try:
     from dolfin import Function, TrialFunction, TestFunction, \
@@ -16,6 +17,65 @@ from exceptionsfenics import WrongInstanceError
 from miscfenics import isFunction, isarray, arearrays
 from sourceterms import PointSources
 
+
+class TimeFilter():
+    """ Create time filter to fade out data misfit (hence src term in adj eqn) """
+
+    def __init__(self, times=None):
+        """ Input times:
+            times[0] = t0 = initial time
+            times[1] = t1 = beginning of flat section at 1.0
+            times[2] = t2 = end of flat section at 1.0
+            times[3] = T = final time """
+        if times == None:   
+            self.t0 = -np.inf
+            self.t1 = -np.inf
+            self.t2 = np.inf
+            self.T = np.inf
+        else:
+            self.t0 = times[0]
+            self.t1 = times[1]
+            self.t2 = times[2]
+            self.T = times[3]
+            self.t1b = 2*self.t1-self.t0
+            self.t2b = 2*self.t2-self.T
+
+
+    def __call__(self, tt):
+        """ Overload () operator """
+        assert tt >= self.t0 and tt <= self.T, "Input tt out of bounds [t0, T]"
+        if tt <= self.t0 + 1e-16: return 0.0
+        if tt >= self.T - 1e-16:    return 0.0
+        if tt <= self.t1:   
+            return np.exp(-1./((tt-self.t0)*(self.t1b-tt)))/np.exp(-1./(self.t1-self.t0)**2)
+        if tt >= self.t2:   
+            return np.exp(-1./((tt-self.t2b)*(self.T-tt)))/np.exp(-1./(self.T-self.t2)**2)
+        return 1.0
+
+
+    def evaluate(self, times):
+        """ vectorized verstion of __call__ """
+        vectcall = np.vectorize(self.__call__)
+        return vectcall(times)
+
+
+    def plot(self, ndt=1000):
+        """ Plot the shape of the filter along with its fft """
+        tt = np.linspace(self.t0, self.T, ndt)
+        xx = self.evaluate(tt)
+        ff = np.fft.fft(xx) # fft(time-domain)
+        ffn = np.sqrt(ff.real**2 + ff.imag**2)
+        ffxi = np.fft.fftfreq(len(xx), d=tt[1]-tt[0])
+        fig = plt.figure()
+        ax1 = fig.add_subplot(121)
+        ax1.plot(tt, xx)
+        ax2 = fig.add_subplot(122)
+        ax2.plot(np.fft.fftshift(ffxi), np.fft.fftshift(ffn))
+        return fig
+
+
+###########################################################
+###########################################################
 
 class ObservationOperator():
     """Define observation operator and all actions using this observation
@@ -100,7 +160,6 @@ class ObsEntireDomain(ObservationOperator):
         self.diff.vector()[:] = uin - udin
         return 0.5 * (self.W*self.diff.vector()).inner(self.diff.vector())
 
-
     def assemble_rhsadj(self, uin, udin, outp, bc):
         arearrays(uin, udin)
         isFunction(outp)
@@ -108,13 +167,12 @@ class ObsEntireDomain(ObservationOperator):
         outp.vector()[:] = - (self.W * self.diff.vector()).array()
         bc.apply(outp.vector())
 
-        
     def incradj(self, uin):
         isFunction(uin)
         return self.W * uin.vector()
 
 
-
+##################
 class ObsPointwise(ObservationOperator):
     """Observation operator at finite nb of points
     parameters must be a dictionary containing:
@@ -139,7 +197,6 @@ class ObsPointwise(ObservationOperator):
             Bu[ii] = np.dot(bb.array(), uin.vector().array())   # Note: local inner-product
         return Bu
 
-
     def Bdot(self, uin):
         """Compute B.uin as a np.array, using global info
         uin must be a Function(self.V)"""
@@ -148,7 +205,6 @@ class ObsPointwise(ObservationOperator):
         for ii, bb in enumerate(self.B):
             Bu[ii] = bb.inner(uin.vector()) # Note: global inner-product
         return Bu
-
 
     def BTdot(self, uin):
         """Compute B^T.uin as a np.array
@@ -160,6 +216,12 @@ class ObsPointwise(ObservationOperator):
             out += bb*uin[ii]
         return out.array()
 
+    def BTdotvec(self, uin, outvect):
+        """ Compute B^T.uin """
+        isarray(uin)
+        outvect[:] = 0.
+        for ii, bb in enumerate(self.B):
+            outvect += bb*uin[ii]
 
     def obs(self, uin):
         """Compute B.uin + eps, where eps is noise
@@ -179,7 +241,6 @@ class ObsPointwise(ObservationOperator):
                 noiselevel_glob = noiselevel
             return Bnoise, noiselevel_glob
 
-
     def costfct(self, uin, udin):
         """Compute cost functional from observed fwd and data, i.e.,
         return .5*||uin - udin||^2.
@@ -187,7 +248,6 @@ class ObsPointwise(ObservationOperator):
         arearrays(uin, udin)
         diff = uin - udin
         return 0.5*np.dot(diff, diff)
-
 
     def assemble_rhsadj(self, uin, udin, outp, bc):
         """Compute rhs term for adjoint equation and store it in outp, i.e.,
@@ -201,7 +261,6 @@ class ObsPointwise(ObservationOperator):
         outp.vector()[:] = -1.0 * self.BTdot(diff)
         bc.apply(outp.vector())
 
-
     def incradj(self, uin):
         """Compute the observation part of the incremental adjoint equation, i.e,
         return B^T.B.uin
@@ -209,3 +268,60 @@ class ObsPointwise(ObservationOperator):
         isFunction(uin)
         self.BtBu.vector()[:] = self.BTdot( self.Bdotlocal(uin) )
         return self.BtBu.vector()
+
+
+
+##################
+class TimeObsPtwise():
+    """
+    Create time-dependent pointwise observation operator
+    Arguments to assemble:
+        paramObsPtwise = parameters used to create ptwise observation operator
+        times = [t0, t1, t2, T], times to initialize time-filtering function
+        mycomm = MPI communicator
+    """
+
+    def __init__(self, paramObsPtwise, times=None, mycomm=None):
+        self.PtwiseObs = ObsPointwise(paramObsPtwise, mycomm)
+        u = Function(self.PtwiseObs.V)
+        self.outvec = u.vector()
+        self.st = TimeFilter(times)
+
+
+    def obs(self, uin):
+        """ return result from pointwise observation w/o time-filtering """
+        return  self.PtwiseObs(uin)
+
+    def costfct(self, uin, udin, times):
+        """ compute cost functional
+                int_0^T s(t) | B u - udin |^2 dt
+        uin, udin must be in np.array format of shape 'recv x time'
+        times should be array containg values of t0, t1,..., T, 
+        and time-steps should be all equal (!!)
+        """
+        assert uin.shape == udin.shape, "uin and udin must have same shape"
+        assert uin.shape[0] == len(times) or uin.shape[1] == len(times), \
+        "must have as many time steps in uin as in times"
+        if uin.shape[0] == len(times):
+            uin = uin.T
+            udin = udin.T
+        factors = np.ones(len(times))
+        factors[0], factors[-1] = 0.5, 0.5
+        Dt = times[1] - times[0]
+        diff = ((uin - udin)**2)*factors*(self.st.evaluate(times))
+        return 0.5*Dt * diff.sum().sum()
+
+    def assemble_rhsadh(self, uin, udin, outp, tt, bc):
+        #TODO: to be checked
+        outp.vector()[:] = 0.0
+        self.PtwiseObs.BTdotvec(uin - udin, self.outvec)
+        outp.vector().axpy(-self.st(tt), self.outvec)
+        bc.apply(outp.vector())
+
+
+    def incradj(self, uin, tt):
+        #TODO: to be checked
+        self.PtwiseObs.BtBu.vector()[:] = 0.0
+        self.PtwiseObs.BtBu.vector().axpy(self.st(tt), \
+        self.BTdot(self.Bdotlocal(uin)))
+        return self.PtwiseObs.BtBu.vector()
