@@ -1,5 +1,6 @@
-from dolfin import LinearOperator, Function
-from miscfenics import setfct
+from dolfin import LinearOperator, Function, TestFunction,\
+assemble, inner, nabla_grad, dx
+from miscfenics import setfct, isequal
 
 class ObjectiveAcoustic(LinearOperator):
     """Computes data misfit, gradient and Hessian evaluation for the seismic
@@ -9,11 +10,16 @@ inverse problem using acoustic wave data"""
     def __init__(self, acousticwavePDE):
         """default constructor"""
         self.PDE = acousticwavePDE
+        self.fwdsource = self.PDE.ftime
         self.MG = Function(self.PDE.Vl)
+        self.MGv = self.MG.vector()
         self.srchdir = Function(self.PDE.Vl)
         LinearOperator.__init__(self, self.MG.vector(), self.MG.vector())
         self.ObsOp = None   # Observation operator
         self.dd = None  # observations
+        self.mtest = TestFunction(self.PDE.Vl)
+        self.p, self.v = Function(self.PDE.V), Function(self.PDE.V)
+        self.wkformgrad = inner(self.mtest*nabla_grad(self.p), nabla_grad(self.v))*dx
 
 
     def copy(self):
@@ -28,17 +34,17 @@ inverse problem using acoustic wave data"""
     # FORWARD PROBLEM + COST:
     def solvefwd(self, cost=False):
         self.PDE.set_fwd()
-        self.solfwd, tmp = self.PDE.solve()
-        if cost == True:
+        self.PDE.ftime = self.fwdsource
+        self.solfwd,_ = self.PDE.solve()
+        if cost:
             assert not self.dd == None, "Provide observations"
-            sol0, tmp = self.ObsOp.obs(self.solfwd[0][0])
-            sollast, tmp = self.ObsOp.obs(self.solfwd[-1][0])
-            self.misfit = .5*(self.ObsOp.costfc(sol0, self.dd[0]) + \
-            self.ObsOp.costfc(sollast, self.dd[-1]))
-            for pp, dd in zip(self.solfwd[1:-1], self.dd[1:-1]):
-                solii, tmp = self.ObsOp.obs(pp[0])
-                self.misfit += self.ObsOp.costfc(solii, dd)
-            self.misfit *= self.PDE.Dt
+            self.Bp = np.zeros(self.dd.shape)
+            self.times = np.zeros(self.dd.shape[1])
+            for index, sol in enumerate(self.solfwd):
+                setfct(self.p, sol[0])
+                self.Bp[:,index] = self.ObsOp.obs(self.p)
+                self.times[index] = sol[1]
+            self.misfit = self.ObsOp.costfct(self.Bp, self.dd, self.times)
 
     def solvefwd_cost(self):    self.solvefwd(True)
 
@@ -46,7 +52,20 @@ inverse problem using acoustic wave data"""
     # ADJOINT PROBLEM + GRAD:
     def solveadj(self, grad=False):
         self.PDE.set_adj()
-        #TODO
+        self.ObsOp.assemble_rhsadj(self.Bp, self.dd, self.times, self.PDE.bc)
+        self.PDE.ftime = self.ObsOp.ftimeadj
+        self.soladj,_ = self.PDE.solve()
+        if grad:
+            self.MGv.zero()
+            factors = np.ones(self.ftimes.size)
+            factors[0], factors[-1] = 0.5, 0.5
+            for fwd, adj, fact in zip(self.solfwd, reversed(self.soladj), factors):
+                ttf, tta = fwd[1], adj[1]
+                assert isequal(ttf, tta, 1e-14), "Check time steps in fwd and adj"
+                setfct(self.p, fwd[0])
+                setfct(self.v, adj[0])
+                self.MGv.axpy(fact, assemble(self.wkformgrad))
+            #TODO: add boundary term for abs bc
 
     def solveadj_constructgrad(self):   self.solveadj(True)
 

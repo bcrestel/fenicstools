@@ -34,7 +34,7 @@ class AcousticWave():
         self.u1init = None  # provides u1 = u(t=t0+/-Dt)
         self.bc = None
         self.abc = False
-        self.ftime = lambda x: 0.0  # ftime(tt) = src term @ t=tt (in np.array())
+        self.ftime = lambda t: 0.0  # ftime(tt) = src term @ t=tt (in np.array())
         self.set_fwd()  # default is forward problem
 
 
@@ -236,17 +236,11 @@ class AcousticWave():
         if not self.u1init == None: self.u1 = self.u1init
         else:
             assert(not self.utinit == None)
-            #self.rhs.vector()[:] = self.ftime(tt) - \
-            #self.fwdadj*(self.D*self.utinit.vector()).array() - \
-            #(self.K*self.u0.vector()).array()
             setfct(self.rhs, self.ftime(tt))
             self.rhs.vector().axpy(-self.fwdadj, self.D*self.utinit.vector())
             self.rhs.vector().axpy(-1.0, self.K*self.u0.vector())
             if not self.bc == None: self.bc.apply(self.rhs.vector())
             self.solverM.solve(self.sol.vector(), self.rhs.vector())
-            #self.u1.vector()[:] = self.u0.vector().array() + \
-            #self.fwdadj*self.Dt*self.utinit.vector().array() + \
-            #0.5*self.Dt**2*self.sol.vector().array()
             setfct(self.u1, self.u0)
             self.u1.vector().axpy(self.fwdadj*self.Dt, self.utinit.vector())
             self.u1.vector().axpy(0.5*self.Dt**2, self.sol.vector())

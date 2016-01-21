@@ -83,3 +83,9 @@ def checkdt_abc(Dt, h, q, c_max, Mlump, Dlump, timestepper):
         else:   alpha = 3.
     else:   alpha = 5.
     assert Dt <= h/(q*alpha*c_max), "Error: You need to choose a smaller Dt"
+
+
+def isequal(a, b, rtol=1e-14):
+    """ Checks if 2 values are equal w/ relative tolerance """
+    return np.abs(a-b) <= rtol*np.abs(b)
+

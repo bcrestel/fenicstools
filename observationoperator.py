@@ -4,6 +4,7 @@ from numpy import sqrt
 from numpy.linalg import norm
 from numpy.random import randn
 import matplotlib.pyplot as plt
+from fenicstools.miscfenics import isequal
 
 try:
     from dolfin import Function, TrialFunction, TestFunction, \
@@ -187,7 +188,6 @@ class ObsPointwise(ObservationOperator):
         PtSrc = PointSources(self.V, self.Points)
         self.B = PtSrc.PtSrc
 
-
     def Bdotlocal(self, uin):
         """Compute B.uin as a np.array, using only local info
         uin must be a Function(self.V)"""
@@ -219,7 +219,7 @@ class ObsPointwise(ObservationOperator):
     def BTdotvec(self, uin, outvect):
         """ Compute B^T.uin """
         isarray(uin)
-        outvect[:] = 0.
+        outvect.zero()
         for ii, bb in enumerate(self.B):
             outvect += bb*uin[ii]
 
@@ -277,20 +277,21 @@ class TimeObsPtwise():
     Create time-dependent pointwise observation operator
     Arguments to assemble:
         paramObsPtwise = parameters used to create ptwise observation operator
-        times = [t0, t1, t2, T], times to initialize time-filtering function
+        timefilter = [t0, t1, t2, T], times to initialize time-filtering function
         mycomm = MPI communicator
     """
 
-    def __init__(self, paramObsPtwise, times=None, mycomm=None):
+    def __init__(self, paramObsPtwise, timefilter=None, mycomm=None):
         self.PtwiseObs = ObsPointwise(paramObsPtwise, mycomm)
         u = Function(self.PtwiseObs.V)
         self.outvec = u.vector()
-        self.st = TimeFilter(times)
+        self.st = TimeFilter(timefilter)
 
 
     def obs(self, uin):
         """ return result from pointwise observation w/o time-filtering """
-        return  self.PtwiseObs(uin)
+        isFunction(uin)
+        return  self.PtwiseObs.Bdot(uin)
 
     def costfct(self, uin, udin, times):
         """ compute cost functional
@@ -305,19 +306,33 @@ class TimeObsPtwise():
         if uin.shape[0] == len(times):
             uin = uin.T
             udin = udin.T
+
         factors = np.ones(len(times))
         factors[0], factors[-1] = 0.5, 0.5
         Dt = times[1] - times[0]
         diff = ((uin - udin)**2)*factors*(self.st.evaluate(times))
         return 0.5*Dt * diff.sum().sum()
 
-    def assemble_rhsadh(self, uin, udin, outp, tt, bc):
-        #TODO: to be checked
-        outp.vector()[:] = 0.0
-        self.PtwiseObs.BTdotvec(uin - udin, self.outvec)
-        outp.vector().axpy(-self.st(tt), self.outvec)
-        bc.apply(outp.vector())
+    def assemble_rhsadj(self, uin, udin, times, bcadj):
+        """ Assemble data for rhs of adj eqn 
+        uin.shape must be 'recv x time' """
+        assert uin.shape == udin.shape, "uin and udin must have same shape"
+        assert uin.shape[0] == len(times) or uin.shape[1] == len(times), \
+        "must have as many time steps in uin as in times"
+        if uin.shape[0] == len(times):
+            uin = uin.T
+            udin = udin.T
 
+        self.diff = uin - udin
+        self.times = times
+        self.bcadj = bcadj
+
+    def ftimeadj(self, tt):
+        """ Evaluate source term for adj eqn at time tt """
+        dd = self.diff[int(np.where(isequal(self.times, tt, 1e-14))[0])]
+        self.PtwiseObs.BTdotvec(dd, self.outvec)
+        if not self.bcadj == None:  self.bcadj.apply(self.outvec.vector())
+        return -1.0*self.st(tt)*self.outvec.array()
 
     def incradj(self, uin, tt):
         #TODO: to be checked
