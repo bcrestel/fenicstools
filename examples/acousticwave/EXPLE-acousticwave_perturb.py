@@ -10,7 +10,7 @@ from shutil import rmtree
 from fenicstools.plotfenics import PlotFenics
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
-from fenicstools.miscfenics import checkdt
+from fenicstools.miscfenics import checkdt, setfct
 try:
     from dolfin import UnitSquareMesh, FunctionSpace, Constant, DirichletBC, \
     interpolate, Expression, Function, SubDomain, MPI, mpi_comm_world
@@ -28,14 +28,13 @@ Nxy = 100
 mesh = UnitSquareMesh(Nxy, Nxy)
 h = 1./Nxy
 Vl = FunctionSpace(mesh, 'Lagrange', 1)
-r = 5
-Dt = 2e-4   #Dt = h/(r*alpha*c_max)
+r = 2
+Dt = 5e-4   #Dt = h/(r*alpha*c_max)
 checkdt(Dt, h, r, 2.0, True)
-tf = 1.0
+tf = 1.2
 
 # Source term:
-#fpeak = .4 # .4Hz => up to 10Hz in input signal
-fpeak = 10.
+fpeak = 4. # 4Hz => up to 10Hz in input signal
 Ricker = RickerWavelet(fpeak, 1e-10)
 
 # Boundary conditions:
@@ -57,11 +56,6 @@ Wave.lump = True
 #Wave.set_abc(mesh, AllFour(), True)
 lambda_target = Expression('1.0 + 3.0*(' \
 '(x[0]>=0.3)*(x[0]<=0.7)*(x[1]>=0.3)*(x[1]<=0.7))') 
-#'(x[0]>=0.3)*(x[0]<=0.7)*(x[1]>=0.3)*(x[1]<=0.7) +' \
-#'((x[0]-0.2)*10*(x[0]>0.2)*(x[0]<0.3) +' \
-#'(-x[0]+0.8)*10*(x[0]>0.7)*(x[0]<0.8))*(x[1]>0.2)*(x[1]<0.8) +' \
-#'((x[1]-0.2)*10*(x[1]>0.2)*(x[1]<0.3) +' \
-#'(-x[1]+0.8)*10*(x[1]>0.7)*(x[1]<0.8))*(x[0]>0.2)*(x[0]<0.8))')    # square perturbation in the middle
 lambda_target_fn = interpolate(lambda_target, Vl)
 Wave.update({'lambda':lambda_target_fn, 'rho':1.0, \
 't0':0.0, 'tf':tf, 'Dt':Dt, 'u0init':Function(V), 'utinit':Function(V)})
@@ -75,7 +69,7 @@ if not mycomm == None:  MPI.barrier(mycomm)
 try:
     boolplot = int(sys.argv[1])
 except:
-    boolplot = 50
+    boolplot = 20
 if boolplot > 0:
     filename, ext = splitext(sys.argv[0])
     #filename = filename + '0'
@@ -87,7 +81,7 @@ if boolplot > 0:
     plotp = Function(V)
     for index, pp in enumerate(sol):
         if index%boolplot == 0:
-            plotp.vector()[:] = pp[0]
+            setfct(plotp, pp[0])
             myplot.plot_vtk(plotp, index)
     myplot.gather_vtkplots()
     # Plot medium
