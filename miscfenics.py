@@ -39,26 +39,29 @@ def apply_noise(UD, noisepercent, mycomm=None):
 # Checkers
 def isFunction(m_in):
     if not isinstance(m_in, Function):
-     raise WrongInstanceError("m_in should be a Dolfin Function")
+     raise WrongInstanceError("input should be a Dolfin Function")
 
 def isVector(m_in):
     if not isinstance(m_in, GenericVector):
-     raise WrongInstanceError("m_in should be a Dolfin Generic Vector")
+     raise WrongInstanceError("input should be a Dolfin Generic Vector")
 
 def isarray(uin):
     if not isinstance(uin, np.ndarray):
-     raise WrongInstanceError("uin should be a Numpy array")
+     raise WrongInstanceError("input should be a Numpy array")
 
 def arearrays(uin, udin):
     if not (isinstance(uin, np.ndarray) and isinstance(udin, np.ndarray)):
-     raise WrongInstanceError("uin and udin should be a Numpy array")
+     raise WrongInstanceError("inputs should be Numpy arrays")
 
 def setfct(fct, value):
+    isFunction(fct)
     if isinstance(value, np.ndarray):
         fct.vector()[:] = value
+    elif isinstance(value, GenericVector):
+        fct.vector().zero()
+        fct.vector().axpy(1.0, value)
     elif isinstance(value, Function):
-        fct.vector()[:] = 0.0
-        fct.vector().axpy(1.0, value.vector())
+        setfct(fct, value.vector())
     elif isinstance(value, float):
         fct.vector()[:] = value
     elif isinstance(value, int):
