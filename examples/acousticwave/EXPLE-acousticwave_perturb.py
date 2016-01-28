@@ -4,16 +4,20 @@ perturbation in the middle. Neumann boundary conditions all around.
 """
 
 import sys
+import numpy as np
+import matplotlib.pyplot as plt
 from os.path import splitext, isdir
 from shutil import rmtree
 
 from fenicstools.plotfenics import PlotFenics
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
+from fenicstools.observationoperator import TimeObsPtwise, TimeFilter
 from fenicstools.miscfenics import checkdt, setfct
 try:
     from dolfin import UnitSquareMesh, FunctionSpace, Constant, DirichletBC, \
-    interpolate, Expression, Function, SubDomain, MPI, mpi_comm_world
+    interpolate, Expression, Function, SubDomain, \
+    MPI, mpi_comm_world
     mycomm = mpi_comm_world()
     myrank = MPI.rank(mycomm)
 except:
@@ -24,17 +28,24 @@ except:
 
 
 # Inputs:
-Nxy = 100
+#fpeak = 4. # 4Hz => up to 10Hz in input signal
+#Nxy = 100
+#Dt = 5e-4   #Dt = h/(r*alpha*c_max)
+#tf = 1.4
+#mytf = TimeFilter([0.,.2,1.2,1.4])
+
+fpeak = .4 # 4Hz => up to 10Hz in input signal
+Nxy = 10
+Dt = 1e-4   #Dt = h/(r*alpha*c_max)
+tf = 7.0
+mytf = TimeFilter([0.,1.,6.,tf])
+
 mesh = UnitSquareMesh(Nxy, Nxy)
 h = 1./Nxy
 Vl = FunctionSpace(mesh, 'Lagrange', 1)
 r = 2
-Dt = 5e-4   #Dt = h/(r*alpha*c_max)
 checkdt(Dt, h, r, 2.0, True)
-tf = 1.2
-
 # Source term:
-fpeak = 4. # 4Hz => up to 10Hz in input signal
 Ricker = RickerWavelet(fpeak, 1e-10)
 
 # Boundary conditions:
@@ -54,7 +65,7 @@ Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
 Wave.timestepper = 'backward'
 Wave.lump = True
 #Wave.set_abc(mesh, AllFour(), True)
-lambda_target = Expression('1.0 + 3.0*(' \
+lambda_target = Expression('1.0 + 0.0*(' \
 '(x[0]>=0.3)*(x[0]<=0.7)*(x[1]>=0.3)*(x[1]<=0.7))') 
 lambda_target_fn = interpolate(lambda_target, Vl)
 Wave.update({'lambda':lambda_target_fn, 'rho':1.0, \
@@ -62,8 +73,18 @@ Wave.update({'lambda':lambda_target_fn, 'rho':1.0, \
 Wave.ftime = mysrc
 sol, tmp = Wave.solve()
 if not mycomm == None:  MPI.barrier(mycomm)
-#TODO: Add observation and check with paraview
-#TODO: Add observation with a "fading" filter
+# Observations
+myObs = TimeObsPtwise({'V':V, 'Points':[[.5,.2], [.5,.8], [.2,.5], [.8,.5]]})
+Bp = np.zeros((4, len(sol)))
+mytimes = np.zeros(len(sol))
+solp = Function(V)
+for index, pp in enumerate(sol):
+    setfct(solp, pp[0])
+    Bp[:,index] = myObs.obs(solp)
+    mytimes[index] = pp[1]
+Bpf = Bp*mytf.evaluate(mytimes)
+#TODO: check against paraview that these numbers make sense
+
 
 # Plots:
 try:
@@ -87,3 +108,11 @@ if boolplot > 0:
     # Plot medium
     myplot.set_varname('lambda')
     myplot.plot_vtk(lambda_target_fn)
+    # Plot observations
+    fig = plt.figure()
+    for ii in range(Bp.shape[0]):
+        ax = fig.add_subplot(2,2,ii+1)
+        ax.plot(mytimes, Bp[ii,:], 'b')
+        ax.plot(mytimes, Bpf[ii,:], 'r--')
+        ax.set_title('Plot'+str(ii))
+    fig.savefig(filename + '/observations.eps')
