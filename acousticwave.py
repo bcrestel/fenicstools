@@ -21,6 +21,9 @@ from linalg.lumpedmatrixsolver import LumpedMatrixSolverS
 
 
 class AcousticWave():
+    """
+    Solution of forward and adjoint equations for acoustic inverse problem
+    """
 
     def __init__(self, functionspaces_V):
         """

@@ -1,3 +1,7 @@
+"""
+General functions for Fenics
+"""
+
 import numpy as np
 from numpy import sqrt
 from numpy.linalg import norm

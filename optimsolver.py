@@ -1,8 +1,11 @@
+"""
+Library of functions used to solve optimization problem
+"""
+
 import sys
 import numpy as np
 from linalg.cgsolverSteihaug import CGSolverSteihaug
 
-"""Library to solve optimization problem"""
 
 def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6):
     """

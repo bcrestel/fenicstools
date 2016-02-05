@@ -1,6 +1,8 @@
 """
 Assemble matrices, encode sources,...
+Not used anymore
 """
+#TODO: Check if it is still used
 
 from dolfin import *
 import os

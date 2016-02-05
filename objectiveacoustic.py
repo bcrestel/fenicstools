@@ -6,8 +6,10 @@ LUSolver()
 from miscfenics import setfct, isequal
 
 class ObjectiveAcoustic(LinearOperator):
-    """Computes data misfit, gradient and Hessian evaluation for the seismic
-inverse problem using acoustic wave data"""
+    """
+    Computes data misfit, gradient and Hessian evaluation for the seismic
+    inverse problem using acoustic wave data
+    """
 
     # CONSTRUCTORS:
     def __init__(self, acousticwavePDE):

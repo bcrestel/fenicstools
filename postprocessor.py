@@ -3,8 +3,9 @@ import numpy as np
 from dolfin import norm, Function, interpolate
 
 class PostProcessor():
-    """Handles printing of results
-    and stopping criteria for optimization"""
+    """
+    Handles printing of results and stopping criteria for optimization
+    """
 
     # Instantiation
     def __init__(self, meth, Vm, mtrue, maxnbLS=15):

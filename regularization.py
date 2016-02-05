@@ -7,8 +7,6 @@ from miscfenics import isFunction, isVector, setfct
 class TV():
     """
     Define Total Variation regularization
-    !!!! WARNING: SHOULD USE CONTINUOUS LINEAR ELEMENTS !!!!
-    Gradient does not check with higher-order elements
     """
 
     def __init__(self, parameters):
