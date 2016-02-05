@@ -4,7 +4,6 @@ from numpy import sqrt
 from numpy.linalg import norm
 from numpy.random import randn
 import matplotlib.pyplot as plt
-from fenicstools.miscfenics import isequal
 
 try:
     from dolfin import Function, TrialFunction, TestFunction, \
@@ -15,7 +14,7 @@ except:
     Constant, Point, as_backend_type, \
     assemble, inner, dx
 from exceptionsfenics import WrongInstanceError
-from miscfenics import isFunction, isarray, arearrays
+from miscfenics import isFunction, isVector, isarray, arearrays, isequal, setfct
 from sourceterms import PointSources
 
 #TODO: fix pb with np.arrays that only soft copy (uin = uin.T). FIXED BUT CHECK
@@ -145,6 +144,7 @@ class ObsEntireDomain(ObservationOperator):
     def _assemble(self):
         self.V = self.parameters['V']
         self.diff = Function(self.V)
+        self.diffv = self.diff.vector()
         self.trial = TrialFunction(self.V)
         self.test = TestFunction(self.V)
         self.W = assemble(inner(self.trial, self.test)*dx)
@@ -159,19 +159,37 @@ class ObsEntireDomain(ObservationOperator):
     # Note: this returns global value (in parallel)
     def costfct(self, uin, udin):
         arearrays(uin, udin)
-        self.diff.vector()[:] = uin - udin
-        return 0.5 * (self.W*self.diff.vector()).inner(self.diff.vector())
+        self.diffv[:] = uin - udin
+        return 0.5 * (self.W*self.diffv).inner(self.diffv)
 
     def assemble_rhsadj(self, uin, udin, outp, bc):
         arearrays(uin, udin)
         isFunction(outp)
-        self.diff.vector()[:] = uin - udin
-        outp.vector()[:] = - (self.W * self.diff.vector()).array()
+        self.diffv[:] = uin - udin
+        outp.vector()[:] = - (self.W * self.diffv).array()
         bc.apply(outp.vector())
 
     def incradj(self, uin):
         isFunction(uin)
-        return self.W * uin.vector()
+        return self.hessian(uin.vector())
+
+    # Make non-array version of cost:
+    def costfct_F(self, uin, udin):
+        isFunction(uin)
+        isFunction(udin)
+        setfct(self.diff, uin.vector()-udin.vector())
+        return 0.5 * (self.W*self.diffv).inner(self.diffv)
+
+    def grad(self, uin, udin):
+        isFunction(uin)
+        isFunction(udin)
+        setfct(self.diff, uin.vector() - udin.vector())
+        return self.W * self.diffv
+
+    def hessian(self, uin):
+        isVector(uin)
+        return self.W * uin
+
 
 
 ##################
