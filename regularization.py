@@ -4,7 +4,6 @@ from dolfin import sqrt, inner, nabla_grad, grad, dx, \
 Function, TestFunction, TrialFunction, assemble
 from miscfenics import isFunction, isVector, setfct
 
-#TODO: investigate cause of gradient inacuraccy
 class TV():
     """
     Define Total Variation regularization

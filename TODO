@@ -6,7 +6,7 @@ TODO list
 
 
     - GENERAL:
-* Code TV regularization + test with denoising problem
+* Test TV with denoising problem
 * Implement primal-dual solver for TV regularization
 
 

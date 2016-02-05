@@ -3,8 +3,10 @@ Test for the TV regularization class.
 - All tests passed except along the most sinuating direction (last one)
 - tested with k=1.0 and k=exp
 - test with eps=0.0001, 0.001, 0.01 and eps=0.1.
-- test with V order 1. !!!! DOES NOT CHECK WITH ORDER > 1 !!!!
+- test with V order = 1, 2, 3. Works but some derivatives are too close to zero
+  to check (Still okay!)
 """
+#TODO: think about analytical derivatives
 
 import dolfin as dl
 import numpy as np
@@ -13,6 +15,7 @@ from fenicstools.regularization import TV
 from fenicstools.miscfenics import setfct
 
 HH = [1e-4, 1e-5, 1e-6]
+#HH = [1e-4, 1e-5, 1e-6, 1e-7, 1e-8]
 
 mesh = dl.UnitSquareMesh(100, 100)
 V = dl.FunctionSpace(mesh, 'Lagrange', 1)
@@ -25,7 +28,7 @@ TV1 = TV({'Vm':V, 'eps':dl.Constant(0.0001), 'k':k})
 print 'Test 1: Smooth medium'
 
 # Verification point, i.e., point at which gradient and Hessian are checked
-m_exp = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=4)
+m_exp = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=1)
 m = dl.interpolate(m_exp, V)
 
 print '\nGradient:'
@@ -45,7 +48,10 @@ for nn in range(8):
         m_in.vector().axpy(-h, dm.vector())
         cost2 = TV1.cost(m_in)
 
+        cost = TV1.cost(m)
+
         GradFD = (cost1 - cost2)/(2.*h)
+        #GradFD = (cost1 - cost)/h
 
         Gradm = TV1.grad(m) 
         Gradm_h = Gradm.inner(dm.vector())
