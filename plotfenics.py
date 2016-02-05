@@ -40,6 +40,16 @@ class PlotFenics:
         File(self.outdir + fname + '.pvd') << variable
         (self.indices).append(index)
 
+    def plot_timeseries(self, timeseries, varname, index, skip, function):
+        """ Plot every 'skip' entry of entry 'index' of a 'timeseries'.
+        'function' = dl.Function """
+        self.set_varname(varname)
+        for ii, sol in timeseries:
+            if ii%skip == 0:
+                setfct(function, sol[index])
+                self.plot_vtk(function, ii)
+        self.gather_vtkplots()
+
     def gather_vtkplots(self):
         """Create pvd file to load all files in paraview"""
         self._check_outdir()
