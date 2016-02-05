@@ -18,6 +18,7 @@ from exceptionsfenics import WrongInstanceError
 from miscfenics import isFunction, isarray, arearrays
 from sourceterms import PointSources
 
+#TODO: fix pb with np.arrays that only soft copy (uin = uin.T). FIXED BUT CHECK
 
 class TimeFilter():
     """ Create time filter to fade out data misfit (hence src term in adj eqn) """
@@ -303,15 +304,15 @@ class TimeObsPtwise():
         assert uin.shape == udin.shape, "uin and udin must have same shape"
         assert uin.shape[0] == len(times) or uin.shape[1] == len(times), \
         "must have as many time steps in uin as in times"
-        if uin.shape[0] == len(times):
-            uin = uin.T
-            udin = udin.T
-
+        if uin.shape[0] == len(times):  diffuinudinsq = (uin.T - udin.T)**2
+        else:   diffuinudinsq = (uin - udin)**2
+        #
         factors = np.ones(len(times))
         factors[0], factors[-1] = 0.5, 0.5
         Dt = times[1] - times[0]
-        diff = ((uin - udin)**2)*factors*(self.st.evaluate(times))
-        return 0.5*Dt * diff.sum().sum()
+        #diff = ((uin - udin)**2)*factors*(self.st.evaluate(times))
+        diff = diffuinudinsq*factors*(self.st.evaluate(times))
+        return 0.5*Dt*(diff.sum().sum())
 
     def assemble_rhsadj(self, uin, udin, times, bcadj):
         """ Assemble data for rhs of adj eqn 
@@ -319,17 +320,15 @@ class TimeObsPtwise():
         assert uin.shape == udin.shape, "uin and udin must have same shape"
         assert uin.shape[0] == len(times) or uin.shape[1] == len(times), \
         "must have as many time steps in uin as in times"
-        if uin.shape[0] == len(times):
-            uin = uin.T
-            udin = udin.T
-
-        self.diff = uin - udin
+        #
+        if uin.shape[0] == len(times):  self.diff = uin.T - udin.T
+        else:   self.diff = uin - udin
         self.times = times
         self.bcadj = bcadj
 
     def ftimeadj(self, tt):
         """ Evaluate source term for adj eqn at time tt """
-        dd = self.diff[int(np.where(isequal(self.times, tt, 1e-14))[0])]
+        dd = self.diff[:, int(np.where(isequal(self.times, tt, 1e-12))[0])]
         self.PtwiseObs.BTdotvec(dd, self.outvec)
         if not self.bcadj == None:  self.bcadj.apply(self.outvec.vector())
         return -1.0*self.st(tt)*self.outvec.array()

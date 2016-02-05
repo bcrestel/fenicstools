@@ -23,6 +23,11 @@ from linalg.lumpedmatrixsolver import LumpedMatrixSolverS
 class AcousticWave():
 
     def __init__(self, functionspaces_V):
+        """
+        Input:
+            functionspaces_V = dict containing functionspaces for state/adj
+        ('V') and med param ('Vl' for lambda and 'Vr' for rho)
+        """
         self.readV(functionspaces_V)
         self.verbose = False    # print info
         self.lump = False   # Lump the mass matrix
@@ -176,7 +181,7 @@ class AcousticWave():
         if self.fwdadj > 0: tt = self.t0 
         else:   tt = self.tf
         if self.verbose:    print 'Compute solution -- time {}'.format(tt)
-        self.u0 = self.u0init
+        setfct(self.u0, self.u0init)
         solout.append([self.u0.vector().array(), tt])
         # Compute u1:
         if not self.u1init == None: self.u1 = self.u1init
@@ -230,7 +235,7 @@ class AcousticWave():
         if self.fwdadj > 0: tt = self.t0 
         else:   tt = self.tf
         if self.verbose:    print 'Compute solution -- time {}'.format(tt)
-        self.u0 = self.u0init
+        setfct(self.u0, self.u0init)
         solout.append([self.u0.vector().array(), tt])
         # Compute u1:
         if not self.u1init == None: self.u1 = self.u1init

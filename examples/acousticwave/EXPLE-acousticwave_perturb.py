@@ -65,7 +65,7 @@ Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
 Wave.timestepper = 'backward'
 Wave.lump = True
 #Wave.set_abc(mesh, AllFour(), True)
-lambda_target = Expression('1.0 + 0.0*(' \
+lambda_target = Expression('1.0 + 3.0*(' \
 '(x[0]>=0.3)*(x[0]<=0.7)*(x[1]>=0.3)*(x[1]<=0.7))') 
 lambda_target_fn = interpolate(lambda_target, Vl)
 Wave.update({'lambda':lambda_target_fn, 'rho':1.0, \
@@ -98,13 +98,14 @@ if boolplot > 0:
         if isdir(filename + '/'):   rmtree(filename + '/')
     if not mycomm == None:  MPI.barrier(mycomm)
     myplot = PlotFenics(filename)
-    myplot.set_varname('p')
     plotp = Function(V)
-    for index, pp in enumerate(sol):
-        if index%boolplot == 0:
-            setfct(plotp, pp[0])
-            myplot.plot_vtk(plotp, index)
-    myplot.gather_vtkplots()
+    myplot.plot_timeseries(sol, 'p', 0, boolplot, plotp)
+#    myplot.set_varname('p')
+#    for index, pp in enumerate(sol):
+#        if index%boolplot == 0:
+#            setfct(plotp, pp[0])
+#            myplot.plot_vtk(plotp, index)
+#    myplot.gather_vtkplots()
     # Plot medium
     myplot.set_varname('lambda')
     myplot.plot_vtk(lambda_target_fn)
