@@ -2,6 +2,7 @@
 Define observation operators for inverse problem
 """
 
+import sys
 import abc
 import numpy as np
 from numpy import sqrt
@@ -350,7 +351,13 @@ class TimeObsPtwise():
 
     def ftimeadj(self, tt):
         """ Evaluate source term for adj eqn at time tt """
-        dd = self.diff[:, int(np.where(isequal(self.times, tt, 1e-12))[0])]
+        try:
+            index = int(np.where(isequal(self.times, tt, 1e-10))[0])
+        except:
+            print 'Error in ftimeadj at time {}'.format(tt)
+            print np.min(np.abs(self.times-tt))
+            sys.exit(0)
+        dd = self.diff[:, index]
         self.PtwiseObs.BTdotvec(dd, self.outvec)
         if not self.bcadj == None:  self.bcadj.apply(self.outvec.vector())
         return -1.0*self.st(tt)*self.outvec.array()

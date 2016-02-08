@@ -5,8 +5,8 @@ TODO list
 * Parallel computations (what solver?), scaling, ...
 
 
-    - GENERAL:
-* Test TV with denoising problem
+    - DENOISING:
+* Implement denoising with Tikhonov regularization
 * Implement primal-dual solver for TV regularization
 
 

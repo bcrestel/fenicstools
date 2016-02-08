@@ -3,6 +3,7 @@ from os.path import isdir
 
 from dolfin import File
 from exceptionsfenics import *
+from miscfenics import setfct
 
 class PlotFenics:
     """
@@ -44,7 +45,7 @@ class PlotFenics:
         """ Plot every 'skip' entry of entry 'index' of a 'timeseries'.
         'function' = dl.Function """
         self.set_varname(varname)
-        for ii, sol in timeseries:
+        for ii, sol in enumerate(timeseries):
             if ii%skip == 0:
                 setfct(function, sol[index])
                 self.plot_vtk(function, ii)

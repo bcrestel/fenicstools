@@ -6,6 +6,7 @@ and homogeneous Neumann boundary conditions everywhere.
 import sys
 from os.path import splitext, isdir
 from shutil import rmtree
+import matplotlib.pyplot as plt
 
 from fenicstools.plotfenics import PlotFenics
 from fenicstools.acousticwave import AcousticWave
@@ -85,18 +86,27 @@ wavepde.ftime = mysrc
 # define objective function:
 waveobj = ObjectiveAcoustic(wavepde)
 waveobj.obsop = obsop
-#
+# data
 print 'generate data'
 waveobj.solvefwd()
 myplot.plot_timeseries(waveobj.solfwd, 'pd', 0, 100, fctV)
 dd = waveobj.Bp.copy()
-#
+# gradient
 print 'assemble gradient'
 waveobj.dd = dd
 waveobj.update_m(lambda_init_fn)
 waveobj.solvefwd_cost()
-print waveobj.misfit
+print 'misfit = {}'.format(waveobj.misfit)
 myplot.plot_timeseries(waveobj.solfwd, 'p', 0, 100, fctV)
+# Plot observations
+fig = plt.figure()
+for ii in range(len(obspts)):
+    ax = fig.add_subplot(2,2,ii+1)
+    ax.plot(waveobj.times, waveobj.dd[ii,:], 'k--')
+    ax.plot(waveobj.times, waveobj.Bp[ii,:], 'b')
+    ax.set_title('Plot'+str(ii))
+fig.savefig(filename + '/observations.eps')
+###################
 # sanity check
 wavepde2 = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
 wavepde2.timestepper = 'backward'
@@ -107,7 +117,8 @@ wavepde2.ftime = mysrc
 waveobj2 = ObjectiveAcoustic(wavepde2)
 waveobj2.obsop = obsop
 waveobj2.solvefwd()
-print ((waveobj.Bp-waveobj2.Bp)**2).sum().sum()
+print 'err = {}'.format(((waveobj.Bp-waveobj2.Bp)**2).sum().sum())
+###################
 #
 waveobj.solveadj_constructgrad()
 myplot.plot_timeseries(waveobj.soladj, 'v', 0, 100, fctV)

@@ -2,7 +2,7 @@ import numpy as np
 
 from dolfin import LinearOperator, Function, TestFunction,\
 assemble, inner, nabla_grad, dx,\
-LUSolver()
+LUSolver
 from miscfenics import setfct, isequal
 
 class ObjectiveAcoustic(LinearOperator):
