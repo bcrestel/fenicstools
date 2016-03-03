@@ -83,7 +83,6 @@ for index, pp in enumerate(sol):
     Bp[:,index] = myObs.obs(solp)
     mytimes[index] = pp[1]
 Bpf = Bp*mytf.evaluate(mytimes)
-#TODO: check against paraview that these numbers make sense
 
 
 # Plots:

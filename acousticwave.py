@@ -20,6 +20,8 @@ from miscfenics import isFunction, isVector, setfct
 from linalg.lumpedmatrixsolver import LumpedMatrixSolverS
 
 
+#TODO: Think about re-defining tf after forward simulation, so as to avoid
+# having different times fwd and bckwd.
 class AcousticWave():
     """
     Solution of forward and adjoint equations for acoustic inverse problem
