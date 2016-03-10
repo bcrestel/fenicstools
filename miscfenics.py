@@ -76,7 +76,8 @@ def checkdt(Dt, h, q, c_max, Mlump):
     """ Checks if Dt is sufficiently small based on some numerical tests """
     if Mlump:   alpha = 3.
     else:   alpha = 4.
-    assert Dt <= h/(q*alpha*c_max), "Error: You need to choose a smaller Dt"
+    upbnd = h/(q*alpha*c_max)
+    assert Dt <= upbnd, 'Error: You need to choose Dt < {}'.format(upbnd)
 
 def checkdt_abc(Dt, h, q, c_max, Mlump, Dlump, timestepper):
     """ Checks if Dt is sufficiently small based on some numerical tests """

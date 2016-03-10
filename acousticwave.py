@@ -154,6 +154,7 @@ class AcousticWave():
         # Matrix D for abs BC
         if self.abc == True:    
             if self.verbose:    print 'assemble D',
+            Mfull = assemble(self.weak_m)
             Dfull = assemble(self.weak_d)
             if self.lumpD:
                 self.D = LumpedMatrixSolverS(self.V)
