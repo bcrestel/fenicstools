@@ -293,7 +293,10 @@ class AcousticWave():
         return solout, self.computeerror()
 
 
-    def computeerror(self):
+    def computeerror(self): 
+        self.computerelativeerror()
+
+    def computerelativeerror(self):
         if not self.exact == None:
             #MM = assemble(inner(self.trial, self.test)*dx)
             MM = self.M
@@ -302,6 +305,14 @@ class AcousticWave():
             diff = self.exact.vector() - self.u1.vector()
             if norm_ex > 1e-16: return np.sqrt((MM*diff).inner(diff))/norm_ex
             else:   return np.sqrt((MM*diff).inner(diff))
+        else:   return []
+
+
+    def computeabserror(self):
+        if not self.exact == None:
+            MM = self.M
+            diff = self.exact.vector() - self.u1.vector()
+            return np.sqrt((MM*diff).inner(diff))
         else:   return []
 
 
