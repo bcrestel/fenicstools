@@ -29,7 +29,7 @@ def u0_boundary(x, on_boundary):
     return on_boundary
 ubc = Constant("0.0")
 
-q = 3
+q = 2
 if myrank == 0: print '\npolynomial order = {}'.format(q)
 
 for Nxy in NN:

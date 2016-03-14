@@ -29,16 +29,16 @@ c = np.sqrt(lam/rho)
 tf = 1./c # Final time
 direction = 0
 u0_expr = \
-Expression('100*pow(x[i]-.25,2)*pow(x[i]-0.75,2)*(x[i]<=0.75)*(x[i]>=0.25)', \
+Expression('100*pow(x[i]-0.25,2)*pow(x[i]-0.75,2)*(x[i]<=0.75)*(x[i]>=0.25)', \
 i=direction)
 uex_expr = \
-Expression('-100*pow(x[i]-.25,2)*pow(x[i]-0.75,2)*(x[i]<=0.75)*(x[i]>=0.25)', \
+Expression('-100*pow(x[i]-0.25,2)*pow(x[i]-0.75,2)*(x[i]<=0.75)*(x[i]>=0.25)', \
 i=direction)
 def u0_boundary(x, on_boundary):
     return (x[direction] < 1e-16 or x[direction] > 1.0-1e-16) and on_boundary
 ubc = Constant("0.0")
 
-q = 3
+q = 2
 if myrank == 0: print '\npolynomial order = {}'.format(q)
 alpha = 3.
 

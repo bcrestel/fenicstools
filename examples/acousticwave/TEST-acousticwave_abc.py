@@ -29,16 +29,16 @@ c = np.sqrt(lam/rho)
 tf = 0.5/c # Final time
 direction = 0   # direction of the 1D wave
 u0_expr = Expression(\
-'100*pow(x[i]-.25,2)*pow(x[i]-0.75,2)*(x[i]<=0.75)*(x[i]>=0.25)', i=direction)
+'100*pow(x[i]-0.25,2)*pow(x[i]-0.75,2)*(x[i]<=0.75)*(x[i]>=0.25)', i=direction)
 exact_expr = Expression(\
-'50*pow(x[i]+.25,2)*pow(x[i]-0.25,2)*(x[i]<=0.25) + ' + \
-'50*pow(x[i]-.75,2)*pow(x[i]-1.25,2)*(x[i]>=0.75)', i=direction)
+'50*pow(x[i]+0.25,2)*pow(x[i]-0.25,2)*(x[i]<=0.25) + ' + \
+'50*pow(x[i]-0.75,2)*pow(x[i]-1.25,2)*(x[i]>=0.75)', i=direction)
 class LeftRight(SubDomain):
     def inside(self, x, on_boundary):
         return (x[direction] < 1e-16 or x[direction] > 1.0 - 1e-16) \
         and on_boundary
 
-q = 3
+q = 2
 if myrank == 0: print '\npolynomial order = {}'.format(q)
 alpha = 3.
 

@@ -35,6 +35,8 @@ for Nxy in NN:
     Dt = h/(q*5.*np.sqrt(c2))
 
     Wave = AcousticWave({'V':V, 'Vl':V, 'Vr':V})
+    Wave.timestepper = 'backward'
+    Wave.lump = True
     Wave.exact = interpolate(exact_expr, V)
     Wave.bc = DirichletBC(V, ubc, u0_boundary)
     Wave.update({'lambda':lam, 'rho':rho, 't0':0.0, 'tf':tf, 'Dt':Dt,\

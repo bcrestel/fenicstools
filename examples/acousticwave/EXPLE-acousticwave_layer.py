@@ -22,7 +22,7 @@ except:
 
 direction = 0   # direction of the 1D wave
 u0_expr = Expression(\
-'100*pow(x[i]-.5,2)*pow(x[i]-1.,2)*(x[i]<=1.)*(x[i]>=0.5)', i=direction)
+'100*pow(x[i]-0.5,2)*pow(x[i]-1.0,2)*(x[i]<=1.0)*(x[i]>=0.5)', i=direction)
 class LeftRight(SubDomain):
     def inside(self, x, on_boundary):
         return (x[direction] < 1e-16 or x[direction] > 1.0 - 1e-16) \

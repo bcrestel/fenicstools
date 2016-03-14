@@ -11,8 +11,8 @@ from fenicstools.acousticwave import AcousticWave
 from dolfin import UnitSquareMesh, FunctionSpace, Constant, DirichletBC, \
 assemble, interpolate, Expression, Function, TestFunction, dx
 
-NN = np.array((25, 50))
-#NN = np.array((25, 50, 100, 200))
+#NN = np.array((25, 50))
+NN = np.array((25, 50, 100, 200))
 ERROR = []
 
 # Medium ppties:
@@ -21,10 +21,10 @@ rho = 1.0
 c = np.sqrt(lam/rho)
 tf = 0.2/c  # Final time
 exact_expr = Expression(\
-'(pow(t,2)-(pow(x[0]-.5,2)+pow(x[1]-.5,2)))*(sqrt(pow(x[0]-.5,2)+pow(x[1]-.5,2))<=t)', \
+'(pow(t,2)-(pow(x[0]-0.5,2)+pow(x[1]-0.5,2)))*(sqrt(pow(x[0]-0.5,2)+pow(x[1]-0.5,2))<=t)', \
 t=tf)
 def source(tt):
-    return Expression('6*(sqrt(pow(x[0]-.5,2)+pow(x[1]-.5,2))<=t)', t=tt)
+    return Expression('6*(sqrt(pow(x[0]-0.5,2)+pow(x[1]-0.5,2))<=t)', t=tt)
 
 for Nxy in NN:
     h = 1./Nxy
@@ -35,7 +35,9 @@ for Nxy in NN:
     Dt = h/(q*5.*c)
 
     Wave = AcousticWave({'V':V, 'Vl':V, 'Vr':V})
-    Wave.verbose = True
+    Wave.timestepper = 'backward'
+    Wave.lump = True
+    #Wave.verbose = True
     Wave.exact = interpolate(exact_expr, V)
     Wave.update({'lambda':lam, 'rho':rho, 't0':0.0, 'tf':tf, 'Dt':Dt,\
     'u0init':Function(V), 'utinit':Function(V)})
