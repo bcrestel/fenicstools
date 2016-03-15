@@ -1,5 +1,6 @@
 import sys
 import numpy as np
+from miscfenics import isequal
 
 try:
     from dolfin import TestFunction, TrialFunction, Function, GenericVector, \
@@ -20,8 +21,7 @@ from miscfenics import isFunction, isVector, setfct
 from linalg.lumpedmatrixsolver import LumpedMatrixSolverS
 
 
-#TODO: Think about re-defining tf after forward simulation, so as to avoid
-# having different times fwd and bckwd.
+#TODO: change time iteration so that nb of time steps is computed before-hand.
 class AcousticWave():
     """
     Solution of forward and adjoint equations for acoustic inverse problem
@@ -116,6 +116,13 @@ class AcousticWave():
         if parameters_m.has_key('t0'):   self.t0 = parameters_m['t0'] 
         if parameters_m.has_key('tf'):   self.tf = parameters_m['tf'] 
         if parameters_m.has_key('Dt'):   self.Dt = parameters_m['Dt'] 
+        if parameters_m.has_key('t0') or parameters_m.has_key('tf') or parameters_m.has_key('Dt'):
+            self.Nt = int(round((self.tf-self.t0)/self.Dt))
+            self.Tf = self.t0 + self.Nt*self.Dt
+            assert isequal(self.Tf, self.tf, 1e-2), "Final time differs by more than 1%"
+            if not isequal(self.Tf, self.tf, 1e-12):
+                print 'Final time modified from {} to {} ({}%)'.\
+                format(self.tf, self.Tf, abs(self.Tf-self.tf)/self.tf)
         # Initial conditions:
         if parameters_m.has_key('u0init'):   self.u0init = parameters_m['u0init']
         if parameters_m.has_key('utinit'):   self.utinit = parameters_m['utinit']
@@ -170,22 +177,31 @@ class AcousticWave():
         else:   self.D = 0.0
 
 
+#    def solve(self):
+#        """ Wrapper for default way to solve """
+#        if self.timestepper == 'backward':  return self.solve_backward()
+#        elif self.timestepper == 'centered':    return self.solve_centered()
+#        else:
+#            print "Time stepper not implemented"
+#            sys.exit(1)
+
+
     #@profile
     def solve(self):
-        """ Wrapper for default way to solve """
-        if self.timestepper == 'backward':  return self.solve_backward()
-        elif self.timestepper == 'centered':    return self.solve_centered()
+        """ General solver method """
+        if self.timestepper == 'backward':
+            def iterate(tt):  self.iteration_backward(tt)
+        elif self.timestepper == 'centered':
+            def iterate(tt):  self.iteration_centered(tt)
         else:
             print "Time stepper not implemented"
             sys.exit(1)
 
-
-    def solve_centered(self):
         if self.verbose:    print 'Compute solution'
         solout = [] # Store computed solution
         # u0:
         if self.fwdadj > 0: tt = self.t0 
-        else:   tt = self.tf
+        else:   tt = self.Tf
         if self.verbose:    print 'Compute solution -- time {}'.format(tt)
         setfct(self.u0, self.u0init)
         solout.append([self.u0.vector().array(), tt])
@@ -205,17 +221,14 @@ class AcousticWave():
         if self.verbose:    print 'Compute solution -- time {}'.format(tt)
         solout.append([self.u1.vector().array(), tt])
         # Iteration
-        if self.fwdadj > 0.:    target = self.tf*(1.0 + 1e-12)
-        else:   
-            if abs(self.t0) < 1e-14:    target = self.t0 - 1e-12
-            else:   target = self.t0*(1.0 - 1e-12)
-        while self.fwdadj*(tt + self.fwdadj*self.Dt) < target:
-            self.rhs.vector()[:] = (self.Dt**2)*self.ftime(tt)
-            self.rhs.vector().axpy(-1.0, self.MminD*self.u0.vector())
-            self.rhs.vector().axpy(2.0, self.M*self.u1.vector())
-            self.rhs.vector().axpy(-self.Dt**2, self.K*self.u1.vector())
-            if not self.bc == None: self.bc.apply(self.rhs.vector())
-            self.solverMplD.solve(self.u2.vector(), self.rhs.vector())
+        for nn in xrange(1, self.Nt):
+            iterate(tt)
+#            self.rhs.vector()[:] = (self.Dt**2)*self.ftime(tt)
+#            self.rhs.vector().axpy(-1.0, self.MminD*self.u0.vector())
+#            self.rhs.vector().axpy(2.0, self.M*self.u1.vector())
+#            self.rhs.vector().axpy(-self.Dt**2, self.K*self.u1.vector())
+#            if not self.bc == None: self.bc.apply(self.rhs.vector())
+#            self.solverMplD.solve(self.u2.vector(), self.rhs.vector())
             # Advance to next time step
             setfct(self.u0, self.u1)
             setfct(self.u1, self.u2)
@@ -224,77 +237,96 @@ class AcousticWave():
                 print 'Compute solution -- time {}, rhs {}'.\
                 format(tt, np.max(np.abs(self.ftime(tt))))
             solout.append([self.u1.vector().array(),tt])
-        if self.fwdadj > 0.:    timeerror = abs(tt - self.tf)/self.tf
-        else:    
-            if abs(self.t0) < 1e-14:    timeerror = abs(tt - self.t0)
-            else:   timeerror = abs(tt - self.t0)/self.t0
-        if timeerror > 1e-12:
-            raise RuntimeError('Final time is {} instead of {}'.format(tt, \
-            self.tf), 'Relative error is {}'.format(timeerror))
-        return solout, self.computeerror()
-
-
-    def solve_backward(self):
-        if self.verbose:    print 'Compute solution'
-        solout = [] # Store computed solution
-        # u0:
-        if self.fwdadj > 0: tt = self.t0 
-        else:   tt = self.tf
-        if self.verbose:    print 'Compute solution -- time {}'.format(tt)
-        setfct(self.u0, self.u0init)
-        solout.append([self.u0.vector().array(), tt])
-        # Compute u1:
-        if not self.u1init == None: self.u1 = self.u1init
+        if self.fwdadj > 0.0:   
+            assert isequal(tt, self.Tf, 1e-14), 'tt={}, Tf={}'.format(tt, self.Tf)
         else:
-            assert(not self.utinit == None)
-            setfct(self.rhs, self.ftime(tt))
-            self.rhs.vector().axpy(-self.fwdadj, self.D*self.utinit.vector())
-            self.rhs.vector().axpy(-1.0, self.K*self.u0.vector())
-            if not self.bc == None: self.bc.apply(self.rhs.vector())
-            self.solverM.solve(self.sol.vector(), self.rhs.vector())
-            setfct(self.u1, self.u0)
-            self.u1.vector().axpy(self.fwdadj*self.Dt, self.utinit.vector())
-            self.u1.vector().axpy(0.5*self.Dt**2, self.sol.vector())
-        tt += self.fwdadj*self.Dt
-        if self.verbose:    print 'Compute solution -- time {}'.format(tt)
-        solout.append([self.u1.vector().array(), tt])
-        # Iteration
-        # TODO: re-think about that; should include Dt
-        if self.fwdadj > 0.:    target = self.tf*(1.0 + 1e-12)
-        else:   
-            if abs(self.t0) < 1e-14:    target = self.t0 - 1e-12
-            else:   target = self.t0*(1.0 - 1e-12)
-        while self.fwdadj*(tt + self.fwdadj*self.Dt) < target:
-            #self.rhs.vector()[:] = self.Dt*self.ftime(tt)
-            setfct(self.rhs, self.Dt*self.ftime(tt))
-            self.rhs.vector().axpy(-self.Dt, self.K*self.u1.vector())
-            self.rhs.vector().axpy(-1.0, self.D*(self.u1.vector()-self.u0.vector()))
-            if not self.bc == None: self.bc.apply(self.rhs.vector())
-            self.solverM.solve(self.sol.vector(), self.rhs.vector())
-            self.u2.vector()[:] = 0.0
-            self.u2.vector().axpy(2.0, self.u1.vector())
-            self.u2.vector().axpy(-1.0, self.u0.vector())
-            self.u2.vector().axpy(self.Dt, self.sol.vector())
-            # Advance to next time step
-            setfct(self.u0, self.u1)
-            setfct(self.u1, self.u2)
-            tt += self.fwdadj*self.Dt
-            if self.verbose:    
-                print 'Compute solution -- time {}, max(rhs) {}, min(rhs) {}'.format(\
-                tt, np.max(self.ftime(tt)), np.min(self.ftime(tt)))
-            solout.append([self.u1.vector().array(),tt])
-        if self.fwdadj > 0.:    timeerror = abs(tt - self.tf)/self.tf
-        else:    
-            if abs(self.t0) < 1e-14:    timeerror = abs(tt - self.t0)
-            else:   timeerror = abs(tt - self.t0)/self.t0
-        if timeerror > 1e-12:
-            raise RuntimeError('Final time is {} instead of {}'.format(tt, \
-            self.tf), 'Relative error is {}'.format(timeerror))
+            assert isequal(tt, self.T0, 1e-14), 'tt={}, T0={}'.format(tt, self.T0)
         return solout, self.computeerror()
+
+    def iteration_centered(self, tt):
+        #self.rhs.vector()[:] = (self.Dt**2)*self.ftime(tt)
+        setfct(self.rhs, (self.Dt**2)*self.ftime(tt))
+        self.rhs.vector().axpy(-1.0, self.MminD*self.u0.vector())
+        self.rhs.vector().axpy(2.0, self.M*self.u1.vector())
+        self.rhs.vector().axpy(-self.Dt**2, self.K*self.u1.vector())
+        if not self.bc == None: self.bc.apply(self.rhs.vector())
+        self.solverMplD.solve(self.u2.vector(), self.rhs.vector())
+
+    def iteration_backward(self, tt):
+        #self.rhs.vector()[:] = self.Dt*self.ftime(tt)
+        setfct(self.rhs, self.Dt*self.ftime(tt))
+        self.rhs.vector().axpy(-self.Dt, self.K*self.u1.vector())
+        self.rhs.vector().axpy(-1.0, self.D*(self.u1.vector()-self.u0.vector()))
+        if not self.bc == None: self.bc.apply(self.rhs.vector())
+        self.solverM.solve(self.sol.vector(), self.rhs.vector())
+        #self.u2.vector()[:] = 0.0
+        #self.u2.vector().axpy(2.0, self.u1.vector())
+        setfct(self.u2, 2.0*self.u1.vector())
+        self.u2.vector().axpy(-1.0, self.u0.vector())
+        self.u2.vector().axpy(self.Dt, self.sol.vector())
+
+
+#    def solve_backward(self):
+#        if self.verbose:    print 'Compute solution'
+#        solout = [] # Store computed solution
+#        # u0:
+#        if self.fwdadj > 0: tt = self.t0 
+#        else:   tt = self.tf
+#        if self.verbose:    print 'Compute solution -- time {}'.format(tt)
+#        setfct(self.u0, self.u0init)
+#        solout.append([self.u0.vector().array(), tt])
+#        # Compute u1:
+#        if not self.u1init == None: self.u1 = self.u1init
+#        else:
+#            assert(not self.utinit == None)
+#            setfct(self.rhs, self.ftime(tt))
+#            self.rhs.vector().axpy(-self.fwdadj, self.D*self.utinit.vector())
+#            self.rhs.vector().axpy(-1.0, self.K*self.u0.vector())
+#            if not self.bc == None: self.bc.apply(self.rhs.vector())
+#            self.solverM.solve(self.sol.vector(), self.rhs.vector())
+#            setfct(self.u1, self.u0)
+#            self.u1.vector().axpy(self.fwdadj*self.Dt, self.utinit.vector())
+#            self.u1.vector().axpy(0.5*self.Dt**2, self.sol.vector())
+#        tt += self.fwdadj*self.Dt
+#        if self.verbose:    print 'Compute solution -- time {}'.format(tt)
+#        solout.append([self.u1.vector().array(), tt])
+#        # Iteration
+#        # TODO: re-think about that; should include Dt
+#        if self.fwdadj > 0.:    target = self.tf*(1.0 + 1e-12)
+#        else:   
+#            if abs(self.t0) < 1e-14:    target = self.t0 - 1e-12
+#            else:   target = self.t0*(1.0 - 1e-12)
+#        while self.fwdadj*(tt + self.fwdadj*self.Dt) < target:
+#            #self.rhs.vector()[:] = self.Dt*self.ftime(tt)
+#            setfct(self.rhs, self.Dt*self.ftime(tt))
+#            self.rhs.vector().axpy(-self.Dt, self.K*self.u1.vector())
+#            self.rhs.vector().axpy(-1.0, self.D*(self.u1.vector()-self.u0.vector()))
+#            if not self.bc == None: self.bc.apply(self.rhs.vector())
+#            self.solverM.solve(self.sol.vector(), self.rhs.vector())
+#            self.u2.vector()[:] = 0.0
+#            self.u2.vector().axpy(2.0, self.u1.vector())
+#            self.u2.vector().axpy(-1.0, self.u0.vector())
+#            self.u2.vector().axpy(self.Dt, self.sol.vector())
+#            # Advance to next time step
+#            setfct(self.u0, self.u1)
+#            setfct(self.u1, self.u2)
+#            tt += self.fwdadj*self.Dt
+#            if self.verbose:    
+#                print 'Compute solution -- time {}, max(rhs) {}, min(rhs) {}'.format(\
+#                tt, np.max(self.ftime(tt)), np.min(self.ftime(tt)))
+#            solout.append([self.u1.vector().array(),tt])
+#        if self.fwdadj > 0.:    timeerror = abs(tt - self.tf)/self.tf
+#        else:    
+#            if abs(self.t0) < 1e-14:    timeerror = abs(tt - self.t0)
+#            else:   timeerror = abs(tt - self.t0)/self.t0
+#        if timeerror > 1e-12:
+#            raise RuntimeError('Final time is {} instead of {}'.format(tt, \
+#            self.tf), 'Relative error is {}'.format(timeerror))
+#        return solout, self.computeerror()
 
 
     def computeerror(self): 
-        self.computerelativeerror()
+        return self.computerelativeerror()
 
     def computerelativeerror(self):
         if not self.exact == None:
