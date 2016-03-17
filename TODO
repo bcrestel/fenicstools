@@ -11,10 +11,10 @@ TODO list
 
 
     - ACOUSTIC:
-* Implement 1d wave exple with a layer to observe bouncing wave.
-* profile parallel
-* Assemble gradient
+* Add ABC terms to gradient
+* Check Hessian (wrt FD) + add ABC terms
 * Code C++ version of fwd and adj pbs
+* profile parallel
 
 
     - BAYESIAN:
