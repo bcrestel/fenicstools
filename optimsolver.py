@@ -4,10 +4,12 @@ Library of functions used to solve optimization problem
 
 import sys
 import numpy as np
+
+import dolfin as dl
 from linalg.cgsolverSteihaug import CGSolverSteihaug
 
 
-def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6):
+def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4]):
     """
     Finite-difference check for the gradient of an ObjectiveFunctional object
         ObjFctal = object describing objective functional; must have methods:
@@ -23,10 +25,50 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6):
     lenm = len(ObjFctal.getmarray())
     ObjFctal.backup_m()
     rnddirc = np.random.randn(nbgradcheck, lenm)
-    H = [1e-5, 1e-6, 1e-4]
     factor = [1.0, -1.0]
     MGdir = rnddirc.dot(ObjFctal.getMGarray())
     for textnb, dirct, mgdir in zip(range(lenm), rnddirc, MGdir):
+        print 'Gradient check -- direction {0}: MGdir={1:.5e}'\
+        .format(textnb+1, mgdir)
+        for hh in H:
+            cost = []
+            for fact in factor:
+                ObjFctal.update_m(ObjFctal.getmcopyarray() + fact*hh*dirct)
+                ObjFctal.solvefwd_cost()
+                cost.append(ObjFctal.cost)
+            FDgrad = (cost[0] - cost[1])/(2.0*hh)
+            err = abs(mgdir - FDgrad) / abs(FDgrad)
+            if err < tolgradchk:   
+                print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e} -> OK!'\
+                .format(hh, FDgrad, err)
+                break
+            else:
+                print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e}'\
+                .format(hh, FDgrad, err)
+    # Restore initial value of m:
+    ObjFctal.restore_m()
+    ObjFctal.solvefwd_cost()
+    ObjFctal.solveadj_constructgrad()
+
+
+def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4]):
+    """
+    Finite-difference check for the gradient of an ObjectiveFunctional object
+        ObjFctal = object describing objective functional; must have methods:
+            - getmarray: return medium parameter in np.array format
+            - backup_m: create safe copy of current medium parameter
+            - getMGarray: return Mass*gradient in np.array format
+            - getmcopyarray: return copy of medium parameter in np.array format
+            - update_m: update medium parameter from a np.array
+            - solvefwd_cost: solve fwd pb and compute cost
+    and member:
+            - cost: value of cost function
+    """
+    lenm = len(ObjFctal.getmarray())
+    ObjFctal.backup_m()
+    factor = [1.0, -1.0]
+    MGdir = Medium.dot(ObjFctal.getMGarray())
+    for textnb, dirct, mgdir in zip(range(lenm), Medium, MGdir):
         print 'Gradient check -- direction {0}: MGdir={1:.5e}'\
         .format(textnb+1, mgdir)
         for hh in H:
