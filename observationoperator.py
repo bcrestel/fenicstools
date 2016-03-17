@@ -333,7 +333,6 @@ class TimeObsPtwise():
         factors = np.ones(len(times))
         factors[0], factors[-1] = 0.5, 0.5
         Dt = times[1] - times[0]
-        #diff = ((uin - udin)**2)*factors*(self.st.evaluate(times))
         diff = diffuinudinsq*factors*(self.st.evaluate(times))
         return 0.5*Dt*(diff.sum().sum())
 
