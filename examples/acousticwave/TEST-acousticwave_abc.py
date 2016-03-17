@@ -40,7 +40,8 @@ class LeftRight(SubDomain):
 
 q = 2
 if myrank == 0: print '\npolynomial order = {}'.format(q)
-alpha = 3.
+#alpha = 3.
+alpha = 5.
 
 for Nxy in NN:
     h = 1./Nxy

@@ -51,7 +51,6 @@ for Nxy in NN:
     if myrank == 0: print '\n\th = {} - Dt = {}'.format(h, Dt)
 
     Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
-    #Wave.verbose = True
     Wave.timestepper = 'backward'
     Wave.lump = True
     Wave.exact = interpolate(uex_expr, V)
