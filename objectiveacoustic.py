@@ -1,6 +1,6 @@
 import numpy as np
 
-from dolfin import LinearOperator, Function, TestFunction,\
+from dolfin import LinearOperator, Function, TestFunction, TrialFunction, \
 assemble, inner, nabla_grad, dx,\
 LUSolver
 from miscfenics import setfct, isequal
@@ -18,6 +18,7 @@ class ObjectiveAcoustic(LinearOperator):
             acousticwavePDE should be an instantiation from class AcousticWave
         """
         self.PDE = acousticwavePDE
+        self.PDE.exact = None
         self.fwdsource = self.PDE.ftime
         self.MG = Function(self.PDE.Vl)
         self.MGv = self.MG.vector()
@@ -28,10 +29,12 @@ class ObjectiveAcoustic(LinearOperator):
         self.obsop = None   # Observation operator
         self.dd = None  # observations
         self.mtest = TestFunction(self.PDE.Vl)
+        self.mtrial = TrialFunction(self.PDE.Vl)
         self.p, self.v = Function(self.PDE.V), Function(self.PDE.V)
         self.wkformgrad = inner(self.mtest*nabla_grad(self.p), nabla_grad(self.v))*dx
         # Mass matrix:
-        Mass = assemble(self.PDE.weak_m)
+        weak_m =  inner(self.mtrial,self.mtest)*dx
+        Mass = assemble(weak_m)
         self.solverM = LUSolver()
         self.solverM.parameters['reuse_factorization'] = True
         self.solverM.parameters['symmetric'] = True
@@ -54,36 +57,38 @@ class ObjectiveAcoustic(LinearOperator):
         self.solfwd,_ = self.PDE.solve()
         # observations:
         self.Bp = np.zeros((len(self.obsop.PtwiseObs.Points),len(self.solfwd)))
-        self.times = np.zeros(len(self.solfwd))
         for index, sol in enumerate(self.solfwd):
             setfct(self.p, sol[0])
             self.Bp[:,index] = self.obsop.obs(self.p)
-            self.times[index] = sol[1]
         if cost:
             assert not self.dd == None, "Provide observations"
-            self.misfit = self.obsop.costfct(self.Bp, self.dd, self.times)
+            self.misfit = self.obsop.costfct(self.Bp, self.dd, self.PDE.times)
+            self.cost = self.misfit #TODO: add regularization
 
     def solvefwd_cost(self):    self.solvefwd(True)
 
 
     # ADJOINT PROBLEM + GRAD:
+    #TODO: profile; gradient computation step slow
     def solveadj(self, grad=False):
         self.PDE.set_adj()
-        self.obsop.assemble_rhsadj(self.Bp, self.dd, self.times, self.PDE.bc)
+        self.obsop.assemble_rhsadj(self.Bp, self.dd, self.PDE.times, self.PDE.bc)
         self.PDE.ftime = self.obsop.ftimeadj
         self.soladj,_ = self.PDE.solve()
         if grad:
             self.MGv.zero()
-            factors = np.ones(self.ftimes.size)
+            factors = np.ones(self.PDE.times.size)
             factors[0], factors[-1] = 0.5, 0.5
+            factors *= self.PDE.Dt
             #TODO: add boundary term for abs bc
             for fwd, adj, fact in zip(self.solfwd, reversed(self.soladj), factors):
                 ttf, tta = fwd[1], adj[1]
-                assert isequal(ttf, tta, 1e-14), "Check time steps in fwd and adj"
+                assert isequal(ttf, tta, 1e-16), \
+                'tfwd={}, tadj={}, reldiff={}'.format(ttf, tta, abs(ttf-tta)/ttf)
                 setfct(self.p, fwd[0])
                 setfct(self.v, adj[0])
                 self.MGv.axpy(fact, assemble(self.wkformgrad))
-            self.solverM.solve(self.Gradv, self.Mgv)
+            self.solverM.solve(self.Gradv, self.MGv)
 
     def solveadj_constructgrad(self):   self.solveadj(True)
 
@@ -105,11 +110,12 @@ class ObjectiveAcoustic(LinearOperator):
     def set_abc(self, mesh, class_bc_abc, lumpD):  
         self.PDE.set_abc(mesh, class_bc_abc, lumpD)
     def backup_m(self): self.lam_bkup = self.getmarray()
+    def restore_m(self):    self.update_m(self.lam_bkup)
     def setsrcterm(self, ftime):    self.PDE.ftime = ftime
 
 
     # GETTERS:
     def getmcopyarray(self):    return self.lam_bkup
     def getmarray(self):    return self.PDE.lam.vector().array()
-    def getMGarray(self):   return self.MG.vector().array()
+    def getMGarray(self):   return self.MGv.array()
 

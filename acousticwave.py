@@ -104,9 +104,14 @@ class AcousticWave():
 
 
     def set_fwd(self):  self.fwdadj = 1.0
+
     def set_adj(self):  
         self.fwdadj = -1.0
         self.ftime = None
+
+    def get_tt(self, nn):
+        if self.fwdadj > 0.0:   return self.times[nn]
+        else:   return self.times[-nn-1]
 
 
     def update(self, parameters_m):
@@ -117,7 +122,10 @@ class AcousticWave():
         if parameters_m.has_key('Dt'):   self.Dt = parameters_m['Dt'] 
         if parameters_m.has_key('t0') or parameters_m.has_key('tf') or parameters_m.has_key('Dt'):
             self.Nt = int(round((self.tf-self.t0)/self.Dt))
-            self.Tf = self.t0 + self.Nt*self.Dt
+            self.Tf = self.t0 + self.Dt*self.Nt
+            self.times = np.linspace(self.t0, self.Tf, self.Nt+1)
+            assert isequal(self.times[1]-self.times[0], self.Dt, 1e-16), "Dt modified"
+            self.Dt = self.times[1] - self.times[0]
             assert isequal(self.Tf, self.tf, 1e-2), "Final time differs by more than 1%"
             if not isequal(self.Tf, self.tf, 1e-12):
                 print 'Final time modified from {} to {} ({}%)'.\
@@ -190,8 +198,7 @@ class AcousticWave():
         if self.verbose:    print 'Compute solution'
         solout = [] # Store computed solution
         # u0:
-        if self.fwdadj > 0: tt = self.t0 
-        else:   tt = self.Tf
+        tt = self.get_tt(0)
         if self.verbose:    print 'Compute solution -- time {}'.format(tt)
         setfct(self.u0, self.u0init)
         solout.append([self.u0.vector().array(), tt])
@@ -207,24 +214,26 @@ class AcousticWave():
             setfct(self.u1, self.u0)
             self.u1.vector().axpy(self.fwdadj*self.Dt, self.utinit.vector())
             self.u1.vector().axpy(0.5*self.Dt**2, self.sol.vector())
-        tt += self.fwdadj*self.Dt
+        tt = self.get_tt(1)
         if self.verbose:    print 'Compute solution -- time {}'.format(tt)
         solout.append([self.u1.vector().array(), tt])
         # Iteration
-        for nn in xrange(1, self.Nt):
+        for nn in xrange(2, self.Nt+1):
             iterate(tt)
             # Advance to next time step
             setfct(self.u0, self.u1)
             setfct(self.u1, self.u2)
-            tt += self.fwdadj*self.Dt
+            tt = self.get_tt(nn)
             if self.verbose:    
                 print 'Compute solution -- time {}, rhs {}'.\
                 format(tt, np.max(np.abs(self.ftime(tt))))
             solout.append([self.u1.vector().array(),tt])
         if self.fwdadj > 0.0:   
-            assert isequal(tt, self.Tf, 1e-14), 'tt={}, Tf={}'.format(tt, self.Tf)
+            assert isequal(tt, self.Tf, 1e-16), \
+            'tt={}, Tf={}, reldiff={}'.format(tt, self.Tf, abs(tt-self.Tf)/self.Tf)
         else:
-            assert isequal(tt, self.T0, 1e-14), 'tt={}, T0={}'.format(tt, self.T0)
+            assert isequal(tt, self.t0, 1e-16), \
+            'tt={}, t0={}, reldiff={}'.format(tt, self.t0, abs(tt-self.t0))
         return solout, self.computeerror()
 
     def iteration_centered(self, tt):
