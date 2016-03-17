@@ -72,25 +72,40 @@ def setfct(fct, value):
         fct.vector()[:] = float(value)
 
 
-def checkdt(Dt, h, q, c_max, Mlump):
-    """ Checks if Dt is sufficiently small based on some numerical tests """
+def checkdt(Dt, h, r, c_max, Mlump):
+    """ Checks if Dt is sufficiently small based on some numerical tests 
+        Dt = time step size
+        h = grid size
+        r = polynomial order
+        c_max = max wave speed in medium
+        Mlump = bool value (lumped mass matrix)
+    """
     if Mlump:   alpha = 3.
     else:   alpha = 4.
-    upbnd = h/(q*alpha*c_max)
+    upbnd = h/(r*alpha*c_max)
     assert Dt <= upbnd, 'Error: You need to choose Dt < {}'.format(upbnd)
 
-def checkdt_abc(Dt, h, q, c_max, Mlump, Dlump, timestepper):
-    """ Checks if Dt is sufficiently small based on some numerical tests """
+def checkdt_abc(Dt, h, r, c_max, Mlump, Dlump, timestepper):
+    """ Checks if Dt is sufficiently small based on some numerical tests 
+        Dt = time step size
+        h = grid size
+        r = polynomial order
+        c_max = max wave speed in medium
+        Mlump = bool value (lumped mass matrix)
+        Dlump = bool value (lumped damping matrix)
+        timestepper = type of time stepping scheme
+    """
     if Mlump:
         if Dlump:
             if timestepper == 'centered':    alpha = 3.
             else:   alpha = 4.
         else:   alpha = 3.
     else:   alpha = 5.
-    assert Dt <= h/(q*alpha*c_max), "Error: You need to choose a smaller Dt"
+    assert Dt <= h/(r*alpha*c_max), "Error: You need to choose a smaller Dt"
 
 
 def isequal(a, b, rtol=1e-14):
     """ Checks if 2 values are equal w/ relative tolerance """
-    return np.abs(a-b) <= rtol*np.abs(b)
+    if abs(b) > 1e-16:  return np.abs(a-b) <= rtol*np.abs(b)
+    else:   return np.abs(a-b) <= rtol
 
