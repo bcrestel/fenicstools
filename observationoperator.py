@@ -338,20 +338,25 @@ class TimeObsPtwise():
 
     def assemble_rhsadj(self, uin, udin, times, bcadj):
         """ Assemble data for rhs of adj eqn 
+            uin, udin = observations and data @ receivers
+            times = time steps of solution
+            bcadj = boundary conditions
         uin.shape must be 'recv x time' """
         assert uin.shape == udin.shape, "uin and udin must have same shape"
         assert uin.shape[0] == len(times) or uin.shape[1] == len(times), \
         "must have as many time steps in uin as in times"
         #
-        if uin.shape[0] == len(times):  self.diff = uin.T - udin.T
-        else:   self.diff = uin - udin
+        if uin.shape[0] == len(times):  
+            self.diff = uin.T - udin.T
+        else:   
+            self.diff = uin - udin
         self.times = times
         self.bcadj = bcadj
 
     def ftimeadj(self, tt):
         """ Evaluate source term for adj eqn at time tt """
         try:
-            index = int(np.where(isequal(self.times, tt, 1e-10))[0])
+            index = int(np.where(isequal(self.times, tt, 1e-14))[0])
         except:
             print 'Error in ftimeadj at time {}'.format(tt)
             print np.min(np.abs(self.times-tt))
@@ -361,9 +366,7 @@ class TimeObsPtwise():
         if not self.bcadj == None:  self.bcadj.apply(self.outvec.vector())
         return -1.0*self.st(tt)*self.outvec.array()
 
-    def incradj(self, uin, tt):
-        #TODO: to be checked
-        self.PtwiseObs.BtBu.vector()[:] = 0.0
-        self.PtwiseObs.BtBu.vector().axpy(self.st(tt), \
-        self.BTdot(self.Bdotlocal(uin)))
-        return self.PtwiseObs.BtBu.vector()
+    def incradj(self, uhat, tt):
+        """ Compute B^T B uhat """
+        self.PtwiseObs.BTdotvec(self.obs(uhat), self.outvec)
+        return self.outvec*self.st(tt)
