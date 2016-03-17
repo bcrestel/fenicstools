@@ -16,7 +16,7 @@ from fenicstools.sourceterms import PointSources, RickerWavelet
 from fenicstools.observationoperator import TimeObsPtwise
 from fenicstools.miscfenics import checkdt, setfct
 from fenicstools.objectiveacoustic import ObjectiveAcoustic
-from fenicstools.optimsolver import checkgradfd_med
+from fenicstools.optimsolver import checkgradfd_med, checkhessfd_med, checkhessfd
 
 # Inputs:
 fpeak = 1.0  #Hz
@@ -58,7 +58,11 @@ lambda_init_fn = dl.interpolate(lambda_init, Vl)
 myplot.set_varname('lambda_init')
 myplot.plot_vtk(lambda_init_fn)
 # observation operator:
-obspts = [[0.2, 0.5], [0.5, 0.2], [0.5, 0.8], [0.8, 0.5]]
+#obspts = [[0.2, 0.5], [0.5, 0.2], [0.5, 0.8], [0.8, 0.5]]
+obspts = [[0.2, ii/10.] for ii in range(2,9)] + \
+[[0.8, ii/10.] for ii in range(2,9)] + \
+[[ii/10., 0.2] for ii in range(3,8)] + \
+[[ii/10., 0.8] for ii in range(3,8)]
 obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
 # define pde operator:
 wavepde = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
@@ -86,7 +90,7 @@ myplot.plot_timeseries(waveobj.solfwd, 'p', 0, skip, fctV)
 # Plot data and observations
 fig = plt.figure()
 for ii in range(len(obspts)):
-    ax = fig.add_subplot(2,2,ii+1)
+    ax = fig.add_subplot(4,6,ii+1)
     ax.plot(waveobj.PDE.times, waveobj.dd[ii,:], 'k--')
     ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
     ax.set_title('Plot'+str(ii))
@@ -98,9 +102,22 @@ MG = waveobj.MGv.array().copy()
 myplot.set_varname('grad')
 myplot.plot_vtk(waveobj.Grad)
 print 'check gradient with FD'
-Medium = np.zeros((5, Vl.dim()))
-for ii in range(5):
+Medium = np.zeros((3, Vl.dim()))
+for ii in range(3):
     smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
     smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
     Medium[ii,:] = smoothperturb_fn.vector().array()
 checkgradfd_med(waveobj, Medium)
+print 'check Hessian with FD'
+checkhessfd_med(waveobj, Medium, 1e-6,[1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6])
+#waveobj.backup_m()
+#Hmhat = waveobj.srchdir
+#mhat = waveobj.delta_m
+#setfct(mhat, Medium[0,:])
+#waveobj.mult(mhat.vector(), Hmhat.vector())
+#eps = 1e-5
+#waveobj.update_m(waveobj.getmcopyarray() + eps*mhat.vector().array())
+#waveobj.solvefwd()
+#waveobj.solveadj_constructgrad()
+#HmhatFD = (waveobj.MGv.array() - MG)/eps
+#waveobj.restore_m()

@@ -103,7 +103,9 @@ class AcousticWave():
         self.class_bc_abc = class_bc_abc    # to make copies
 
 
-    def set_fwd(self):  self.fwdadj = 1.0
+    def set_fwd(self):  
+        self.fwdadj = 1.0
+        self.ftime = None
 
     def set_adj(self):  
         self.fwdadj = -1.0

@@ -7,6 +7,7 @@ import numpy as np
 
 import dolfin as dl
 from linalg.cgsolverSteihaug import CGSolverSteihaug
+from miscfenics import setfct
 
 
 def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4]):
@@ -92,13 +93,12 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4]):
     ObjFctal.solveadj_constructgrad()
 
 
-def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6):
+def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4]):
     """Finite-difference check for the Hessian of an ObjectiveFunctional
     object"""
     lenm = len(ObjFctal.getmarray())
     ObjFctal.backup_m()
     rnddirc = np.random.randn(nbhesscheck, lenm)
-    H = [1e-5, 1e-4, 1e-3]
     factor = [1.0, -1.0]
     hessxdir = ObjFctal.srchdir
     dirfct = ObjFctal.delta_m
@@ -119,9 +119,50 @@ def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6):
                 MG.append(ObjFctal.getMGarray())
             FDHessx = (MG[0] - MG[1])/(2.0*hh)
             # Compute errors:
-            normFDhess = np.linalg.norm(FDHessx)
             err = np.linalg.norm(hessxdir.vector().array() - FDHessx)/\
             normhess
+            if err < tolgradchk:   
+                print '\th={0:.1e}: ||FDH.x||={1:.5e}, error={2:.2e} -> OK!'\
+                .format(hh, np.linalg.norm(FDHessx), err)
+                break
+            else:
+                print '\th={0:.1e}: ||FDH.x||={1:.5e}, error={2:.2e}'\
+                .format(hh, np.linalg.norm(FDHessx), err)
+    # Restore initial value of m:
+    ObjFctal.restore_m()
+    ObjFctal.solvefwd_cost()
+    ObjFctal.solveadj_constructgrad()
+
+
+def checkhessfd_med(ObjFctal, Medium, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4]):
+    """Finite-difference check for the Hessian of an ObjectiveFunctional
+    object"""
+    lenm = len(ObjFctal.getmarray())
+    ObjFctal.backup_m()
+    MGref = ObjFctal.getMGarray()
+    #factor = [1.0, -1.0]
+    factor = [1.0]
+    hessxdir = ObjFctal.srchdir
+    dirfct = ObjFctal.delta_m
+    for textnb, dirct in zip(range(lenm), Medium):
+        # Do computations for analytical Hessian:
+        setfct(dirfct, dirct)
+        ObjFctal.mult(dirfct.vector(), hessxdir.vector())
+        normhess = np.linalg.norm(hessxdir.vector().array())
+        print 'Hessian check -- direction {0}: ||H.x||={1:.5e}'\
+        .format(textnb+1, normhess)
+        # Do computations for FD Hessian:
+        for hh in H:
+            MG = []
+            for fact in factor:
+                ObjFctal.update_m(ObjFctal.getmcopyarray() + fact*hh*dirct)
+                ObjFctal.solvefwd_cost()
+                ObjFctal.solveadj_constructgrad()
+                MG.append(ObjFctal.getMGarray())
+            #FDHessx = (MG[0] - MG[1])/(2.0*hh)
+            FDHessx = (MG[0] - MGref)/(hh)
+            # Compute errors:
+            err = np.linalg.norm(hessxdir.vector().array()-FDHessx)/normhess
             if err < tolgradchk:   
                 print '\th={0:.1e}: ||FDH.x||={1:.5e}, error={2:.2e} -> OK!'\
                 .format(hh, np.linalg.norm(FDHessx), err)
