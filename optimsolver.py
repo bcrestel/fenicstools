@@ -140,8 +140,7 @@ def checkhessfd_med(ObjFctal, Medium, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4]):
     lenm = len(ObjFctal.getmarray())
     ObjFctal.backup_m()
     MGref = ObjFctal.getMGarray()
-    #factor = [1.0, -1.0]
-    factor = [1.0]
+    factor = [1.0, -1.0]
     hessxdir = ObjFctal.srchdir
     dirfct = ObjFctal.delta_m
     for textnb, dirct in zip(range(lenm), Medium):
@@ -159,8 +158,7 @@ def checkhessfd_med(ObjFctal, Medium, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4]):
                 ObjFctal.solvefwd_cost()
                 ObjFctal.solveadj_constructgrad()
                 MG.append(ObjFctal.getMGarray())
-            #FDHessx = (MG[0] - MG[1])/(2.0*hh)
-            FDHessx = (MG[0] - MGref)/(hh)
+            FDHessx = (MG[0] - MG[1])/(2.0*hh)
             # Compute errors:
             err = np.linalg.norm(hessxdir.vector().array()-FDHessx)/normhess
             if err < tolgradchk:   
