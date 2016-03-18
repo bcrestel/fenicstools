@@ -11,10 +11,10 @@ TODO list
 
 
     - ACOUSTIC:
-* Add ABC terms to gradient
-* Check Hessian (wrt FD) + add ABC terms
+* Check Hessian; probably right, but need to dig a bit deeper
+* Add ABC terms to gradient and Hessian
+* profile + improve gradient and Hessian computation steps
 * Code C++ version of fwd and adj pbs
-* profile parallel
 
 
     - BAYESIAN:

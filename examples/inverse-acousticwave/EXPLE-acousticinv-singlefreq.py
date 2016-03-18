@@ -24,7 +24,7 @@ lambdamin = 1.0
 lambdamax = 2.0
 Nxy = 25
 h = 1./Nxy
-t0, t1, t2, tf = 0.0, 0.5, 2.0, 2.5
+t0, t1, t2, tf = 0.0, 0.5, 2.5, 3.0
 tfilterpts = [t0, t1, t2, tf]
 r = 2   # order polynomial approx
 Dt = 2.5e-3
@@ -91,6 +91,7 @@ myplot.plot_timeseries(waveobj.solfwd, 'p', 0, skip, fctV)
 fig = plt.figure()
 for ii in range(len(obspts)):
     ax = fig.add_subplot(4,6,ii+1)
+    #ax = fig.add_subplot(2,2,ii+1)
     ax.plot(waveobj.PDE.times, waveobj.dd[ii,:], 'k--')
     ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
     ax.set_title('Plot'+str(ii))
@@ -109,15 +110,4 @@ for ii in range(3):
     Medium[ii,:] = smoothperturb_fn.vector().array()
 checkgradfd_med(waveobj, Medium)
 print 'check Hessian with FD'
-checkhessfd_med(waveobj, Medium, 1e-6,[1e-1, 1e-2, 1e-3, 1e-4, 1e-5, 1e-6])
-#waveobj.backup_m()
-#Hmhat = waveobj.srchdir
-#mhat = waveobj.delta_m
-#setfct(mhat, Medium[0,:])
-#waveobj.mult(mhat.vector(), Hmhat.vector())
-#eps = 1e-5
-#waveobj.update_m(waveobj.getmcopyarray() + eps*mhat.vector().array())
-#waveobj.solvefwd()
-#waveobj.solveadj_constructgrad()
-#HmhatFD = (waveobj.MGv.array() - MG)/eps
-#waveobj.restore_m()
+checkhessfd_med(waveobj, Medium)
