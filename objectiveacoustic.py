@@ -113,22 +113,26 @@ class ObjectiveAcoustic(LinearOperator):
             print 'Error in ftimeincrfwd at time {}'.format(tt)
             print np.min(np.abs(self.PDE.times-tt))
             sys.exit(0)
+        assert isequal(tt, self.solfwd[index][1], 1e-16)
         setfct(self.p, self.solfwd[index][0])
         return -1.0*(self.C*self.p.vector()).array()
 
     def ftimeincradj(self, tt):
         """ Compute rhs for incremental adjoint at time tt """
         try:
-            index = int(np.where(isequal(self.PDE.times, tt, 1e-14))[0])
+            indexf = int(np.where(isequal(self.PDE.times, tt, 1e-14))[0])
+            indexa = int(np.where(isequal(self.PDE.times[::-1], tt, 1e-14))[0])
         except:
             print 'Error in ftimeincradj at time {}'.format(tt)
             print np.min(np.abs(self.PDE.times-tt))
             sys.exit(0)
         # lamhat * grad(ptilde).grad(v)
-        setfct(self.v, self.soladj[index][0])
-        setfct(self.vhat, self.C * self.v.vector())
+        assert isequal(tt, self.soladj[indexa][1], 1e-16)
+        setfct(self.v, self.soladj[indexa][0])
+        setfct(self.vhat, self.C*self.v.vector())
         # B* B phat
-        setfct(self.phat, self.solincrfwd[index][0])
+        assert isequal(tt, self.solincrfwd[indexf][1], 1e-16)
+        setfct(self.phat, self.solincrfwd[indexf][0])
         self.vhat.vector().axpy(1.0, self.obsop.incradj(self.phat, tt))
         return -1.0*self.vhat.vector().array()
         
@@ -138,7 +142,7 @@ class ObjectiveAcoustic(LinearOperator):
         inputs:
             y, lamhat = Function(V).vector()
         """
-        #TODO: testing + add boundary terms for abs abc
+        #TODO: add boundary terms for abs abc
         setfct(self.lamhat, lamhat)
         self.C = assemble(self.wkformrhsincr)
         # solve for phat
@@ -154,9 +158,11 @@ class ObjectiveAcoustic(LinearOperator):
         for fwd, adj, incrfwd, incradj, fact in \
         zip(self.solfwd, reversed(self.soladj), \
         self.solincrfwd, reversed(self.solincradj), self.factors):
-            ttf, tta = incrfwd[1], incradj[1]
-            assert isequal(ttf, tta, 1e-16), \
-            'tfwd={}, tadj={}, reldiff={}'.format(ttf, tta, abs(ttf-tta)/ttf)
+            ttf, tta, ttf2 = incrfwd[1], incradj[1], fwd[1]
+            assert isequal(ttf, tta, 1e-16), 'tfwd={}, tadj={}, reldiff={}'.\
+            format(ttf, tta, abs(ttf-tta)/ttf)
+            assert isequal(ttf, ttf2, 1e-16), 'tfwd={}, tadj={}, reldiff={}'.\
+            format(ttf, ttf2, abs(ttf-ttf2)/ttf)
             setfct(self.p, fwd[0])
             setfct(self.v, adj[0])
             setfct(self.phat, incrfwd[0])
