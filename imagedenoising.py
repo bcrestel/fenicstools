@@ -12,7 +12,7 @@ class ObjectiveImageDenoising1D():
     Class for linear 1D image denoising problem, built on an integral (blurring) kernel
     """
 
-    def __init__(self, mesh, k, reg='tikhonov'):
+    def __init__(self, mesh, k, regularization='tikhonov'):
         """
         Inputs:
             mesh = Fenics mesh
@@ -39,10 +39,10 @@ class ObjectiveImageDenoising1D():
         self.Mweak = dl.inner(self.test, self.trial)*dl.dx
         self.M = dl.assemble(self.Mweak).array()
         # regularization
-        self.reg = reg
-        if self.reg == 'tikhonov':
-            self.Reg = LaplacianPrior({'gamma':1e-3, 'beta':1e-12, 'Vm':self.V})
-            self.R = self.Reg.Minvprior.array()
+        self.regularization = regularization
+        if self.regularization == 'tikhonov':
+            self.RegTikh = LaplacianPrior({'gamma':1.0, 'beta':0.0, 'Vm':self.V})
+            self.R = self.RegTikh.Minvprior.array()
 
     def assembleK(self):
         self.K = np.zeros((self.dimV, self.dimV))
@@ -59,9 +59,9 @@ class ObjectiveImageDenoising1D():
         self.dn = self.d + eta
 
     def update_reg(self, parameters):
-        if self.reg == 'tikhonov':
-            self.Reg = LaplacianPrior(parameters)
-            self.R = self.Reg.Minvprior.array()
+        if self.regularization == 'tikhonov':
+            self.gamma = parameters
+            self.R = self.RegTikh.Minvprior.array()*self.gamma
 
 
     ### COST and DERIVATIVES
@@ -140,7 +140,7 @@ class ObjectiveImageDenoising1D():
 
     def solve(self):
         """ Solve image denoising pb """
-        if self.reg == 'tikhonov':
+        if self.regularization == 'tikhonov':
             self.Hessian(None)
             self.g = np.linalg.solve(self.Hess, self.K.T.dot(self.dn))
             self.computecost()
@@ -151,19 +151,19 @@ class ObjectiveImageDenoising1D():
     def printout(self):
         """ Print results """
         self.medmisfit = np.linalg.norm(self.g-self.f)
-        print 'cost={:.2e}, misfit={:.2e}, reg={:.2e}, alpha={:.2e}, medmisfit={:.2e} ({:.2f} %)'.format(\
-        self.cost, self.misfit, self.reg, self.alpha, self.medmisfit,\
-        self.medmisfit/np.linalg.norm(self.f))
+        self.relmedmisfit = self.medmisfit/np.linalg.norm(self.f)
+        print 'cost={:.2e}, misfit={:.2e}, reg={:.2e}, alpha={:.2e}, medmisfit={:.2e} ({:.3f})'.format(\
+        self.cost, self.misfit, self.reg, self.alpha, self.medmisfit, self.relmedmisfit)
 
     def plot(self, u=None):
         """ Plot data and target """
         fig = plt.figure()
         ax = fig.add_subplot(111)
-        ax.plot(self.xx, self.dn, label='noisy data')
+        #ax.plot(self.xx, self.dn, label='noisy data')
         ax.plot(self.xx, self.f, label='target')
         if not u == None:   
             ax.plot(self.xx, u, label='u')
         elif not self.g == None:   
-            ax.plot(self.xx, self.g, label='g')
+            ax.plot(self.xx, self.g, label='sol')
         ax.legend(loc='best')
         return fig
