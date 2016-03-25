@@ -32,6 +32,7 @@ class TV():
             - Vm = FunctionSpace for parameter. !!!! WARNING: SHOULD BE ORDER 1 !!!!
         ||f||_TV = int k(x) sqrt{|grad f|^2 + eps} dx
         """
+        self.H = None
         if parameters.has_key('k'): self.k = parameters['k']
         if parameters.has_key('eps'): self.eps = parameters['eps']
         if parameters.has_key('Vm'):
@@ -39,20 +40,20 @@ class TV():
             self.m = Function(self.Vm)
             self.test = TestFunction(self.Vm)
             self.trial = TrialFunction(self.Vm)
-            self.H = None
+        self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps
+        self.kovsq = self.k / sqrt(self.fTV)
+        #
+        self.wkformcost = self.k * sqrt(inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps)*dx
+        self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(self.test))*dx
+        #TODO: create option for either version of Hessian
+        # Full Hessian does not work in denoising application
+#        self.wkformhess = self.kovsq * ( \
+#        inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
+#        inner(nabla_grad(self.m), nabla_grad(self.test))* \
+#        inner(nabla_grad(self.trial), nabla_grad(self.m))/self.fTV)*dx
+        self.wkformhess = self.kovsq*inner(nabla_grad(self.trial), nabla_grad(self.test))*dx
 
-            self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps
-            self.kovsq = self.k / sqrt(self.fTV)
 
-            self.wkformcost = self.k * sqrt(inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps)*dx
-            #
-            self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(self.test))*dx
-            #
-            self.wkformhess = self.kovsq * ( \
-            inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
-            inner(nabla_grad(self.m), nabla_grad(self.test))* \
-            inner(nabla_grad(self.trial), nabla_grad(self.m))/self.fTV)*dx
-#
 #            self.wkformcost = self.k * \
 #            sqrt(inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps)*dx
 #            #
@@ -69,13 +70,13 @@ class TV():
 
     def cost(self, m_in):
         """ returns the cost functional for self.m=m_in """
-        isFunction(m_in)
+        #isFunction(m_in)
         setfct(self.m, m_in)
         return assemble(self.wkformcost)
 
     def grad(self, m_in):
         """ returns the gradient (in vector format) evaluated at self.m=m_in """
-        isFunction(m_in)
+        #isFunction(m_in)
         setfct(self.m, m_in)
         return assemble(self.wkformgrad)
 

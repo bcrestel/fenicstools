@@ -6,7 +6,8 @@ TODO list
 
 
     - DENOISING:
-* Implement denoising with Tikhonov regularization
+* Set option for GN TV
+* Comparing denoising (M) and deblurring (K)
 * Implement primal-dual solver for TV regularization
 
 
