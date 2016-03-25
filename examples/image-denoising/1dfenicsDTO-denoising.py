@@ -7,31 +7,20 @@ approximation and a weak form.
 import numpy as np
 import dolfin as dl
 
-# Grid
+from fenicstools.imagedenoising import *
+
+
 N = 100
 mesh = dl.UnitIntervalMesh(N)
-V = dl.FunctionSpace(mesh, 'Lagrange', 1)
-# kernel operator
 gamma = 0.03
 CC = 1/(gamma*np.sqrt(2*np.pi))
 k_e = dl.Expression('C*exp(-pow(x[0]-t,2)/(2*pow(g,2)))', t=0., C=CC, g=gamma)
-# data
-xx = V.dofmap().tabulate_all_coordinates(mesh)
-f = 0.75*(xx>=.1)*(xx<=.25)
-f += (xx>=0.28)*(xx<=0.3)*(15*xx-15*0.28)
-f += (xx>0.3)*(xx<0.33)*0.3
-f += (xx>=0.33)*(xx<=0.35)*(-15*xx+15*0.35)
-f += (xx>=.5)*(xx-.5)**2*(xx-1.0)**2/.25**4
-ff, gg = dl.Function(V), dl.Function(V)
-ff.vector()[:] = f
-# operator K
-test = dl.TestFunction(V)
-kernel = dl.inner(k_e, test)*dl.dx
-K = np.zeros((V.dim(),V.dim()))
-for ii, tt in enumerate(xx):
-    k_e.t = tt
-    K[ii,:] = dl.assemble(kernel).array()
-gg.vector()[:] = K.dot(ff.vector().array())
-dl.plot(ff)
-dl.plot(gg)
-dl.interactive()
+denoise = ObjectiveImageDenoising1D(mesh, k_e)
+denoise.generatedata(0.2)
+denoise.g = .5*np.abs(np.sin(np.pi*denoise.xx*2))
+#denoise.test_gradient(g)
+#denoise.test_hessian(g)
+denoise.solve()
+denoise.printout()
+fig = denoise.plot()
+plt.show()
