@@ -29,7 +29,7 @@ class ObjectiveImageDenoising1D():
         self.f += (self.xx>=0.28)*(self.xx<=0.3)*(15*self.xx-15*0.28)
         self.f += (self.xx>0.3)*(self.xx<0.33)*0.3
         self.f += (self.xx>=0.33)*(self.xx<=0.35)*(-15*self.xx+15*0.35)
-        self.f += (self.xx>=.5)*(self.xx-.5)**2*(self.xx-1.0)**2/.25**4
+        self.f += (self.xx>=.4)*(self.xx<=.9)*(self.xx-.4)**2*(self.xx-0.9)**2/.25**4
         self.g = None   # current iterate
         # kernel operator
         self.k = k
@@ -121,7 +121,7 @@ class ObjectiveImageDenoising1D():
             else:
                 self.alpha *= rho
 
-    def solve(self):
+    def solve(self, plot=False):
         """ Solve image denoising pb """
         if self.regularization == 'tikhonov':
             self.Hessian(None)
@@ -133,21 +133,25 @@ class ObjectiveImageDenoising1D():
             self.alpha = 1.0
             self.printout()
             cost = self.cost
+            self.COST = [cost]
+            self.MEDMIS = [self.relmedmisfit]
             for ii in xrange(500):
                 self.searchdirection()
-                self.linesearch(0.1)
+                self.linesearch(1.0)
                 print ii,
                 self.printout()
-                if ii%50 == 0:
+                if plot and ii%50 == 0:
                     self.plot()
                     plt.show()
                 if not self.LS:
                     print 'Line search failed'
                     break
-                if np.abs(cost - self.cost)/cost < 1e-5:
+                if np.abs(cost - self.cost)/cost < 1e-10:
                     print 'optimization converged'
                     break
                 cost = self.cost
+                self.COST.append(cost)
+                self.MEDMIS.append(self.relmedmisfit)
 
 
     ### TESTS
