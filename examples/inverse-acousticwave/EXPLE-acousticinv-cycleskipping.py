@@ -5,6 +5,8 @@ import dolfin as dl
 import numpy as np
 import matplotlib.pyplot as plt
 
+#TODO: Try with sinusoidal wave instead of Ricker wavelet -> more local minima
+
 times = np.linspace(0.,2.,1000)
 RW = RickerWavelet(3., 1e-10)
 mesh = dl.UnitSquareMesh(10,10)
