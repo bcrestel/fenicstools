@@ -12,8 +12,8 @@ TODO list
 
 
     - ACOUSTIC:
-* Check Hessian; probably right, but need to dig a bit deeper
 * Add ABC terms to gradient and Hessian
+* implement misift with blurring kernel
 * profile + improve gradient and Hessian computation steps
 * Code C++ version of fwd and adj pbs
 

@@ -18,6 +18,7 @@ from fenicstools.miscfenics import checkdt, setfct
 from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.optimsolver import checkgradfd_med, checkhessfd_med, checkhessfd
 
+
 # Inputs:
 fpeak = 1.0  #Hz
 lambdamin = 1.0
@@ -108,6 +109,6 @@ for ii in range(3):
     smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
     smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
     Medium[ii,:] = smoothperturb_fn.vector().array()
-checkgradfd_med(waveobj, Medium)
+checkgradfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-4])
 print 'check Hessian with FD'
-checkhessfd_med(waveobj, Medium)
+checkhessfd_med(waveobj, Medium, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4], False)

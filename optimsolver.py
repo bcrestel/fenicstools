@@ -134,13 +134,14 @@ def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4
     ObjFctal.solveadj_constructgrad()
 
 
-def checkhessfd_med(ObjFctal, Medium, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4]):
+def checkhessfd_med(ObjFctal, Medium, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4], doublesided=True):
     """Finite-difference check for the Hessian of an ObjectiveFunctional
     object"""
     lenm = len(ObjFctal.getmarray())
     ObjFctal.backup_m()
     MGref = ObjFctal.getMGarray()
-    factor = [1.0, -1.0]
+    if doublesided: factor = [1.0, -1.0]
+    else:   factor = [1.0]
     hessxdir = ObjFctal.srchdir
     dirfct = ObjFctal.delta_m
     for textnb, dirct in zip(range(lenm), Medium):
@@ -158,7 +159,8 @@ def checkhessfd_med(ObjFctal, Medium, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4]):
                 ObjFctal.solvefwd_cost()
                 ObjFctal.solveadj_constructgrad()
                 MG.append(ObjFctal.getMGarray())
-            FDHessx = (MG[0] - MG[1])/(2.0*hh)
+            if doublesided: FDHessx = (MG[0] - MG[1])/(2.0*hh)
+            else:   FDHessx = (MG[0] - MGref)/hh
             # Compute errors:
             err = np.linalg.norm(hessxdir.vector().array()-FDHessx)/normhess
             if err < tolgradchk:   
