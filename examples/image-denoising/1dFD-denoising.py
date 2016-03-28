@@ -4,6 +4,15 @@
 import numpy as np
 import matplotlib.pyplot as plt
 
+
+
+class TVFD1d():
+    def __init__(self, N):
+    """ N = total number of points, i.e., f = [f_0, ...., f_{N-1}] """
+    self.N = N
+
+    def cost(self, f):
+
 # Grid
 N = 100 + 1 # nb of grid points
 #N = 10 + 1 # nb of grid points
