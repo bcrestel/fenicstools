@@ -55,8 +55,9 @@ class ObjectiveAcoustic(LinearOperator):
         self.invDt = 1./self.PDE.Dt
         # Absorbing BCs
         if self.PDE.abc:
-            #TODO: need to assemble a lumped matrix when D is lumped
-            assert not self.PDE.lumpD, "D cannot be lumped at the moment"
+            if self.PDE.lumpD:
+                print '*** Warning: Damping matrix D is lumped. ',\
+                'Make sure gradient is consistent.'
             self.vD, self.pD, self.p1D, self.p2D = Function(self.PDE.V), \
             Function(self.PDE.V), Function(self.PDE.V), Function(self.PDE.V)
             self.wkformgradD = inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
