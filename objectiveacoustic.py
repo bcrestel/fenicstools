@@ -1,8 +1,7 @@
 import numpy as np
 
 from dolfin import LinearOperator, Function, TestFunction, TrialFunction, \
-assemble, inner, nabla_grad, dx,\
-LUSolver
+assemble, inner, nabla_grad, dx, sqrt, LUSolver
 from miscfenics import setfct, isequal
 
 class ObjectiveAcoustic(LinearOperator):
@@ -53,6 +52,15 @@ class ObjectiveAcoustic(LinearOperator):
         self.factors = np.ones(self.PDE.times.size)
         self.factors[0], self.factors[-1] = 0.5, 0.5
         self.factors *= self.PDE.Dt
+        self.invDt = 1./self.PDE.Dt
+        # Absorbing BCs
+        if self.PDE.abc:
+            #TODO: need to assemble a lumped matrix when D is lumped
+            assert not self.PDE.lumpD, "D cannot be lumped at the moment"
+            self.vD, self.pD, self.p1D, self.p2D = Function(self.PDE.V), \
+            Function(self.PDE.V), Function(self.PDE.V), Function(self.PDE.V)
+            self.wkformgradD = inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
+            *self.pD, self.vD*self.lamtest)*self.PDE.ds(1)
 
 
     def copy(self):
@@ -91,14 +99,32 @@ class ObjectiveAcoustic(LinearOperator):
         self.soladj,_ = self.PDE.solve()
         if grad:
             self.MGv.zero()
-            #TODO: add boundary term for abs bc
-            for fwd, adj, fact in zip(self.solfwd, reversed(self.soladj), self.factors):
+            if self.PDE.abc:
+                self.vD.vector().zero(); self.pD.vector().zero();
+                self.p1D.vector().zero(); self.p2D.vector().zero();
+            index = 0
+            for fwd, adj, fact in \
+            zip(self.solfwd, reversed(self.soladj), self.factors):
                 ttf, tta = fwd[1], adj[1]
                 assert isequal(ttf, tta, 1e-16), \
                 'tfwd={}, tadj={}, reldiff={}'.format(ttf, tta, abs(ttf-tta)/ttf)
                 setfct(self.p, fwd[0])
                 setfct(self.v, adj[0])
                 self.MGv.axpy(fact, assemble(self.wkformgrad))
+                if self.PDE.abc:
+                    if index%2 == 0:
+                        self.p2D.vector().axpy(1.0, self.p.vector())
+                        setfct(self.pD, self.p2D)
+                        self.MGv.axpy(fact*0.5*self.invDt, assemble(self.wkformgradD))
+                        setfct(self.p2D, -1.0*self.p.vector())
+                        setfct(self.vD, self.v)
+                    else:
+                        self.p1D.vector().axpy(1.0, self.p.vector())
+                        setfct(self.pD, self.p1D)
+                        self.MGv.axpy(fact*0.5*self.invDt, assemble(self.wkformgradD))
+                        setfct(self.p1D, -1.0*self.p.vector())
+                        setfct(self.vD, self.v)
+                index += 1
             self.solverM.solve(self.Gradv, self.MGv)
 
     def solveadj_constructgrad(self):   self.solveadj(True)
