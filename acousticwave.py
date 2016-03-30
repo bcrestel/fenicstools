@@ -98,8 +98,7 @@ class AcousticWave():
         abc_boundaryparts = FacetFunction("size_t", mesh)
         class_bc_abc.mark(abc_boundaryparts, 1)
         self.ds = Measure("ds")[abc_boundaryparts]
-        self.weak_d = inner(sqrt(self.lam*self.rho)*self.trial, 
-        self.test)*self.ds(1)
+        self.weak_d = inner(sqrt(self.lam*self.rho)*self.trial, self.test)*self.ds(1)
         self.class_bc_abc = class_bc_abc    # to make copies
 
 
