@@ -32,6 +32,12 @@ Dt = 2.5e-3
 skip = 20
 checkdt(Dt, h, r, np.sqrt(lambdamax), True)
 
+# ABC:
+class LeftRight(dl.SubDomain):
+    def inside(self, x, on_boundary):
+        return (x[0] < 1e-16 or x[0] > 1.0 - 1e-16) \
+        and on_boundary
+
 # 
 mesh = dl.UnitSquareMesh(Nxy, Nxy)
 Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
@@ -69,6 +75,7 @@ obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
 wavepde = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
 wavepde.timestepper = 'backward'
 wavepde.lump = True
+wavepde.set_abc(mesh, LeftRight(), False)
 wavepde.update({'lambda':lambda_target_fn, 'rho':1.0, \
 't0':t0, 'tf':tf, 'Dt':Dt, 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
 wavepde.ftime = mysrc
@@ -90,9 +97,10 @@ print 'misfit = {}'.format(waveobj.misfit)
 myplot.plot_timeseries(waveobj.solfwd, 'p', 0, skip, fctV)
 # Plot data and observations
 fig = plt.figure()
+if len(obspts) > 9: fig.set_size_inches(16., 12.)
 for ii in range(len(obspts)):
-    ax = fig.add_subplot(4,6,ii+1)
-    #ax = fig.add_subplot(2,2,ii+1)
+    if len(obspts) == 4:    ax = fig.add_subplot(2,2,ii+1)
+    else:   ax = fig.add_subplot(4,6,ii+1)
     ax.plot(waveobj.PDE.times, waveobj.dd[ii,:], 'k--')
     ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
     ax.set_title('Plot'+str(ii))
@@ -111,4 +119,4 @@ for ii in range(3):
     Medium[ii,:] = smoothperturb_fn.vector().array()
 checkgradfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-4])
 print 'check Hessian with FD'
-checkhessfd_med(waveobj, Medium, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4], False)
+#checkhessfd_med(waveobj, Medium, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4], False)
