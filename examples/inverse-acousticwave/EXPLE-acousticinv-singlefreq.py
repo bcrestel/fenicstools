@@ -10,6 +10,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import dolfin as dl
+import ffc
 from fenicstools.plotfenics import PlotFenics
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
@@ -26,7 +27,7 @@ class LeftRight(dl.SubDomain):
         return (x[0] < 1e-16 or x[0] > 1.0 - 1e-16) \
         and on_boundary
 
-@profile
+#@profile
 def run_test(fpeak, lambdamin, lambdamax, Nxy, tfilterpts, r, Dt, skip):
     h = 1./Nxy
     checkdt(Dt, h, r, np.sqrt(lambdamax), True)
@@ -116,6 +117,12 @@ def run_test(fpeak, lambdamin, lambdamax, Nxy, tfilterpts, r, Dt, skip):
 
 
 if __name__ == "__main__":
+    dl.parameters['form_compiler']['cpp_optimize'] = True
+    dl.parameters['form_compiler']['cpp_optimize_flags'] = '-O2'
+    dl.parameters['form_compiler']['optimize'] = True
+    ffc.parameters.FFC_PARAMETERS['optimize'] = True
+    ffc.parameters.FFC_PARAMETERS['cpp_optimize'] = True
+    ffc.parameters.FFC_PARAMETERS['cpp_optimize_flags'] = '-O2'
     # Inputs:
     fpeak = 1.0  #Hz
     lambdamin = 1.0

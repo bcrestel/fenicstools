@@ -104,7 +104,7 @@ class ObjectiveAcoustic(LinearOperator):
 
 
     # ADJOINT PROBLEM + GRAD:
-    #TODO: profile; gradient computation step slow
+    #@profile
     def solveadj(self, grad=False):
         self.PDE.set_adj()
         self.obsop.assemble_rhsadj(self.Bp, self.dd, self.PDE.times, self.PDE.bc)
@@ -124,6 +124,9 @@ class ObjectiveAcoustic(LinearOperator):
                 setfct(self.p, fwd[0])
                 setfct(self.v, adj[0])
                 self.MGv.axpy(fact, assemble(self.wkformgrad))
+#                self.MGv.axpy(fact, assemble(self.wkformgrad, \
+#                form_compiler_parameters={'optimize':True,\
+#                'representation':'quadrature'}))
                 if self.PDE.abc:
                     if index%2 == 0:
                         self.p2D.vector().axpy(1.0, self.p.vector())
