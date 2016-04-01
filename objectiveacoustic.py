@@ -55,6 +55,7 @@ class ObjectiveAcoustic(LinearOperator):
         self.invDt = 1./self.PDE.Dt
         # Absorbing BCs
         if self.PDE.abc:
+            #TODO: should probably be tested in other situations
             if self.PDE.lumpD:
                 print '*** Warning: Damping matrix D is lumped. ',\
                 'Make sure gradient is consistent.'
@@ -62,6 +63,17 @@ class ObjectiveAcoustic(LinearOperator):
             Function(self.PDE.V), Function(self.PDE.V), Function(self.PDE.V)
             self.wkformgradD = inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
             *self.pD, self.vD*self.lamtest)*self.PDE.ds(1)
+            self.wkformDprime = inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
+            *self.lamhat*self.ptrial, self.ptest)*self.PDE.ds(1)
+            self.dp, self.dph, self.vhatD = Function(self.PDE.V), \
+            Function(self.PDE.V), Function(self.PDE.V)
+            self.p1hatD, self.p2hatD = Function(self.PDE.V), Function(self.PDE.V)
+            self.wkformhessD = inner(-0.25*sqrt(self.PDE.rho)/(self.PDE.lam*sqrt(self.PDE.lam))\
+            *self.lamhat*self.dp, self.vD*self.lamtest)*self.PDE.ds(1) \
+            + inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
+            *self.dph, self.vD*self.lamtest)*self.PDE.ds(1)\
+            + inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
+            *self.dp, self.vhatD*self.lamtest)*self.PDE.ds(1)
 
 
     def copy(self):
@@ -116,13 +128,15 @@ class ObjectiveAcoustic(LinearOperator):
                     if index%2 == 0:
                         self.p2D.vector().axpy(1.0, self.p.vector())
                         setfct(self.pD, self.p2D)
-                        self.MGv.axpy(fact*0.5*self.invDt, assemble(self.wkformgradD))
+                        self.MGv.axpy(1.0*0.5*self.invDt, assemble(self.wkformgradD))
+                        #self.MGv.axpy(fact*0.5*self.invDt, assemble(self.wkformgradD))
                         setfct(self.p2D, -1.0*self.p.vector())
                         setfct(self.vD, self.v)
                     else:
                         self.p1D.vector().axpy(1.0, self.p.vector())
                         setfct(self.pD, self.p1D)
-                        self.MGv.axpy(fact*0.5*self.invDt, assemble(self.wkformgradD))
+                        self.MGv.axpy(1.0*0.5*self.invDt, assemble(self.wkformgradD))
+                        #self.MGv.axpy(fact*0.5*self.invDt, assemble(self.wkformgradD))
                         setfct(self.p1D, -1.0*self.p.vector())
                         setfct(self.vD, self.v)
                 index += 1
@@ -140,9 +154,16 @@ class ObjectiveAcoustic(LinearOperator):
             print 'Error in ftimeincrfwd at time {}'.format(tt)
             print np.min(np.abs(self.PDE.times-tt))
             sys.exit(0)
+        # lamhat * grad(p).grad(vtilde)
         assert isequal(tt, self.solfwd[index][1], 1e-16)
         setfct(self.p, self.solfwd[index][0])
-        return -1.0*(self.C*self.p.vector()).array()
+        setfct(self.v, self.C*self.p.vector())
+        # D'.dot(p)
+        if self.PDE.abc and index > 0:
+                setfct(self.p, \
+                self.solfwd[index+1][0] - self.solfwd[index-1][0])
+                self.v.vector().axpy(.5*self.invDt, self.Dp*self.p.vector())
+        return -1.0*self.v.vector().array()
 
     def ftimeincradj(self, tt):
         """ Compute rhs for incremental adjoint at time tt """
@@ -161,6 +182,11 @@ class ObjectiveAcoustic(LinearOperator):
         assert isequal(tt, self.solincrfwd[indexf][1], 1e-16)
         setfct(self.phat, self.solincrfwd[indexf][0])
         self.vhat.vector().axpy(1.0, self.obsop.incradj(self.phat, tt))
+        # D'.dot(v)
+        if self.PDE.abc and indexa > 0:
+                setfct(self.v, \
+                self.soladj[indexa-1][0] - self.soladj[indexa+1][0])
+                self.vhat.vector().axpy(-.5*self.invDt, self.Dp*self.v.vector())
         return -1.0*self.vhat.vector().array()
         
     def mult(self, lamhat, y):
@@ -169,9 +195,9 @@ class ObjectiveAcoustic(LinearOperator):
         inputs:
             y, lamhat = Function(V).vector()
         """
-        #TODO: add boundary terms for abs abc
         setfct(self.lamhat, lamhat)
         self.C = assemble(self.wkformrhsincr)
+        if self.PDE.abc:    self.Dp = assemble(self.wkformDprime)
         # solve for phat
         self.PDE.set_fwd()
         self.PDE.ftime = self.ftimeincrfwd
@@ -180,8 +206,13 @@ class ObjectiveAcoustic(LinearOperator):
         self.PDE.set_adj()
         self.PDE.ftime = self.ftimeincradj
         self.solincradj,_ = self.PDE.solve()
-        # Compute Hessian*x
+        # Compute Hessian*lamhat
         y.zero()
+        index = 0
+        if self.PDE.abc:
+            self.vD.vector().zero(); self.vhatD.vector().zero(); 
+            self.p1D.vector().zero(); self.p2D.vector().zero();
+            self.p1hatD.vector().zero(); self.p2hatD.vector().zero();
         for fwd, adj, incrfwd, incradj, fact in \
         zip(self.solfwd, reversed(self.soladj), \
         self.solincrfwd, reversed(self.solincradj), self.factors):
@@ -195,6 +226,26 @@ class ObjectiveAcoustic(LinearOperator):
             setfct(self.phat, incrfwd[0])
             setfct(self.vhat, incradj[0])
             y.axpy(fact, assemble(self.wkformhess))
+            if self.PDE.abc:
+                if index%2 == 0:
+                    self.p2D.vector().axpy(1.0, self.p.vector())
+                    self.p2hatD.vector().axpy(1.0, self.phat.vector())
+                    setfct(self.dp, self.p2D)
+                    setfct(self.dph, self.p2hatD)
+                    y.axpy(1.0*0.5*self.invDt, assemble(self.wkformhessD))
+                    setfct(self.p2D, -1.0*self.p.vector())
+                    setfct(self.p2hatD, -1.0*self.phat.vector())
+                else:
+                    self.p1D.vector().axpy(1.0, self.p.vector())
+                    self.p1hatD.vector().axpy(1.0, self.phat.vector())
+                    setfct(self.dp, self.p1D)
+                    setfct(self.dph, self.p1hatD)
+                    y.axpy(1.0*0.5*self.invDt, assemble(self.wkformhessD))
+                    setfct(self.p1D, -1.0*self.p.vector())
+                    setfct(self.p1hatD, -1.0*self.phat.vector())
+                setfct(self.vD, self.v)
+                setfct(self.vhatD, self.vhat)
+            index += 1
 
 
     # SETTERS + UPDATE:
