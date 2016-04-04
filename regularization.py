@@ -43,7 +43,8 @@ class TV():
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps
         self.kovsq = self.k / sqrt(self.fTV)
         #
-        self.wkformcost = self.k * sqrt(inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps)*dx
+        #self.wkformcost = self.k * sqrt(inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps)*dx
+        self.wkformcost = self.k * sqrt(self.fTV)*dx
         self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(self.test))*dx
         #TODO: create option for either version of Hessian
         # Full Hessian does not work in denoising application
