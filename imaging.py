@@ -14,37 +14,23 @@ class ObjectiveImageDenoising():
     Class to do image denoising
     """
 
-    def __init__(self, mesh, regularization='tikhonov'):
+    def __init__(self, mesh, trueImage, regularization='tikhonov'):
         """
         Inputs:
             mesh = Fenics mesh
         """
+        # Mesh
         self.mesh = mesh
         self.V = dl.FunctionSpace(self.mesh, 'Lagrange', 1)
         self.dimV = self.V.dim()
-        self.xx = self.V.dofmap().tabulate_all_coordinates(self.mesh)
         self.test, self.trial = dl.TestFunction(self.V), dl.TrialFunction(self.V)
-        # Target data:
-        self.ddata = np.loadtxt('image.dat', delimiter=',')
-        Lx, Ly = float(data.shape[1])/float(data.shape[0]), 1.
-        class Image(Expression):
-            def __init__(self, Lx, Ly, data):
-                self.data = data
-                self.hx = Lx/float(data.shape[1]-1)
-                self.hy = Ly/float(data.shape[0]-1)
-                
-            def eval(self, values, x):
-                j = math.floor(x[0]/self.hx)
-                i = math.floor(x[1]/self.hy)
-                values[0] = self.data[i,j]
-        trueImage = Image(Lx, Ly, data)
         self.f_true = dl.interpolate(trueImage, self.V)  
         self.g = None   # current iterate
         # mass matrix
         self.Mweak = dl.inner(self.test, self.trial)*dl.dx
         self.M = dl.assemble(self.Mweak)
         # regularization
-        self.parameters['regularization'] = regularization
+        self.parameters = {'regularization':regularization}
         if regularization == 'tikhonov':
             self.RegTikh = LaplacianPrior({'gamma':1.0, 'beta':0.0, 'Vm':self.V})
             self.R = self.RegTikh.Minvprior.array()
@@ -58,12 +44,12 @@ class ObjectiveImageDenoising():
         
     def generatedata(self, noisepercent):
         """ compute data and add noisepercent (%) of noise """
-        pbtype = self.parameters['pbtype']
-        self.d = self.f_true
-        sigma = noisepercent*np.linalg.norm(self.d)/np.sqrt(self.dimV)
+        sigma = noisepercent*np.linalg.norm(self.f_true.vector().array())/np.sqrt(self.dimV)
+        print sigma
         eta = sigma*np.random.randn(self.dimV)
-        print 'noise residual={}'.format(.5*np.linalg.norm(eta)**2)
-        self.dn = self.d + eta
+        self.dn = dl.Function(self.V)
+        setfct(self.dn, eta)
+        self.dn.vector().axpy(1.0, self.f_true.vector())
 
     def update_reg(self, gamma):
         regularization = self.parameters['regularization']
@@ -219,22 +205,22 @@ class ObjectiveImageDenoising():
         print 'cost={:.2e}, misfit={:.2e}, reg={:.2e}, alpha={:.2e}, medmisfit={:.2e} ({:.3f})'.format(\
         self.cost, self.misfit, self.reg, self.alpha, self.medmisfit, self.relmedmisfit)
 
-    def plot(self, u=None):
-        """ Plot data and target """
-        fig = plt.figure()
-        ax = fig.add_subplot(111)
-        #ax.plot(self.xx, self.dn, label='noisy data')
-        ax.plot(self.xx, self.f_true, label='target')
-        if not u == None:   
-            ax.plot(self.xx, u, label='u')
-        elif not self.g == None:   
-            ax.plot(self.xx, self.g, label='sol')
-        ax.legend(loc='best')
-        return fig
+    def plot(self, index=0):
+        """ Plot target (w/ noise 0, or w/o noise 1) or current iterate (2) """
+        if index == 0:
+            dl.plot(self.f_true)
+            dl.interactive()
+        elif index == 1:
+            dl.plot(self.dn)
+            dl.interactive()
+        #else:
 
 
 
 
+##----------------------------------------------------------------------------------------
+##----------------------------------------------------------------------------------------
+##----------------------------------------------------------------------------------------
 class ObjectiveImageDeblurring1D():
     """
     Class for linear 1D image denoising problem, built on an integral (blurring) kernel
@@ -458,3 +444,8 @@ class ObjectiveImageDeblurring1D():
             ax.plot(self.xx, self.g, label='sol')
         ax.legend(loc='best')
         return fig
+
+
+
+
+
