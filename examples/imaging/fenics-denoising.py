@@ -25,7 +25,10 @@ def run_exple(PLOT=False, TEST=False):
             i = math.floor(x[1]/self.hy)
             values[0] = self.data[i,j]
     trueImage = Image(Lx, Ly, data)
-    mesh = dl.RectangleMesh(dl.Point(0.,0.), dl.Point(Lx,Ly), 200, 100)
+    if dl.__version__.split('.')[1] == '5':
+        mesh = dl.RectangleMesh(0,0, Lx,Ly, 200,100)
+    else:
+        mesh = dl.RectangleMesh(dl.Point(0.,0.), dl.Point(Lx,Ly), 200, 100)
     # Generate data 
     #denoise = ObjectiveImageDenoising(mesh, trueImage, \
     #{'regularization':'tikhonov', 'gamma':1.0, 'beta':0.0})
