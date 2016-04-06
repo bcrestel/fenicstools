@@ -19,6 +19,8 @@ class TV():
         if parameters.has_key('eps') and parameters.has_key('Vm'):
             if not parameters.has_key('k'):
                 parameters['k'] = 1.0
+            if parameters.has_key('GNhessian'): self.GNhessian = parameters['GNhessian']
+            else:   self.GNhessian = True
             self.update(parameters)
         else:   
             print "inputs parameters must contain field 'eps' and 'Vm'"
@@ -29,7 +31,7 @@ class TV():
         parameters should be:
             - k(x) = factor inside TV
             - eps = regularization parameter
-            - Vm = FunctionSpace for parameter. !!!! WARNING: SHOULD BE ORDER 1 !!!!
+            - Vm = FunctionSpace for parameter. 
         ||f||_TV = int k(x) sqrt{|grad f|^2 + eps} dx
         """
         self.H = None
@@ -43,42 +45,29 @@ class TV():
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps
         self.kovsq = self.k / sqrt(self.fTV)
         #
-        #self.wkformcost = self.k * sqrt(inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps)*dx
+        # cost functional
         self.wkformcost = self.k * sqrt(self.fTV)*dx
+        # gradient
         self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(self.test))*dx
-        #TODO: create option for either version of Hessian
-        # Full Hessian does not work in denoising application
-#        self.wkformhess = self.kovsq * ( \
-#        inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
-#        inner(nabla_grad(self.m), nabla_grad(self.test))* \
-#        inner(nabla_grad(self.trial), nabla_grad(self.m))/self.fTV)*dx
-        self.wkformhess = self.kovsq*inner(nabla_grad(self.trial), nabla_grad(self.test))*dx
-
-
-#            self.wkformcost = self.k * \
-#            sqrt(inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps)*dx
-#            #
-#            self.wkformgrad = inner(nabla_grad(self.m), nabla_grad(self.test)) * \
-#            self.k/sqrt(inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps)*dx
-#            #
-#            self.wkformhess = (inner(nabla_grad(self.trial),nabla_grad(self.test)) -\
-#            inner(nabla_grad(self.m),nabla_grad(self.test))*\
-#            inner(nabla_grad(self.trial),nabla_grad(self.m))/\
-#            (inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps)) * \
-#            self.k/sqrt(inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps)*dx
-
-
+        # Hessian
+        if self.GNhessian:
+            self.wkformhess = self.kovsq*inner(nabla_grad(self.trial), nabla_grad(self.test))*dx
+        else:
+            self.wkformhess = self.kovsq * ( \
+            inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
+            inner(nabla_grad(self.m), nabla_grad(self.test))* \
+            inner(nabla_grad(self.trial), nabla_grad(self.m))/self.fTV)*dx
 
     def cost(self, m_in):
         """ returns the cost functional for self.m=m_in """
-        #isFunction(m_in)
         setfct(self.m, m_in)
+        self.H = None
         return assemble(self.wkformcost)
 
     def grad(self, m_in):
         """ returns the gradient (in vector format) evaluated at self.m=m_in """
-        #isFunction(m_in)
         setfct(self.m, m_in)
+        self.H = None
         return assemble(self.wkformgrad)
 
     def assemble_hessian(self, m_in):
