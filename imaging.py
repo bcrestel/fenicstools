@@ -173,7 +173,7 @@ class ObjectiveImageDenoising():
                     print 'Line search failed'
                     break
                 if self.Gradnorm < min(1e-12, 1e-10*self.Gradnorm0) or \
-                np.abs(cost - self.cost)/cost < 1e-8:
+                np.abs(cost-self.cost)/cost < 1e-12:
                     print 'optimization converged'
                     break
                 cost = self.cost
