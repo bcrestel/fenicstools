@@ -1,0 +1,9 @@
+V = FiniteElement("Lagrange", triangle, 2)
+
+test = TestFunction(V)
+trial = TrialFunction(V)
+k = Coefficient(V)
+f = Coefficient(V)
+
+a = inner(k*nabla_grad(test), nabla_grad(trial))*dx
+L = f*test*dx
