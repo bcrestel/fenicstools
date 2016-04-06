@@ -3,19 +3,21 @@ TODO list
     - CHECKS:
 * Build unit test for: prior, observation operator,... (serial and parallel)
 * Parallel computations (what solver?), scaling, ...
+* Compare Python vs C++ implementations for speed of assembly
+* Automatic Differentiation / dolfin-adjoint
 
 
     - DENOISING:
-* Set option for GN TV
-* Comparing denoising (M) and deblurring (K)
 * Implement primal-dual solver for TV regularization
 
 
     - ACOUSTIC:
-* Add ABC terms to gradient and Hessian
-* implement misift with blurring kernel
+* Look at dolfin-adjoint
+* Check ABC terms to gradient and Hessian
+* implement misfit with blurring kernel
+* GLL integration points in Fenics
 * profile + improve gradient and Hessian computation steps
-* Code C++ version of fwd and adj pbs
+* Code C++ version of fwd and adj pbs (?)
 
 
     - BAYESIAN:
