@@ -56,8 +56,8 @@ def run_exple(PLOT=False, TEST=False):
 
 if __name__ == "__main__":
     try:
-        PLOT = bool(sys.argv[1])
-        TEST = bool(sys.argv[2])
+        PLOT = bool(int(sys.argv[1]))
+        TEST = bool(int(sys.argv[2]))
     except:
         PLOT, TEST = False, False
     run_exple(PLOT, TEST)
