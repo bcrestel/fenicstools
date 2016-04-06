@@ -23,7 +23,7 @@ k_exp = dl.Expression('1.0 + exp(x[0]*x[1])')
 k = dl.interpolate(k_exp, V)
 #k = dl.Constant(1.0)
 m_in = dl.Function(V)
-TV1 = TV({'Vm':V, 'eps':dl.Constant(0.0001), 'k':k})
+TV1 = TV({'Vm':V, 'eps':dl.Constant(0.0001), 'k':k, 'GNhessian':False})
 
 print 'Test 1: Smooth medium'
 
