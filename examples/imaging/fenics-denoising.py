@@ -11,6 +11,7 @@ from fenicstools.plotfenics import PlotFenics
 dl.set_log_active(False)
 
 def run_exple(PLOT=True, TEST=False):
+    print 'Run Example'
     # Target data:
     data = np.loadtxt('image.dat', delimiter=',')
     Lx, Ly = float(data.shape[1])/float(data.shape[0]), 1.
@@ -56,6 +57,7 @@ def run_exple(PLOT=True, TEST=False):
 
 
 def run_continuation(PLOT=True, TEST=False):
+    print 'Run Continuation Scheme'
     # Target data:
     data = np.loadtxt('image.dat', delimiter=',')
     Lx, Ly = float(data.shape[1])/float(data.shape[0]), 1.
@@ -94,6 +96,7 @@ def run_continuation(PLOT=True, TEST=False):
     EPS = [1.0]
     denoise.g = dl.Function(denoise.V)
     for eps in EPS:
+        print 'eps={}'.format(eps)
         paramregul = {'regularization':'TV', 'eps':eps, \
         'k':1.0, 'GNhessian':False}
         denoise.define_regularization(paramregul)
