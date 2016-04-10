@@ -41,15 +41,13 @@ class ObjectiveImageDenoising():
         self.solverM.parameters['reuse_factorization'] = True
         self.solverM.set_operator(self.M)
         self.targetnorm = np.sqrt((self.M*self.f_true.vector()).inner(self.f_true.vector()))
-        # regularization
-        self.parameters = parameters
-        if not self.parameters == None: self.define_regularization()
-        self.regparam = 1.0
         # line search parameters
-        self.parameters['alpha0'] = 1.0
-        self.parameters['rho'] = 0.5
-        self.parameters['c'] = 5e-5
-        self.parameters['max_backtrack'] = 12
+        self.parameters = {'alpha0':1.0, 'rho':0.5, 'c':5e-5, 'max_backtrack':12}
+        # regularization
+        if not parameters == None: 
+            self.parameters.update(parameters)
+            self.define_regularization()
+        self.regparam = 1.0
         # plots:
         filename, ext = os.path.splitext(sys.argv[0])
         if os.path.isdir(filename + '/'):   shutil.rmtree(filename + '/')
@@ -66,18 +64,17 @@ class ObjectiveImageDenoising():
         self.dn.vector().axpy(1.0, self.f_true.vector())
 
     def define_regularization(self, parameters=None):
-        if parameters == None:  parameters = self.parameters
-        else:   self.parameters = parameters
-        regularization = parameters['regularization']
+        if not parameters == None:  self.parameters.update(parameters)
+        regularization = self.parameters['regularization']
         if regularization == 'tikhonov':
-            gamma = parameters['gamma']
-            beta = parameters['beta']
+            gamma = self.parameters['gamma']
+            beta = self.parameters['beta']
             self.Reg = LaplacianPrior({'gamma':gamma, 'beta':beta, 'Vm':self.V})
             self.inexact = False
         elif regularization == 'TV':
-            eps = parameters['eps']
-            k = parameters['k']
-            GNhessian = parameters['GNhessian']
+            eps = self.parameters['eps']
+            k = self.parameters['k']
+            GNhessian = self.parameters['GNhessian']
             self.Reg = TV({'eps':eps, 'k':k, 'Vm':self.V, 'GNhessian':GNhessian})
             self.inexact = True
 
