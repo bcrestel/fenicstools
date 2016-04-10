@@ -16,7 +16,7 @@ class ObjectiveImageDenoising():
     """
     Class to do image denoising
     """
-    def __init__(self, mesh, trueImage, parameters):
+    def __init__(self, mesh, trueImage, parameters=None):
         """
         Inputs:
             mesh = Fenics mesh
@@ -43,7 +43,7 @@ class ObjectiveImageDenoising():
         self.targetnorm = np.sqrt((self.M*self.f_true.vector()).inner(self.f_true.vector()))
         # regularization
         self.parameters = parameters
-        self.define_regularization()
+        if not self.parameters == None: self.define_regularization()
         self.regparam = 1.0
         # line search parameters
         self.parameters['alpha0'] = 1.0
@@ -67,6 +67,7 @@ class ObjectiveImageDenoising():
 
     def define_regularization(self, parameters=None):
         if parameters == None:  parameters = self.parameters
+        else:   self.parameters = parameters
         regularization = parameters['regularization']
         if regularization == 'tikhonov':
             gamma = parameters['gamma']
