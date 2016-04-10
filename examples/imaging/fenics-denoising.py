@@ -92,8 +92,8 @@ def run_continuation(PLOT=True, TEST=False):
         sys.exit(0)
     # Solve
     denoise.regparam = 1e-2
-    #EPS = 10**(-np.linspace(0.,4.,5))
-    EPS = [1.0]
+    EPS = 10**(-np.linspace(0.,4.,5))
+    #EPS = [1.0]
     denoise.g = dl.Function(denoise.V)
     for eps in EPS:
         print 'eps={}'.format(eps)
@@ -101,7 +101,7 @@ def run_continuation(PLOT=True, TEST=False):
         'k':1.0, 'GNhessian':False}
         denoise.define_regularization(paramregul)
         denoise.solve()
-        if PLOT:    denoise.plot(cont,'-'+str(eps))
+        if PLOT:    denoise.plot(2,'-'+str(eps))
 
 
 if __name__ == "__main__":
