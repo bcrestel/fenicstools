@@ -21,6 +21,7 @@ class TV():
                 parameters['k'] = 1.0
             if parameters.has_key('GNhessian'): self.GNhessian = parameters['GNhessian']
             else:   self.GNhessian = True
+            self.primaldual = False
             self.update(parameters)
         else:   
             print "inputs parameters must contain field 'eps' and 'Vm'"
@@ -40,23 +41,41 @@ class TV():
         if parameters.has_key('Vm'):
             self.Vm = parameters['Vm']
             self.m = Function(self.Vm)
+            self.w = Function(self.Vm)  # dual variable for primal-dual
+            self.dw = Function(self.Vm)  
+            self.dm = Function(self.Vm)
             self.test = TestFunction(self.Vm)
             self.trial = TrialFunction(self.Vm)
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps
         self.kovsq = self.k / sqrt(self.fTV)
+        if not self.primaldual: self.w = nabla_grad(self.m)/sqrt(self.fTV)
         #
         # cost functional
         self.wkformcost = self.k * sqrt(self.fTV)*dx
         # gradient
-        self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(self.test))*dx
+        self.wkformgrad = self.k*inner(self.w, nabla_grad(self.test))*dx
+        #self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(self.test))*dx
         # Hessian
         if self.GNhessian:
             self.wkformhess = self.kovsq*inner(nabla_grad(self.trial), nabla_grad(self.test))*dx
         else:
             self.wkformhess = self.kovsq * ( \
             inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
-            inner(nabla_grad(self.m), nabla_grad(self.test))* \
-            inner(nabla_grad(self.trial), nabla_grad(self.m))/self.fTV)*dx
+            0.5*( inner(self.w, nabla_grad(self.test))*\
+            inner(nabla_grad(self.trial), nabla_grad(self.m)) + \
+            inner(nabla_grad(self.m), nabla_grad(self.test))*\
+            inner(nabla_grad(self.trial), self.w) ) / sqrt(self.fTV) \
+            )*dx
+#            self.wkformhess = self.kovsq * ( \
+#            inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
+#            inner(nabla_grad(self.m), nabla_grad(self.test))* \
+#            inner(nabla_grad(self.trial), nabla_grad(self.m))/self.fTV)*dx
+        #TODO: Check here
+        #if self.primaldual:
+        #    self.wkformdw-A = inner(sqrt(self.fTV)*self.dw, self.test)*dx
+        #    self.wkformdw-rhs = inner(self.w*sqrt(self.fTV)-nabla_grad(self.m), self.test)*dx + \
+        #    inner(nabla_grad(self.dm)-inner(nabla_grad(self.m),nabla_grad(self.dm))*self.w \
+        #    /sqrt(self.fTV), self.test)*dx
 
     def cost(self, m_in):
         """ returns the cost functional for self.m=m_in """
@@ -79,3 +98,9 @@ class TV():
         """ returns the Hessian applied along a direction m_in """
         isVector(mhat)
         return self.H * mhat
+
+    def update_w(self, dm):
+        """ Compute dw and run line search on w """
+        setfct(self.dm, dm)
+        solve(self.wkformdw-A == self.wkformdw-rhs, self.dw)
+        #TODO: code line search for w + alpha*dw
