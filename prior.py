@@ -3,7 +3,9 @@ import numpy as np
 
 from dolfin import Function, TrialFunction, TestFunction, Vector, \
 assemble, inner, nabla_grad, dx, \
-PETScMatrix, SLEPcEigenSolver, LUSolver
+PETScMatrix, LUSolver
+try:
+    from dolfin import SLEPcEigenSolver
 from miscfenics import isFunction, isVector
 
 
