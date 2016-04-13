@@ -36,46 +36,46 @@ class TV():
         ||f||_TV = int k(x) sqrt{|grad f|^2 + eps} dx
         """
         self.H = None
+        self.updatew = True
         if parameters.has_key('k'): self.k = parameters['k']
         if parameters.has_key('eps'): self.eps = parameters['eps']
         if parameters.has_key('Vm'):
             self.Vm = parameters['Vm']
             self.m = Function(self.Vm)
-            self.w = Function(self.Vm)  # dual variable for primal-dual
-            self.dw = Function(self.Vm)  
+            self.w = Function(self.Vm*self.Vm)  # dual variable for primal-dual, initialized at 0
+            self.dw = Function(self.Vm*self.Vm)  
             self.dm = Function(self.Vm)
-            self.test = TestFunction(self.Vm)
-            self.trial = TrialFunction(self.Vm)
+            self.test, self.trial = TestFunction(self.Vm), TrialFunction(self.Vm)
+            if self.primaldual: 
+                self.testw = TestFunction(self.Vm*self.Vm)
+                self.trialw = TrialFunction(self.Vm*self.Vm)
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps
         self.kovsq = self.k / sqrt(self.fTV)
-        if not self.primaldual: self.w = nabla_grad(self.m)/sqrt(self.fTV)
+        if not self.primaldual: 
+            if not self.GNhessian:  self.w = nabla_grad(self.m)/sqrt(self.fTV)
         #
         # cost functional
         self.wkformcost = self.k * sqrt(self.fTV)*dx
         # gradient
         self.wkformgrad = self.k*inner(self.w, nabla_grad(self.test))*dx
-        #self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(self.test))*dx
         # Hessian
-        if self.GNhessian:
-            self.wkformhess = self.kovsq*inner(nabla_grad(self.trial), nabla_grad(self.test))*dx
-        else:
-            self.wkformhess = self.kovsq * ( \
-            inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
-            0.5*( inner(self.w, nabla_grad(self.test))*\
-            inner(nabla_grad(self.trial), nabla_grad(self.m)) + \
-            inner(nabla_grad(self.m), nabla_grad(self.test))*\
-            inner(nabla_grad(self.trial), self.w) ) / sqrt(self.fTV) \
-            )*dx
+        self.wkformhess = self.kovsq * ( \
+        inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
+        0.5*( inner(self.w, nabla_grad(self.test))*\
+        inner(nabla_grad(self.trial), nabla_grad(self.m)) + \
+        inner(nabla_grad(self.m), nabla_grad(self.test))*\
+        inner(nabla_grad(self.trial), self.w) ) / sqrt(self.fTV) \
+        )*dx
 #            self.wkformhess = self.kovsq * ( \
 #            inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
 #            inner(nabla_grad(self.m), nabla_grad(self.test))* \
 #            inner(nabla_grad(self.trial), nabla_grad(self.m))/self.fTV)*dx
-        #TODO: Check here
-        #if self.primaldual:
-        #    self.wkformdw-A = inner(sqrt(self.fTV)*self.dw, self.test)*dx
-        #    self.wkformdw-rhs = inner(self.w*sqrt(self.fTV)-nabla_grad(self.m), self.test)*dx + \
-        #    inner(nabla_grad(self.dm)-inner(nabla_grad(self.m),nabla_grad(self.dm))*self.w \
-        #    /sqrt(self.fTV), self.test)*dx
+        if self.primaldual:
+            self.LSrhow = 0.95
+            self.wkformdwA = inner(sqrt(self.fTV)*self.trialw, self.testw)*dx
+            self.wkformdwrhs = inner(self.w*sqrt(self.fTV)-nabla_grad(self.m), self.testw)*dx + \
+            inner(nabla_grad(self.dm)-inner(nabla_grad(self.m),nabla_grad(self.dm))*self.w \
+            /sqrt(self.fTV), self.testw)*dx
 
     def cost(self, m_in):
         """ returns the cost functional for self.m=m_in """
@@ -91,16 +91,30 @@ class TV():
 
     def assemble_hessian(self, m_in):
         """ Assemble the Hessian of TV at m_in """
-        setfct(self.m, m_in)
-        self.H = assemble(self.wkformhess)
+        if self.updatew == True:
+            setfct(self.m, m_in)
+            self.H = assemble(self.wkformhess)
+            if self.primaldual == True: self.updatew = False
+        else:
+            print 'You need to update dual variable w'
+            sys.exit(1)
 
     def hessian(self, mhat):
-        """ returns the Hessian applied along a direction m_in """
+        """ returns the Hessian applied along a direction mhat """
         isVector(mhat)
         return self.H * mhat
 
     def update_w(self, dm):
         """ Compute dw and run line search on w """
         setfct(self.dm, dm)
-        solve(self.wkformdw-A == self.wkformdw-rhs, self.dw)
-        #TODO: code line search for w + alpha*dw
+        solve(self.wkformdwA == self.wkformdwrhs, self.dw)
+        # line search for dual variable:
+        dw = self.dw.vector().array()
+        aa = (np.sign(dw) - self.w.vector().array())/dw
+        alpha = np.amin(aa)
+        self.w.vector().axpy(self.LSrhow*alpha, self.dw.vector())
+        print 'line search dual variable: alpha={}, max |w_i|={}'.\
+        format(alpha, np.amax(np.abs(self.w.vector().array())))
+        self.updatew = True
+        # Tmp check
+        assert np.amax( np.abs(self.w.vector().array()) ) <= 1.0
