@@ -6,6 +6,8 @@ assemble, inner, nabla_grad, dx, \
 PETScMatrix, LUSolver
 try:
     from dolfin import SLEPcEigenSolver
+except:
+    pass
 from miscfenics import isFunction, isVector
 
 
