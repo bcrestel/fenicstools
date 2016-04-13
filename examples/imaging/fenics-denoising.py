@@ -34,7 +34,7 @@ def run_exple(PLOT=True, TEST=False):
     #denoise = ObjectiveImageDenoising(mesh, trueImage, \
     #{'regularization':'tikhonov', 'gamma':1.0, 'beta':0.0})
     denoise = ObjectiveImageDenoising(mesh, trueImage, \
-    {'regularization':'TV', 'eps':1e-4, 'k':1.0, 'GNhessian':False})
+    {'regularization':'TV', 'eps':1e-4, 'k':1.0, 'GNhessian':True})
     denoise.generatedata(0.6)
     if PLOT:
         denoise.plot(0)
