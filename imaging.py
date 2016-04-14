@@ -58,6 +58,7 @@ class ObjectiveImageDenoising():
         """ compute data and add noisepercent (%) of noise """
         sigma = noisepercent*np.linalg.norm(self.f_true.vector().array())/np.sqrt(self.dimV)
         print 'sigma_noise = ', sigma
+        np.random.seed(0)  # tmp
         eta = sigma*np.random.randn(self.dimV)
         self.dn = dl.Function(self.V)
         setfct(self.dn, eta)
