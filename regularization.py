@@ -51,25 +51,24 @@ class TV():
                 self.trialw = TrialFunction(self.Vm*self.Vm)
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps
         self.kovsq = self.k / sqrt(self.fTV)
-        if not self.primaldual: 
-            if not self.GNhessian:  self.w = nabla_grad(self.m)/sqrt(self.fTV)
+        if not self.primaldual: self.w = nabla_grad(self.m)/sqrt(self.fTV)
         #
         # cost functional
         self.wkformcost = self.k * sqrt(self.fTV)*dx
         # gradient
         self.wkformgrad = self.k*inner(self.w, nabla_grad(self.test))*dx
         # Hessian
-        self.wkformhess = self.kovsq * ( \
-        inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
-        0.5*( inner(self.w, nabla_grad(self.test))*\
-        inner(nabla_grad(self.trial), nabla_grad(self.m)) + \
-        inner(nabla_grad(self.m), nabla_grad(self.test))*\
-        inner(nabla_grad(self.trial), self.w) ) / sqrt(self.fTV) \
-        )*dx
-#            self.wkformhess = self.kovsq * ( \
-#            inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
-#            inner(nabla_grad(self.m), nabla_grad(self.test))* \
-#            inner(nabla_grad(self.trial), nabla_grad(self.m))/self.fTV)*dx
+        if self.GNhessian:
+            self.wkformhess = self.kovsq*inner(nabla_grad(self.trial), nabla_grad(self.test))*dx
+        else:
+            self.wkformhess = self.kovsq * ( \
+            inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
+            0.5*( inner(self.w, nabla_grad(self.test))*\
+            inner(nabla_grad(self.trial), nabla_grad(self.m)) + \
+            inner(nabla_grad(self.m), nabla_grad(self.test))*\
+            inner(nabla_grad(self.trial), self.w) ) / sqrt(self.fTV) \
+            )*dx
+        # Update dual variable
         if self.primaldual:
             self.LSrhow = 0.95
             self.wkformdwA = inner(sqrt(self.fTV)*self.trialw, self.testw)*dx
