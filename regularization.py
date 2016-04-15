@@ -1,7 +1,8 @@
 import sys
+import numpy as np
 
 from dolfin import sqrt, inner, nabla_grad, grad, dx, \
-Function, TestFunction, TrialFunction, assemble
+Function, TestFunction, TrialFunction, assemble, solve, Constant
 from miscfenics import isFunction, isVector, setfct
 
 class TV():
@@ -19,9 +20,12 @@ class TV():
         if parameters.has_key('eps') and parameters.has_key('Vm'):
             if not parameters.has_key('k'):
                 parameters['k'] = 1.0
+            # GN Hessian?
             if parameters.has_key('GNhessian'): self.GNhessian = parameters['GNhessian']
             else:   self.GNhessian = True
-            self.primaldual = False
+            # Primal-dual method when using full Hessian
+            if self.GNhessian:  self.primaldual = False
+            else:   self.primaldual = True
             self.update(parameters)
         else:   
             print "inputs parameters must contain field 'eps' and 'Vm'"
@@ -51,30 +55,38 @@ class TV():
                 self.trialw = TrialFunction(self.Vm*self.Vm)
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps
         self.kovsq = self.k / sqrt(self.fTV)
-        if not self.primaldual: self.w = nabla_grad(self.m)/sqrt(self.fTV)
+        if not self.primaldual: 
+            self.w = nabla_grad(self.m)/sqrt(self.fTV)
         #
         # cost functional
-        self.wkformcost = self.k * sqrt(self.fTV)*dx
+        self.wkformcost = self.k*sqrt(self.fTV)*dx
         # gradient
-        self.wkformgrad = self.k*inner(self.w, nabla_grad(self.test))*dx
+        self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(self.test))*dx
         # Hessian
         if self.GNhessian:
             self.wkformhess = self.kovsq*inner(nabla_grad(self.trial), nabla_grad(self.test))*dx
         else:
-            self.wkformhess = self.kovsq * ( \
-            inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
-            0.5*( inner(self.w, nabla_grad(self.test))*\
-            inner(nabla_grad(self.trial), nabla_grad(self.m)) + \
-            inner(nabla_grad(self.m), nabla_grad(self.test))*\
-            inner(nabla_grad(self.trial), self.w) ) / sqrt(self.fTV) \
-            )*dx
+            if self.primaldual:
+                self.wkformhess = self.kovsq * ( \
+                inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
+                0.5*( inner(self.w, nabla_grad(self.test))*\
+                inner(nabla_grad(self.trial), nabla_grad(self.m)) + \
+                inner(nabla_grad(self.m), nabla_grad(self.test))*\
+                inner(nabla_grad(self.trial), self.w) ) / sqrt(self.fTV) \
+                )*dx
+            else:
+                self.wkformhess = self.kovsq*( \
+                inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
+                inner(nabla_grad(self.m), nabla_grad(self.test))*\
+                inner(nabla_grad(self.trial), nabla_grad(self.m))/self.fTV )*dx
         # Update dual variable
         if self.primaldual:
             self.LSrhow = 0.95
             self.wkformdwA = inner(sqrt(self.fTV)*self.trialw, self.testw)*dx
-            self.wkformdwrhs = inner(self.w*sqrt(self.fTV)-nabla_grad(self.m), self.testw)*dx + \
-            inner(nabla_grad(self.dm)-inner(nabla_grad(self.m),nabla_grad(self.dm))*self.w \
-            /sqrt(self.fTV), self.testw)*dx
+            self.wkformdwrhs = \
+            - inner(self.w*sqrt(self.fTV)-nabla_grad(self.m),self.testw)*dx +\
+            inner(nabla_grad(self.dm)-inner(nabla_grad(self.m),nabla_grad(self.dm))\
+            *self.w/sqrt(self.fTV),self.testw)*dx
 
     def cost(self, m_in):
         """ returns the cost functional for self.m=m_in """
@@ -106,14 +118,18 @@ class TV():
     def update_w(self, dm):
         """ Compute dw and run line search on w """
         setfct(self.dm, dm)
-        solve(self.wkformdwA == self.wkformdwrhs, self.dw)
+        #solve(self.wkformdwA == self.wkformdwrhs, self.dw)
+        A = assemble(self.wkformdwA)
+        b = assemble(self.wkformdwrhs)
+        solve(A, self.dw.vector(), b)
         # line search for dual variable:
         dw = self.dw.vector().array()
-        aa = (np.sign(dw) - self.w.vector().array())/dw
+        print np.amin(np.abs(dw)), np.amax(np.abs(dw))
+        aa = (self.LSrhow*np.sign(dw) - self.w.vector().array())/dw
         alpha = np.amin(aa)
-        self.w.vector().axpy(self.LSrhow*alpha, self.dw.vector())
-        print 'line search dual variable: alpha={}, max |w_i|={}'.\
-        format(alpha, np.amax(np.abs(self.w.vector().array())))
+        self.w.vector().axpy(alpha, self.dw.vector())
+        print 'line search dual variable: alpha={}, max |dw_i|={}, max |w_i|={}'.\
+        format(alpha, np.amax(np.abs(dw)), np.amax(np.abs(self.w.vector().array())))
         self.updatew = True
         # Tmp check
         assert np.amax( np.abs(self.w.vector().array()) ) <= 1.0
