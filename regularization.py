@@ -2,7 +2,8 @@ import sys
 import numpy as np
 
 from dolfin import sqrt, inner, nabla_grad, grad, dx, \
-Function, TestFunction, TrialFunction, assemble, solve, Constant
+Function, TestFunction, TrialFunction, assemble, solve, \
+Constant, plot, interactive
 from miscfenics import isFunction, isVector, setfct
 
 class TV():
@@ -63,8 +64,9 @@ class TV():
         # gradient
         self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(self.test))*dx
         # Hessian
+        self.wkformGNhess = self.kovsq*inner(nabla_grad(self.trial), nabla_grad(self.test))*dx
         if self.GNhessian:
-            self.wkformhess = self.kovsq*inner(nabla_grad(self.trial), nabla_grad(self.test))*dx
+            self.wkformhess = self.wkformGNhess 
         else:
             if self.primaldual:
                 self.wkformhess = self.kovsq * ( \
@@ -110,26 +112,43 @@ class TV():
             print 'You need to update dual variable w'
             sys.exit(1)
 
+    def assemble_GNhessian(self, m_in):
+        """ Assemble the Gauss-Newton Hessian at m_in """
+        setfct(self.m, m_in)
+        self.H = assemble(self.wkformGNhess)
+
     def hessian(self, mhat):
         """ returns the Hessian applied along a direction mhat """
         isVector(mhat)
         return self.H * mhat
 
-    def update_w(self, dm):
+    def update_w(self, dm, alpha=None):
         """ Compute dw and run line search on w """
         setfct(self.dm, dm)
-        #solve(self.wkformdwA == self.wkformdwrhs, self.dw)
         A = assemble(self.wkformdwA)
         b = assemble(self.wkformdwrhs)
         solve(A, self.dw.vector(), b)
         # line search for dual variable:
-        dw = self.dw.vector().array()
-        print np.amin(np.abs(dw)), np.amax(np.abs(dw))
-        aa = (self.LSrhow*np.sign(dw) - self.w.vector().array())/dw
-        alpha = np.amin(aa)
-        self.w.vector().axpy(alpha, self.dw.vector())
-        print 'line search dual variable: alpha={}, max |dw_i|={}, max |w_i|={}'.\
-        format(alpha, np.amax(np.abs(dw)), np.amax(np.abs(self.w.vector().array())))
+        if alpha == None:
+            # Compute max step length that can be taken
+            (wx,wy) = self.w.split(deepcopy=True)
+            (dwx,dwy) = self.dw.split(deepcopy=True)
+            wxa, wya = wx.vector().array(), wy.vector().array()
+            dwxa, dwya = dwx.vector().array(), dwy.vector().array()
+            wTdw = wxa*dwxa + wya*dwya
+            normw2 = wxa**2 + wya**2
+            normdw2 = dwxa**2 + dwya**2
+            # Check we don't have awkward situation
+            Delta = wTdw**2 + normdw2*(1.0-normw2)
+            assert len(np.where(Delta < 1e-14)[0]) == 0
+            # then compute max alpha
+            ALPHAS = (np.sqrt(Delta) - wTdw)/normdw2
+            alpha = np.amin(ALPHAS)
+            self.w.vector().axpy(self.LSrhow*alpha, self.dw.vector())
+        else:
+            self.w.vector().axpy(alpha, self.dw.vector())
+        print 'line search dual variable: alpha={}, max(|w_i|)={}'.\
+        format(alpha, np.amax(np.sqrt(normw2)))
         self.updatew = True
         # Tmp check
-        assert np.amax( np.abs(self.w.vector().array()) ) <= 1.0
+        #assert np.amax( np.abs(self.w.vector().array()) ) <= 1.0

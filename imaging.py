@@ -148,7 +148,7 @@ class ObjectiveImageDenoising():
             else:   self.alpha *= rho
         # line search on dual variable
         if regularization == 'TV':
-            if self.Reg.primaldual: self.Reg.update_w(self.dg)
+            if self.Reg.primaldual: self.Reg.update_w(self.dg)#, self.alpha)
 
     def solve(self, plot=False):
         """ Solve image denoising pb """
