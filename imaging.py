@@ -58,7 +58,7 @@ class ObjectiveImageDenoising():
         """ compute data and add noisepercent (%) of noise """
         sigma = noisepercent*np.linalg.norm(self.f_true.vector().array())/np.sqrt(self.dimV)
         print 'sigma_noise = ', sigma
-        np.random.seed(0)  # tmp
+        np.random.seed(0)  #TODO: tmp
         eta = sigma*np.random.randn(self.dimV)
         self.dn = dl.Function(self.V)
         setfct(self.dn, eta)
@@ -134,6 +134,7 @@ class ObjectiveImageDenoising():
         self.alpha = self.parameters['alpha0']
         rho = self.parameters['rho']
         c = self.parameters['c']
+        regularization = self.parameters['regularization']
         self.computecost()
         costref = self.cost
         cdJdf = ( (self.MG).inner(self.dg.vector()) )*c
@@ -145,6 +146,9 @@ class ObjectiveImageDenoising():
                 self.LS = True
                 break
             else:   self.alpha *= rho
+        # line search on dual variable
+        if regularization == 'TV':
+            if self.Reg.primaldual: self.Reg.update_w(self.dg)
 
     def solve(self, plot=False):
         """ Solve image denoising pb """

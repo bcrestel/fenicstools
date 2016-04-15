@@ -11,7 +11,7 @@ from fenicstools.plotfenics import PlotFenics
 dl.set_log_active(False)
 
 def run_exple(PLOT=True, TEST=False):
-    print 'Run Example'
+    print 'Run Example 1'
     # Target data:
     data = np.loadtxt('image.dat', delimiter=',')
     Lx, Ly = float(data.shape[1])/float(data.shape[0]), 1.
@@ -34,7 +34,7 @@ def run_exple(PLOT=True, TEST=False):
     #denoise = ObjectiveImageDenoising(mesh, trueImage, \
     #{'regularization':'tikhonov', 'gamma':1.0, 'beta':0.0})
     denoise = ObjectiveImageDenoising(mesh, trueImage, \
-    {'regularization':'TV', 'eps':1e-4, 'k':1.0, 'GNhessian':True})
+    {'regularization':'TV', 'eps':1e-4, 'k':1.0, 'GNhessian':False})
     denoise.generatedata(0.6)
     if PLOT:
         denoise.plot(0)
