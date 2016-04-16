@@ -34,7 +34,8 @@ def run_exple(PLOT=True, TEST=False):
     #denoise = ObjectiveImageDenoising(mesh, trueImage, \
     #{'regularization':'tikhonov', 'gamma':1.0, 'beta':0.0})
     denoise = ObjectiveImageDenoising(mesh, trueImage, \
-    {'regularization':'TV', 'eps':1e-4, 'k':1.0, 'GNhessian':False})
+    {'regularization':'TV', 'eps':1e-2, 'k':1.0, 'GNhessian':False})
+    denoise.Reg.primaldual = False
     denoise.generatedata(0.6)
     if PLOT:
         denoise.plot(0)
@@ -92,7 +93,7 @@ def run_continuation(PLOT=True, TEST=False):
         sys.exit(0)
     # Solve
     denoise.regparam = 1e-2
-    EPS = 10**(-np.linspace(0.,4.,5))
+    EPS = 10**(-np.linspace(0.,2.,3))
     #EPS = [1.0]
     denoise.g = dl.Function(denoise.V)
     for eps in EPS:
@@ -100,6 +101,7 @@ def run_continuation(PLOT=True, TEST=False):
         paramregul = {'regularization':'TV', 'eps':eps, \
         'k':1.0, 'GNhessian':False}
         denoise.define_regularization(paramregul)
+        denoise.Reg.primaldual = False
         denoise.solve()
         if PLOT:    denoise.plot(2,'-'+str(eps))
 
