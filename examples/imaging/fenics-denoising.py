@@ -11,6 +11,7 @@ from fenicstools.plotfenics import PlotFenics
 dl.set_log_active(False)
 
 def run_exple(PLOT=True, TEST=False):
+    # testcase == 0
     print 'Run basic example -- PLOT={}. TEST={}'.format(PLOT, TEST)
     # Target data:
     data = np.loadtxt('image.dat', delimiter=',')
@@ -57,6 +58,7 @@ def run_exple(PLOT=True, TEST=False):
 
 
 def run_continuation(PLOT=True, TEST=False):
+    # testcase == 1
     print 'Run continuation scheme on eps -- PLOT={}. TEST={}'.format(PLOT, TEST)
     # Target data:
     data = np.loadtxt('image.dat', delimiter=',')
@@ -92,7 +94,7 @@ def run_continuation(PLOT=True, TEST=False):
         sys.exit(0)
     # Solve
     denoise.regparam = 1e-2
-    EPS = 10**(-np.linspace(0.,2.,3))
+    EPS = 10**(-np.linspace(0.,4.,5))
     #EPS = [1.0]
     denoise.g = dl.Function(denoise.V)
     for eps in EPS:
