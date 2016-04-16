@@ -11,7 +11,7 @@ from fenicstools.plotfenics import PlotFenics
 dl.set_log_active(False)
 
 def run_exple(PLOT=True, TEST=False):
-    print 'Run Example 1'
+    print 'Run basic example -- PLOT={}. TEST={}'.format(PLOT, TEST)
     # Target data:
     data = np.loadtxt('image.dat', delimiter=',')
     Lx, Ly = float(data.shape[1])/float(data.shape[0]), 1.
@@ -34,8 +34,7 @@ def run_exple(PLOT=True, TEST=False):
     #denoise = ObjectiveImageDenoising(mesh, trueImage, \
     #{'regularization':'tikhonov', 'gamma':1.0, 'beta':0.0})
     denoise = ObjectiveImageDenoising(mesh, trueImage, \
-    {'regularization':'TV', 'eps':1e-2, 'k':1.0, 'GNhessian':False})
-    denoise.Reg.primaldual = False
+    {'regularization':'TV', 'eps':1e-2, 'k':1.0, 'mode':'full'})
     denoise.generatedata(0.6)
     if PLOT:
         denoise.plot(0)
@@ -58,7 +57,7 @@ def run_exple(PLOT=True, TEST=False):
 
 
 def run_continuation(PLOT=True, TEST=False):
-    print 'Run Continuation Scheme'
+    print 'Run continuation scheme on eps -- PLOT={}. TEST={}'.format(PLOT, TEST)
     # Target data:
     data = np.loadtxt('image.dat', delimiter=',')
     Lx, Ly = float(data.shape[1])/float(data.shape[0]), 1.
@@ -99,20 +98,28 @@ def run_continuation(PLOT=True, TEST=False):
     for eps in EPS:
         print 'eps={}'.format(eps)
         paramregul = {'regularization':'TV', 'eps':eps, \
-        'k':1.0, 'GNhessian':False}
+        'k':1.0, 'mode':'full'}
         denoise.define_regularization(paramregul)
-        denoise.Reg.primaldual = False
         denoise.solve()
         if PLOT:    denoise.plot(2,'-'+str(eps))
 
 
 if __name__ == "__main__":
+    # choose test case
+    # 0 = basic exple
+    # 1 = continuation on eps
     try:
         testcase = int(sys.argv[1])
     except:
         testcase = 0
-    PLOT = True
-    TEST = False
+    # choose options
+    try:
+        PLOT = bool(sys.argv[2])
+        TEST = bool(sys.argv[3])
+    except:
+        PLOT = True
+        TEST = False
+    # run
     if testcase == 0:   run_exple(PLOT, TEST)
     else:   run_continuation(PLOT, TEST)
 
