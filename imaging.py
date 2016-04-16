@@ -133,9 +133,9 @@ class ObjectiveImageDenoising():
         """ Perform inexact backtracking line search """
         regularization = self.parameters['regularization']
         mode = self.Reg.parameters['mode']
-        # update direction + line search for dual variable
-        if regularization == 'TV' and mode == 'primaldual': 
-            self.Reg.update_w(self.dg)#, self.alpha)
+        # update direction + line search for dual variable (CGM version)
+        #if regularization == 'TV' and mode == 'primaldual': 
+        #    self.Reg.update_wCGM(self.dg)
         # line search for primal variable
         self.alpha = self.parameters['alpha0']
         rho = self.parameters['rho']
@@ -151,6 +151,9 @@ class ObjectiveImageDenoising():
                 self.LS = True
                 break
             else:   self.alpha *= rho
+        # update direction + line search for dual variable (alt version)
+        if regularization == 'TV' and mode == 'primaldual': 
+            self.Reg.update_walt(self.dg, self.alpha)
 
     def solve(self, plot=False):
         """ Solve image denoising pb """

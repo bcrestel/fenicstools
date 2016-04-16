@@ -3,7 +3,7 @@ import numpy as np
 
 from dolfin import sqrt, inner, nabla_grad, grad, dx, \
 Function, TestFunction, TrialFunction, assemble, solve, \
-Constant, plot, interactive
+Constant, plot, interactive, assign
 from miscfenics import isFunction, isVector, setfct
 
 class TV():
@@ -48,19 +48,22 @@ class TV():
         self.k = self.parameters['k']
         # define functions
         self.m = Function(self.Vm)
-        self.dm = Function(self.Vm)
         self.test, self.trial = TestFunction(self.Vm), TrialFunction(self.Vm)
         # frequently-used variable
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + Constant(eps)
         self.kovsq = self.k / sqrt(self.fTV)
         # primal dual variables
-        self.w = Function(self.Vm*self.Vm)  # dual variable for primal-dual, initialized at 0
+        self.wH = Function(self.Vm*self.Vm)  # dual variable for primal-dual, initialized at 0
         if mode == 'primaldual':
+            self.w = Function(self.Vm*self.Vm)  # dual variable for primal-dual, initialized at 0
+            self.dm = Function(self.Vm)
             self.dw = Function(self.Vm*self.Vm)  
             self.testw = TestFunction(self.Vm*self.Vm)
             self.trialw = TrialFunction(self.Vm*self.Vm)
-            self.dualres = self.w - nabla_grad(self.m)/self.fTV
+            #TODO: investigate convergence of dual variable
+            self.dualres = self.w - nabla_grad(self.m)/sqrt(self.fTV)
             self.dualresnorm = inner(self.dualres, self.dualres)*dx
+            self.normgraddm = inner(nabla_grad(self.dm), nabla_grad(self.dm))*dx
         #
         # cost functional
         self.wkformcost = self.k*sqrt(self.fTV)*dx
@@ -74,10 +77,10 @@ class TV():
         inner(nabla_grad(self.trial), nabla_grad(self.m))/self.fTV )*dx
         self.wkformPDhess = self.kovsq * ( \
         inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
-        0.5*( inner(self.w, nabla_grad(self.test))*\
+        0.5*( inner(self.wH, nabla_grad(self.test))*\
         inner(nabla_grad(self.trial), nabla_grad(self.m)) + \
         inner(nabla_grad(self.m), nabla_grad(self.test))*\
-        inner(nabla_grad(self.trial), self.w) ) / sqrt(self.fTV) \
+        inner(nabla_grad(self.trial), self.wH) ) / sqrt(self.fTV) \
         )*dx
         if mode == 'GNhessian': self.wkformhess = self.wkformGNhess
         elif mode == 'primaldual':  self.wkformhess = self.wkformPDhess
@@ -124,7 +127,7 @@ class TV():
         isVector(mhat)
         return self.H * mhat
 
-    def update_w(self, dm, alpha=None):
+    def update_wCGM(self, dm):
         """ Compute dw and run line search on w """
         # check
         mode = self.parameters['mode']
@@ -135,27 +138,57 @@ class TV():
         b = assemble(self.wkformdwrhs)
         solve(A, self.dw.vector(), b)
         # line search for dual variable:
-        if alpha == None:
-            # Compute max step length that can be taken
-            (wx,wy) = self.w.split(deepcopy=True)
-            (dwx,dwy) = self.dw.split(deepcopy=True)
-            wxa, wya = wx.vector().array(), wy.vector().array()
-            dwxa, dwya = dwx.vector().array(), dwy.vector().array()
-            wTdw = wxa*dwxa + wya*dwya
-            normw2 = wxa**2 + wya**2
-            normdw2 = dwxa**2 + dwya**2
-            # Check we don't have awkward situation
-            Delta = wTdw**2 + normdw2*(1.0-normw2)
-            assert len(np.where(Delta < 1e-14)[0]) == 0
-            # then compute max alpha
-            ALPHAS = (np.sqrt(Delta) - wTdw)/normdw2
-            alpha = np.amin(ALPHAS)
-            self.w.vector().axpy(self.LSrhow*alpha, self.dw.vector())
-        else:
-            self.w.vector().axpy(alpha, self.dw.vector())
+        # Compute max step length that can be taken
+        (wx,wy) = self.w.split(deepcopy=True)
+        (dwx,dwy) = self.dw.split(deepcopy=True)
+        wxa, wya = wx.vector().array(), wy.vector().array()
+        dwxa, dwya = dwx.vector().array(), dwy.vector().array()
+        wTdw = wxa*dwxa + wya*dwya
+        normw2 = wxa**2 + wya**2
+        normdw2 = dwxa**2 + dwya**2
+        # Check we don't have awkward situation
+        Delta = wTdw**2 + normdw2*(1.0-normw2)
+        assert len(np.where(Delta < 1e-14)[0]) == 0
+        # then compute max alpha
+        ALPHAS = (np.sqrt(Delta) - wTdw)/normdw2
+        alpha = np.amin(ALPHAS)
+        self.w.vector().axpy(self.LSrhow*alpha, self.dw.vector())
+        setfct(self.wH, self.w) # use w directly in the Hessian
         dualresnorm = assemble(self.dualresnorm)
-        print 'line search dual variable: alpha={}, max(|w_i|)={}, ||(w-df/|df+e|)||={}'.\
-        format(alpha, np.amax(np.sqrt(normw2)), np.sqrt(dualresnorm))
+        normgraddm = assemble(self.normgraddm)
+        print 'line search dual variable: alphaw={}, max(|w_i|)={}, ||(w-df/|df+e|)||={}, ||grad(dm)||={}'.\
+        format(alpha, np.amax(np.sqrt(normw2)), np.sqrt(dualresnorm), np.sqrt(normgraddm))
         self.updatew = True
-        # Tmp check
-        #assert np.amax( np.abs(self.w.vector().array()) ) <= 1.0
+
+    def update_walt(self, dm, alpha):
+        """ Compute dw and run line search on w """
+        # check
+        mode = self.parameters['mode']
+        if not mode == 'primaldual':    sys.exit(1)
+        # compute dw
+        setfct(self.dm, dm)
+        A = assemble(self.wkformdwA)
+        b = assemble(self.wkformdwrhs)
+        solve(A, self.dw.vector(), b)
+        # compute w + dw
+        self.w.vector().axpy(alpha, self.dw.vector())
+        # project each w (coord-wise) onto unit sphere to get wH
+        (wx,wy) = self.w.split(deepcopy=True)
+        wxa, wya = wx.vector().array(), wy.vector().array()
+        normw = np.sqrt(wxa**2 + wya**2)
+        factorw = [max(1.0,ii) for ii in normw]
+        setfct(wx, wxa/factorw)
+        setfct(wy, wya/factorw)
+        assign(self.wH.sub(0), wx)
+        assign(self.wH.sub(1), wy)
+        #TODO: tmp check
+        (wx,wy) = self.wH.split(deepcopy=True)
+        wxa, wya = wx.vector().array(), wy.vector().array()
+        normw = np.sqrt(wxa**2 + wya**2)
+        assert np.amax(normw) <= 1.0 + 1e-14
+        # Print results
+        dualresnorm = assemble(self.dualresnorm)
+        normgraddm = assemble(self.normgraddm)
+        print 'line search dual variable: max(fw)={}, ||(w-df/|df+e|)||={}, ||grad(dm)||={}'.\
+        format(np.amax(factorw), np.sqrt(dualresnorm), np.sqrt(normgraddm))
+        self.updatew = True
