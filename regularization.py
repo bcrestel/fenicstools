@@ -83,7 +83,7 @@ class TV():
                 inner(nabla_grad(self.trial), nabla_grad(self.m))/self.fTV )*dx
         # Update dual variable
         if self.primaldual:
-            self.LSrhow = 0.95
+            self.LSrhow = 0.9
             self.wkformdwA = inner(sqrt(self.fTV)*self.trialw, self.testw)*dx
             self.wkformdwrhs = \
             - inner(self.w*sqrt(self.fTV)-nabla_grad(self.m),self.testw)*dx +\
