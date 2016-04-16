@@ -59,6 +59,8 @@ class TV():
             self.dw = Function(self.Vm*self.Vm)  
             self.testw = TestFunction(self.Vm*self.Vm)
             self.trialw = TrialFunction(self.Vm*self.Vm)
+            self.dualres = self.w - nabla_grad(self.m)/self.fTV
+            self.dualresnorm = inner(self.dualres, self.dualres)*dx
         #
         # cost functional
         self.wkformcost = self.k*sqrt(self.fTV)*dx
@@ -151,8 +153,9 @@ class TV():
             self.w.vector().axpy(self.LSrhow*alpha, self.dw.vector())
         else:
             self.w.vector().axpy(alpha, self.dw.vector())
-        print 'line search dual variable: alpha={}, max(|w_i|)={}'.\
-        format(alpha, np.amax(np.sqrt(normw2)))
+        dualresnorm = assemble(self.dualresnorm)
+        print 'line search dual variable: alpha={}, max(|w_i|)={}, ||(w-df/|df+e|)||={}'.\
+        format(alpha, np.amax(np.sqrt(normw2)), np.sqrt(dualresnorm))
         self.updatew = True
         # Tmp check
         #assert np.amax( np.abs(self.w.vector().array()) ) <= 1.0
