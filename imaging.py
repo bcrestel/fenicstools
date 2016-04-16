@@ -75,8 +75,8 @@ class ObjectiveImageDenoising():
         elif regularization == 'TV':
             eps = self.parameters['eps']
             k = self.parameters['k']
-            GNhessian = self.parameters['GNhessian']
-            self.Reg = TV({'eps':eps, 'k':k, 'Vm':self.V, 'GNhessian':GNhessian})
+            mode = self.parameters['mode']
+            self.Reg = TV({'eps':eps, 'k':k, 'Vm':self.V, 'mode':mode})
             self.inexact = True
 
 
@@ -132,9 +132,10 @@ class ObjectiveImageDenoising():
     def linesearch(self):
         """ Perform inexact backtracking line search """
         regularization = self.parameters['regularization']
+        mode = self.Reg.parameters['mode']
         # update direction + line search for dual variable
-        if regularization == 'TV':
-            if self.Reg.primaldual: self.Reg.update_w(self.dg)#, self.alpha)
+        if regularization == 'TV' and mode == 'primaldual': 
+            self.Reg.update_w(self.dg)#, self.alpha)
         # line search for primal variable
         self.alpha = self.parameters['alpha0']
         rho = self.parameters['rho']

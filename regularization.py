@@ -18,21 +18,15 @@ class TV():
             - eps = regularization parameter
         ||f||_TV = int k(x) sqrt{|grad f|^2 + eps} dx
         """
-        if parameters.has_key('eps') and parameters.has_key('Vm'):
-            if not parameters.has_key('k'):
-                parameters['k'] = 1.0
-            # GN Hessian?
-            if parameters.has_key('GNhessian'): self.GNhessian = parameters['GNhessian']
-            else:   self.GNhessian = True
-            # Primal-dual method when using full Hessian
-            if self.GNhessian:  self.primaldual = False
-            else:   self.primaldual = True
-            self.update(parameters)
+        self.parameters = {'k':1.0, 'eps':1e-2, 'mode':'primaldual'}
+        if parameters.has_key('Vm'):
+            self.parameters.update(parameters)
+            self.update()
         else:   
-            print "inputs parameters must contain field 'eps' and 'Vm'"
+            print "inputs parameters must contain field 'Vm'"
             sys.exit(1)
 
-    def update(self, parameters):
+    def update(self, parameters=None):
         """ Update the parameters.
         parameters should be:
             - k(x) = factor inside TV
@@ -40,24 +34,31 @@ class TV():
             - Vm = FunctionSpace for parameter. 
         ||f||_TV = int k(x) sqrt{|grad f|^2 + eps} dx
         """
+        # reset some variables
         self.H = None
         self.updatew = True
-        if parameters.has_key('k'): self.k = parameters['k']
-        if parameters.has_key('eps'): self.eps = parameters['eps']
-        if parameters.has_key('Vm'):
-            self.Vm = parameters['Vm']
-            self.m = Function(self.Vm)
-            self.w = Function(self.Vm*self.Vm)  # dual variable for primal-dual, initialized at 0
-            self.dw = Function(self.Vm*self.Vm)  
-            self.dm = Function(self.Vm)
-            self.test, self.trial = TestFunction(self.Vm), TrialFunction(self.Vm)
-            if self.primaldual: 
-                self.testw = TestFunction(self.Vm*self.Vm)
-                self.trialw = TrialFunction(self.Vm*self.Vm)
-        self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + self.eps
+        # udpate parameters
+        if parameters == None:  
+            parameters = self.parameters
+        else:
+            self.parameters.update(parameters)
+        mode = self.parameters['mode']
+        self.Vm = parameters['Vm']
+        eps = self.parameters['eps']
+        self.k = self.parameters['k']
+        # define functions
+        self.m = Function(self.Vm)
+        self.dm = Function(self.Vm)
+        self.test, self.trial = TestFunction(self.Vm), TrialFunction(self.Vm)
+        # frequently-used variable
+        self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + Constant(eps)
         self.kovsq = self.k / sqrt(self.fTV)
-        if not self.primaldual: 
-            self.w = nabla_grad(self.m)/sqrt(self.fTV)
+        # primal dual variables
+        self.w = Function(self.Vm*self.Vm)  # dual variable for primal-dual, initialized at 0
+        if mode == 'primaldual':
+            self.dw = Function(self.Vm*self.Vm)  
+            self.testw = TestFunction(self.Vm*self.Vm)
+            self.trialw = TrialFunction(self.Vm*self.Vm)
         #
         # cost functional
         self.wkformcost = self.k*sqrt(self.fTV)*dx
@@ -65,24 +66,22 @@ class TV():
         self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(self.test))*dx
         # Hessian
         self.wkformGNhess = self.kovsq*inner(nabla_grad(self.trial), nabla_grad(self.test))*dx
-        if self.GNhessian:
-            self.wkformhess = self.wkformGNhess 
-        else:
-            if self.primaldual:
-                self.wkformhess = self.kovsq * ( \
-                inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
-                0.5*( inner(self.w, nabla_grad(self.test))*\
-                inner(nabla_grad(self.trial), nabla_grad(self.m)) + \
-                inner(nabla_grad(self.m), nabla_grad(self.test))*\
-                inner(nabla_grad(self.trial), self.w) ) / sqrt(self.fTV) \
-                )*dx
-            else:
-                self.wkformhess = self.kovsq*( \
-                inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
-                inner(nabla_grad(self.m), nabla_grad(self.test))*\
-                inner(nabla_grad(self.trial), nabla_grad(self.m))/self.fTV )*dx
-        # Update dual variable
-        if self.primaldual:
+        self.wkformFhess = self.kovsq*( \
+        inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
+        inner(nabla_grad(self.m), nabla_grad(self.test))*\
+        inner(nabla_grad(self.trial), nabla_grad(self.m))/self.fTV )*dx
+        self.wkformPDhess = self.kovsq * ( \
+        inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
+        0.5*( inner(self.w, nabla_grad(self.test))*\
+        inner(nabla_grad(self.trial), nabla_grad(self.m)) + \
+        inner(nabla_grad(self.m), nabla_grad(self.test))*\
+        inner(nabla_grad(self.trial), self.w) ) / sqrt(self.fTV) \
+        )*dx
+        if mode == 'GNhessian': self.wkformhess = self.wkformGNhess
+        elif mode == 'primaldual':  self.wkformhess = self.wkformPDhess
+        else:   self.wkformhess = self.wkformFhess
+        # update dual variable
+        if mode == 'primaldual':
             self.LSrhow = 0.9
             self.wkformdwA = inner(sqrt(self.fTV)*self.trialw, self.testw)*dx
             self.wkformdwrhs = \
@@ -104,10 +103,11 @@ class TV():
 
     def assemble_hessian(self, m_in):
         """ Assemble the Hessian of TV at m_in """
+        mode = self.parameters['mode']
         if self.updatew == True:
             setfct(self.m, m_in)
             self.H = assemble(self.wkformhess)
-            if self.primaldual == True: self.updatew = False
+            if mode == 'primaldual':    self.updatew = False
         else:
             print 'You need to update dual variable w'
             sys.exit(1)
@@ -124,6 +124,10 @@ class TV():
 
     def update_w(self, dm, alpha=None):
         """ Compute dw and run line search on w """
+        # check
+        mode = self.parameters['mode']
+        if not mode == 'primaldual':    sys.exit(1)
+        # compute dw
         setfct(self.dm, dm)
         A = assemble(self.wkformdwA)
         b = assemble(self.wkformdwrhs)
