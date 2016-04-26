@@ -109,7 +109,7 @@ def isequal(a, b, rtol=1e-14):
     if abs(b) > 1e-16:  return np.abs(a-b) <= rtol*np.abs(b)
     else:   return np.abs(a-b) <= rtol
 
-class ZeroRegulariation():
+class ZeroRegularization():
 
     def cost(self, m_in):
         return 0.0

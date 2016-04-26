@@ -29,7 +29,7 @@ class ObjectiveAcoustic(LinearOperator):
         LinearOperator.__init__(self, self.MG.vector(), self.MG.vector())
         self.obsop = None   # Observation operator
         self.dd = None  # observations
-        if regularization == None:  self.reg = ZeroRegularization()
+        if regularization == None:  self.regularization = ZeroRegularization()
         else:   self.regularization = regularization
         self.alpha_reg = 1.0
         # gradient
