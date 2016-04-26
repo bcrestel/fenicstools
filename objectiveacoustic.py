@@ -2,7 +2,7 @@ import numpy as np
 
 from dolfin import LinearOperator, Function, TestFunction, TrialFunction, \
 assemble, inner, nabla_grad, dx, sqrt, LUSolver
-from miscfenics import setfct, isequal
+from miscfenics import setfct, isequal, ZeroRegularization
 
 class ObjectiveAcoustic(LinearOperator):
     """
@@ -12,7 +12,7 @@ class ObjectiveAcoustic(LinearOperator):
     #TODO: add support for multiple sources
 
     # CONSTRUCTORS:
-    def __init__(self, acousticwavePDE):
+    def __init__(self, acousticwavePDE, regularization=None):
         """ 
         Input:
             acousticwavePDE should be an instantiation from class AcousticWave
@@ -29,6 +29,9 @@ class ObjectiveAcoustic(LinearOperator):
         LinearOperator.__init__(self, self.MG.vector(), self.MG.vector())
         self.obsop = None   # Observation operator
         self.dd = None  # observations
+        if regularization == None:  self.reg = ZeroRegularization()
+        else:   self.regularization = regularization
+        self.alpha_reg = 1.0
         # gradient
         self.lamtest, self.lamtrial = TestFunction(self.PDE.Vl), TrialFunction(self.PDE.Vl)
         self.p, self.v = Function(self.PDE.V), Function(self.PDE.V)
@@ -98,7 +101,8 @@ class ObjectiveAcoustic(LinearOperator):
         if cost:
             assert not self.dd == None, "Provide observations"
             self.misfit = self.obsop.costfct(self.Bp, self.dd, self.PDE.times)
-            self.cost = self.misfit #TODO: add regularization
+            self.cost_reg = self.regularization.cost(self.PDE.lam)
+            self.cost = self.misfit + self.alpha_reg*self.cost_reg
 
     def solvefwd_cost(self):    self.solvefwd(True)
 
@@ -143,6 +147,7 @@ class ObjectiveAcoustic(LinearOperator):
                         setfct(self.p1D, -1.0*self.p.vector())
                         setfct(self.vD, self.v)
                 index += 1
+            self.MGv.axpy(self.alpha_reg, self.regularization.grad(self.PDE.lam))
             self.solverM.solve(self.Gradv, self.MGv)
 
     def solveadj_constructgrad(self):   self.solveadj(True)
@@ -198,6 +203,7 @@ class ObjectiveAcoustic(LinearOperator):
         inputs:
             y, lamhat = Function(V).vector()
         """
+        self.regularization.assemble_hessian(lamhat)
         setfct(self.lamhat, lamhat)
         self.C = assemble(self.wkformrhsincr)
         if self.PDE.abc:    self.Dp = assemble(self.wkformDprime)
@@ -249,6 +255,8 @@ class ObjectiveAcoustic(LinearOperator):
                 setfct(self.vD, self.v)
                 setfct(self.vhatD, self.vhat)
             index += 1
+        # add regularization term
+        y.axpy(self.alpha_reg, self.regularization.hessian(lamhat))
 
 
     # SETTERS + UPDATE:
