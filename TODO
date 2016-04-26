@@ -12,11 +12,10 @@ TODO list
 
 
     - ACOUSTIC:
-* Look at dolfin-adjoint
-* Check ABC terms to gradient and Hessian
 * implement misfit with blurring kernel
-* GLL integration points in Fenics
 * profile + improve gradient and Hessian computation steps
+* GLL integration points in Fenics
+* Look at dolfin-adjoint
 * Code C++ version of fwd and adj pbs (?)
 
 
