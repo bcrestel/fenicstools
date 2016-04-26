@@ -65,7 +65,7 @@ def run_test(fpeak, lambdamin, lambdamax, Nxy, tfilterpts, r, Dt, skip):
     obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
     # define pde operator:
     wavepde = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
-    wavepde.timestepper = 'backward'
+    wavepde.timestepper = 'centered'
     wavepde.lump = True
     wavepde.set_abc(mesh, LeftRight(), True)
     wavepde.update({'lambda':lambda_target_fn, 'rho':1.0, \
@@ -75,13 +75,17 @@ def run_test(fpeak, lambdamin, lambdamax, Nxy, tfilterpts, r, Dt, skip):
     waveobj = ObjectiveAcoustic(wavepde)
     waveobj.obsop = obsop
     # data
-    print 'generate data'
+    print 'generate noisy data'
     waveobj.solvefwd()
     myplot.plot_timeseries(waveobj.solfwd, 'pd', 0, skip, fctV)
     dd = waveobj.Bp.copy()
+    nbobspt, dimsol = dd.shape
+    noiselevel = 0.1   # = 10%
+    sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*noiselevel
+    rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
+    waveobj.dd = dd + sigmas.reshape((len(sigmas),1))*rndnoise
     # gradient
     print 'generate observations'
-    waveobj.dd = dd
     waveobj.update_m(lambda_init_fn)
     waveobj.solvefwd_cost()
     cost1 = waveobj.misfit
@@ -104,14 +108,14 @@ def run_test(fpeak, lambdamin, lambdamax, Nxy, tfilterpts, r, Dt, skip):
     myplot.set_varname('grad')
     myplot.plot_vtk(waveobj.Grad)
     print 'check gradient with FD'
-    Medium = np.zeros((3, Vl.dim()))
-    for ii in range(3):
+    Medium = np.zeros((5, Vl.dim()))
+    for ii in range(5):
         smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
         smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
         Medium[ii,:] = smoothperturb_fn.vector().array()
     checkgradfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-4])
     print 'check Hessian with FD'
-    checkhessfd_med(waveobj, Medium, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4], False)
+    checkhessfd_med(waveobj, Medium, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4, 1e-5], False)
 
 
 if __name__ == "__main__":
