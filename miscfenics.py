@@ -109,3 +109,20 @@ def isequal(a, b, rtol=1e-14):
     if abs(b) > 1e-16:  return np.abs(a-b) <= rtol*np.abs(b)
     else:   return np.abs(a-b) <= rtol
 
+class ZeroRegulariation():
+
+    def cost(self, m_in):
+        return 0.0
+
+    def grad(self, m_in):
+        out = m_in.copy(deepcopy=True)
+        out.vector().zero()
+        return out.vector()
+
+    def assemble_hessian(self, m_in):
+        pass
+
+    def hessian(self, mhat):
+        out = mhat.copy()
+        out.zero()
+        return out
