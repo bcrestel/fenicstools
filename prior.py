@@ -46,6 +46,9 @@ class GaussianPrior():
         diff = m_in.vector() - self.m0.vector()
         return self.Minvpriordot(diff)
 
+    def assemble_hessian(self, m_in):
+        pass
+
     def hessian(self, m_in):
         isVector(m_in)
         return self.Minvpriordot(m_in)
