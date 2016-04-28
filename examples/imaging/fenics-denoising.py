@@ -7,6 +7,7 @@ import numpy as np
 import dolfin as dl
 from fenicstools.imaging import ObjectiveImageDenoising
 from fenicstools.plotfenics import PlotFenics
+from fenicstools.miscfenics import setfct
 
 dl.set_log_active(False)
 
@@ -35,7 +36,7 @@ def run_exple(PLOT=True, TEST=False):
     #denoise = ObjectiveImageDenoising(mesh, trueImage, \
     #{'regularization':'tikhonov', 'gamma':1.0, 'beta':0.0})
     denoise = ObjectiveImageDenoising(mesh, trueImage, \
-    {'regularization':'TV', 'eps':1e-2, 'k':1.0, 'mode':'primaldual'})
+    {'regularization':'TV', 'eps':1e-4, 'k':1.0, 'mode':'primaldual'})
     denoise.generatedata(0.6)
     if PLOT:
         denoise.plot(0)
@@ -51,6 +52,7 @@ def run_exple(PLOT=True, TEST=False):
     ALPHAS = [1e-2]
     for aa in ALPHAS:
         denoise.g = dl.Function(denoise.V)
+        setfct(denoise.g, denoise.dn)   # start from noisy image
         denoise.regparam = aa
         denoise.solve()
         if PLOT:    denoise.plot(2,'-'+str(aa))

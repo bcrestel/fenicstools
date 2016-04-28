@@ -8,7 +8,8 @@ TODO list
 
 
     - DENOISING:
-* Implement primal-dual solver for TV regularization
+* Implement primal-dual solver for TV regularization => look at Noemi work;
+create separate class for primal-dual (cleaner)
 
 
     - ACOUSTIC:

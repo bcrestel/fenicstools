@@ -53,6 +53,7 @@ class TV():
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + Constant(eps)
         self.kovsq = self.k / sqrt(self.fTV)
         # primal dual variables
+        #TODO: dual variable should piecewise constant (DG0)
         self.wH = Function(self.Vm*self.Vm)  # dual variable for primal-dual, initialized at 0
         if mode == 'primaldual':
             self.w = Function(self.Vm*self.Vm)  # dual variable for primal-dual, initialized at 0
@@ -152,6 +153,7 @@ class TV():
         # then compute max alpha
         ALPHAS = (np.sqrt(Delta) - wTdw)/normdw2
         alpha = np.amin(ALPHAS)
+        alpha = min(alpha, 1.0) # max step size is 1.0 in CGM
         self.w.vector().axpy(self.LSrhow*alpha, self.dw.vector())
         setfct(self.wH, self.w) # use w directly in the Hessian
         dualresnorm = assemble(self.dualresnorm)

@@ -63,6 +63,12 @@ class ObjectiveImageDenoising():
         self.dn = dl.Function(self.V)
         setfct(self.dn, eta)
         self.dn.vector().axpy(1.0, self.f_true.vector())
+        print 'min(true)={}, max(true)={}'.format(\
+        np.amin(self.f_true.vector().array()), \
+        np.amax(self.f_true.vector().array()))
+        print 'min(noisy)={}, max(noisy)={}'.format(\
+        np.amin(self.dn.vector().array()), \
+        np.amax(self.dn.vector().array()))
 
     def define_regularization(self, parameters=None):
         if not parameters == None:  self.parameters.update(parameters)
@@ -134,8 +140,8 @@ class ObjectiveImageDenoising():
         regularization = self.parameters['regularization']
         mode = self.Reg.parameters['mode']
         # update direction + line search for dual variable (CGM version)
-        #if regularization == 'TV' and mode == 'primaldual': 
-        #    self.Reg.update_wCGM(self.dg)
+        if regularization == 'TV' and mode == 'primaldual': 
+            self.Reg.update_wCGM(self.dg)
         # line search for primal variable
         self.alpha = self.parameters['alpha0']
         rho = self.parameters['rho']
@@ -152,8 +158,8 @@ class ObjectiveImageDenoising():
                 break
             else:   self.alpha *= rho
         # update direction + line search for dual variable (alt version)
-        if regularization == 'TV' and mode == 'primaldual': 
-            self.Reg.update_walt(self.dg, self.alpha)
+        #if regularization == 'TV' and mode == 'primaldual': 
+        #    self.Reg.update_walt(self.dg, self.alpha)
 
     def solve(self, plot=False):
         """ Solve image denoising pb """
@@ -171,6 +177,14 @@ class ObjectiveImageDenoising():
         elif regularization == 'TV':
             self.computecost()
             cost = self.cost
+            # initial printout
+            df = self.f_true.vector() - self.g.vector()
+            self.medmisfit = np.sqrt((self.M*df).inner(df))
+            self.relmedmisfit = self.medmisfit/self.targetnorm
+            print ('{:12.1e} {:12.4e} {:12.4e} {:12.4e} {:12s} {:12s} {:12.2e}'\
+            +' ({:.3f})').format(\
+            self.regparam, self.cost, self.misfit, self.reg, '', '', \
+            self.medmisfit**2, self.relmedmisfit)
             for ii in xrange(1000):
                 self.searchdirection()
                 self.linesearch()
