@@ -8,7 +8,7 @@ import dolfin as dl
 
 from miscfenics import setfct
 from prior import LaplacianPrior
-from regularization import TV
+from regularization import TV, TVPD
 from plotfenics import PlotFenics
 
 
@@ -81,9 +81,10 @@ class ObjectiveImageDenoising():
         elif regularization == 'TV':
             eps = self.parameters['eps']
             k = self.parameters['k']
-            mode = self.parameters['mode']
-            self.Reg = TV({'eps':eps, 'k':k, 'Vm':self.V, 'mode':mode})
-            self.inexact = True
+            GN = self.parameters['GN']
+            if GN:  self.Reg = TV({'eps':eps, 'k':k, 'Vm':self.V, 'GN':GN})
+            else:   self.Reg = TVPD({'eps':eps, 'k':k, 'Vm':self.V})
+            self.inexact = False
 
 
     ### COST and DERIVATIVES
@@ -128,7 +129,7 @@ class ObjectiveImageDenoising():
         # Inexact CG:
         if self.inexact:
             self.cgtol = min(0.5, np.sqrt(self.Gradnorm/self.Gradnorm0))
-        else:   self.cgtol = 1e-6
+        else:   self.cgtol = 1e-8
         solver.parameters['relative_tolerance'] = self.cgtol
         solver.set_operator(self.Hess)
         self.cgiter = solver.solve(self.dg.vector(), -1.0*self.MG)
@@ -138,10 +139,9 @@ class ObjectiveImageDenoising():
     def linesearch(self):
         """ Perform inexact backtracking line search """
         regularization = self.parameters['regularization']
-        mode = self.Reg.parameters['mode']
-        # update direction + line search for dual variable (CGM version)
-        if regularization == 'TV' and mode == 'primaldual': 
-            self.Reg.update_wCGM(self.dg)
+        # compute new direction for dual variables
+        if regularization == 'TV' and self.Reg.isPD():
+            self.Reg.compute_dw(self.dg)
         # line search for primal variable
         self.alpha = self.parameters['alpha0']
         rho = self.parameters['rho']
@@ -157,9 +157,9 @@ class ObjectiveImageDenoising():
                 self.LS = True
                 break
             else:   self.alpha *= rho
-        # update direction + line search for dual variable (alt version)
-        #if regularization == 'TV' and mode == 'primaldual': 
-        #    self.Reg.update_walt(self.dg, self.alpha)
+        # update dual variable
+        if regularization == 'TV' and self.Reg.isPD():
+            self.Reg.update_w(self.alpha)
 
     def solve(self, plot=False):
         """ Solve image denoising pb """
@@ -169,12 +169,12 @@ class ObjectiveImageDenoising():
         'tol_cg', 'n_cg')
         #
         if regularization == 'tikhonov':
-            self.searchdirection()
-            self.g.vector().axpy(1.0, self.dg.vector())
-            self.computecost()
-            self.alpha = 1.0
-            self.printout()
-        elif regularization == 'TV':
+             self.searchdirection()
+             self.g.vector().axpy(1.0, self.dg.vector())
+             self.computecost()
+             self.alpha = 1.0
+             self.printout()
+        else:
             self.computecost()
             cost = self.cost
             # initial printout
@@ -185,6 +185,7 @@ class ObjectiveImageDenoising():
             +' ({:.3f})').format(\
             self.regparam, self.cost, self.misfit, self.reg, '', '', \
             self.medmisfit**2, self.relmedmisfit)
+            # iterate
             for ii in xrange(1000):
                 self.searchdirection()
                 self.linesearch()
@@ -194,9 +195,11 @@ class ObjectiveImageDenoising():
                 if not self.LS:
                     print 'Line search failed'
                     break
-                if self.Gradnorm < min(1e-12, 1e-10*self.Gradnorm0) or \
-                np.abs(cost-self.cost)/cost < 1e-12:
-                    print 'optimization converged'
+                if self.Gradnorm < min(1e-12, 1e-10*self.Gradnorm0):
+                    print 'gradient sufficiently reduced -- optimization converged'
+                    break
+                elif np.abs(cost-self.cost)/cost < 1e-12:
+                    print 'cost functional stagnates -- optimization converged'
                     break
                 cost = self.cost
 
@@ -265,6 +268,64 @@ class ObjectiveImageDenoising():
             print 'n={}:\tHFD={:.5e}, Hdf={:.5e}, error={:.2e}'.format(\
             nn, np.linalg.norm(HFD), np.linalg.norm(Hdf), \
             np.linalg.norm(Hdf-HFD)/np.linalg.norm(Hdf))
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 
 
 

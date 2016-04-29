@@ -115,7 +115,7 @@ class TVPD(TV):
         ||f||_TV = int k(x) sqrt{|grad f|^2 + eps} dx
         """
         # primal dual variables
-        #TODO: dual variable should piecewise constant (DG0)
+        #TODO: dual variable should be piecewise constant (DG0)
         self.wH = Function(self.Vm*self.Vm)  # dual variable used in Hessian (re-scaled)
         #self.wH = nabla_grad(self.m)/sqrt(self.fTV) # full Hessian
         self.w = Function(self.Vm*self.Vm)  # dual variable for primal-dual, initialized at 0
@@ -143,13 +143,15 @@ class TVPD(TV):
         inner(-inner(nabla_grad(self.m),nabla_grad(self.dm))* \
         self.wH/sqrt(self.fTV), self.testw)*dx
 
-    def update_w(self, dm, alpha):
-        """ Compute dw and run line search on w """
-        # compute dw
+    def compute_dw(self, dm):
+        """ Compute dw """
         setfct(self.dm, dm)
         b = assemble(self.rhswwk)
         solve(self.Mw, self.dw.vector(), b)
-        # update w
+
+
+    def update_w(self, alpha):
+        """ update w and re-scale wH """
         self.w.vector().axpy(alpha, self.dw.vector())
         # project each w (coord-wise) onto unit sphere to get wH
         (wx,wy) = self.w.split(deepcopy=True)
