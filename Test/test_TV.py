@@ -11,7 +11,7 @@ Test for the TV regularization class.
 import dolfin as dl
 import numpy as np
 
-from fenicstools.regularization import TV
+from fenicstools.regularization import TV, TVPD
 from fenicstools.miscfenics import setfct
 
 HH = [1e-4, 1e-5, 1e-6]
@@ -24,8 +24,7 @@ k = dl.interpolate(k_exp, V)
 #k = dl.Constant(1.0)
 m_in = dl.Function(V)
 TV1 = TV({'Vm':V, 'eps':dl.Constant(0.0001), 'k':k, 'GNhessian':False})
-
-print 'Test 1: Smooth medium'
+TV2 = TVPD({'Vm':V, 'eps':dl.Constant(0.0001), 'k':k})
 
 # Verification point, i.e., point at which gradient and Hessian are checked
 m_exp = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=1)
@@ -51,15 +50,19 @@ for nn in range(8):
         cost = TV1.cost(m)
 
         GradFD = (cost1 - cost2)/(2.*h)
-        #GradFD = (cost1 - cost)/h
 
-        Gradm = TV1.grad(m) 
-        Gradm_h = Gradm.inner(dm.vector())
+        Grad1m = TV1.grad(m) 
+        Grad1m_h = Grad1m.inner(dm.vector())
+        Grad2m = TV2.grad(m) 
+        Grad2m_h = Grad2m.inner(dm.vector())
 
-        err = np.abs(GradFD-Gradm_h)/np.abs(Gradm_h)
-        print 'h={}, GradFD={}, Gradm_h={}, err={}'.format(\
-        h, GradFD, Gradm_h, err)
-        if err < 1e-6:  
+        err1 = np.abs(GradFD-Grad1m_h)/np.abs(Grad1m_h)
+        err2 = np.abs(GradFD-Grad2m_h)/np.abs(Grad2m_h)
+        print 'h={}, GradFD={}, Grad1m_h={}, err1={}'.format(\
+        h, GradFD, Grad1m_h, err1)
+        print 'h={}, GradFD={}, Grad2m_h={}, err2={}'.format(\
+        h, GradFD, Grad2m_h, err2)
+        if err1 < 1e-6:  
             print 'test {}: OK!'.format(nn+1)
             success = True
             break
@@ -87,14 +90,18 @@ if failures < 5:
             HessFD = (grad1 - grad2)/(2.*h)
 
             TV1.assemble_hessian(m)
-            Hessmdm = TV1.hessian(dm.vector())
+            Hess1mdm = TV1.hessian(dm.vector())
+            TV2.assemble_hessian(m)
+            Hess2mdm = TV2.hessian(dm.vector())
 
-            err = (HessFD-Hessmdm).norm('l2')/Hessmdm.norm('l2')
-            print 'h={}, err={}'.format(h, err)
+            err1 = (HessFD-Hess1mdm).norm('l2')/Hess1mdm.norm('l2')
+            err2 = (HessFD-Hess2mdm).norm('l2')/Hess2mdm.norm('l2')
+            print 'h={}, err1={}, err2={}'.format(h, err1, err2)
 
-            if err < 1e-6:  
+            if err1 < 1e-6:  
                 print 'test {}: OK!'.format(nn+1)
                 success = True
                 break
         if not success: failures+=1
     print '\nTest Hessian --  Summary: {} test(s) failed\n'.format(failures)
+
