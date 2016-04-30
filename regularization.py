@@ -3,7 +3,7 @@ import numpy as np
 
 from dolfin import sqrt, inner, nabla_grad, grad, dx, \
 Function, TestFunction, TrialFunction, assemble, solve, \
-Constant, plot, interactive, assign
+Constant, plot, interactive, assign, FunctionSpace
 from miscfenics import isFunction, isVector, setfct
 
 class TV():
@@ -120,16 +120,16 @@ class TVPD(TV):
         ||f||_TV = int k(x) sqrt{|grad f|^2 + eps} dx
         """
         # primal dual variables
-        #TODO: dual variable should be piecewise constant (DG0)
-        self.wH = Function(self.Vm*self.Vm)  # dual variable used in Hessian (re-scaled)
+        self.Vw = FunctionSpace(self.Vm.mesh(), 'DG', 0)
+        self.wH = Function(self.Vw*self.Vw)  # dual variable used in Hessian (re-scaled)
         #self.wH = nabla_grad(self.m)/sqrt(self.fTV) # full Hessian
-        self.w = Function(self.Vm*self.Vm)  # dual variable for primal-dual, initialized at 0
+        self.w = Function(self.Vw*self.Vw)  # dual variable for primal-dual, initialized at 0
         self.dm = Function(self.Vm)
-        self.dw = Function(self.Vm*self.Vm)  
-        self.testw = TestFunction(self.Vm*self.Vm)
-        self.trialw = TrialFunction(self.Vm*self.Vm)
+        self.dw = Function(self.Vw*self.Vw)  
+        self.testw = TestFunction(self.Vw*self.Vw)
+        self.trialw = TrialFunction(self.Vw*self.Vw)
         # investigate convergence of dual variable
-        self.dualres = self.w - nabla_grad(self.m)/sqrt(self.fTV)
+        self.dualres = self.w*sqrt(self.fTV) - nabla_grad(self.m)
         self.dualresnorm = inner(self.dualres, self.dualres)*dx
         self.normgraddm = inner(nabla_grad(self.dm), nabla_grad(self.dm))*dx
         # Hessian
@@ -159,7 +159,7 @@ class TVPD(TV):
         """ update w and re-scale wH """
         self.w.vector().axpy(alpha, self.dw.vector())
         # project each w (coord-wise) onto unit sphere to get wH
-        (wx,wy) = self.w.split(deepcopy=True)
+        (wx, wy) = self.w.split(deepcopy=True)
         wxa, wya = wx.vector().array(), wy.vector().array()
         normw = np.sqrt(wxa**2 + wya**2)
         factorw = [max(1.0, ii) for ii in normw]
@@ -170,10 +170,9 @@ class TVPD(TV):
         # check
         (wx,wy) = self.wH.split(deepcopy=True)
         wxa, wya = wx.vector().array(), wy.vector().array()
-        normw = np.sqrt(wxa**2 + wya**2)
-        assert np.amax(normw) <= 1.0 + 1e-14
+        assert np.amax(np.sqrt(wxa**2 + wya**2)) <= 1.0 + 1e-14
         # Print results
         dualresnorm = assemble(self.dualresnorm)
         normgraddm = assemble(self.normgraddm)
-        print 'line search dual variable: max(fw)={}, ||(w-df/|df+e|)||={}, ||grad(dm)||={}'.\
-        format(np.amax(factorw), np.sqrt(dualresnorm), np.sqrt(normgraddm))
+        print 'line search dual variable: max(|w|)={}, err(w,df)={}, |grad(dm)|={}'.\
+        format(np.amax(np.sqrt(normw)), np.sqrt(dualresnorm), np.sqrt(normgraddm))
