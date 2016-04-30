@@ -19,7 +19,7 @@ def run_exple(denoise, PLOT=True, TEST=False):
     print 'Run basic example -- PLOT={}. TEST={}'.format(PLOT, TEST)
     # Solve
     #ALPHAS = 10**(-np.linspace(-3.,3.,7))
-    ALPHAS = [1e-1]
+    ALPHAS = [1.0]
     denoise.g = dl.Function(denoise.V)
     for aa in ALPHAS:
         setfct(denoise.g, denoise.dn)   # start from noisy image
@@ -68,7 +68,7 @@ else:
 
 # Generate data 
 denoise = ObjectiveImageDenoising(mesh, trueImage, \
-{'regularization':'TV', 'eps':1e-4, 'k':1.0, 'mode':'full'})
+{'regularization':'TV', 'eps':1e-10, 'k':1.0, 'mode':'primaldual'})
 #{'regularization':'tikhonov', 'gamma':10., 'beta':0.0})
 denoise.generatedata(0.6)
 
@@ -78,8 +78,8 @@ denoise.generatedata(0.6)
 # 1 = continuation on eps
 testcase = 0
 # choose options
-PLOT = 0
-TEST = 1
+PLOT = 1
+TEST = 0
 
 
 
