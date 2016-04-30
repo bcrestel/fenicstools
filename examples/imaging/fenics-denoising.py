@@ -15,10 +15,10 @@ def run_exple(denoise, PLOT=True, TEST=False):
     # testcase == 0
     print 'Run basic example -- PLOT={}. TEST={}'.format(PLOT, TEST)
     # Solve
-    #ALPHAS = 10**(-np.linspace(0.,4.,5))
-    ALPHAS = [1e-2]
+    ALPHAS = 10**(-np.linspace(-3.,3.,7))
+    #ALPHAS = [1e-2]
+    denoise.g = dl.Function(denoise.V)
     for aa in ALPHAS:
-        denoise.g = dl.Function(denoise.V)
         setfct(denoise.g, denoise.dn)   # start from noisy image
         denoise.regparam = aa
         denoise.solve()
@@ -46,7 +46,7 @@ def run_continuation(denoise, PLOT=True, TEST=False):
 
 # Target data:
 data = np.loadtxt('image.dat', delimiter=',')
-Lx, Ly = float(data.shape[1])/float(data.shape[0]), 1.
+Lx, Ly = 200, 100 #float(data.shape[1])/float(data.shape[0]), 1.
 class Image(dl.Expression):
     def __init__(self, Lx, Ly, data):
         self.data = data
