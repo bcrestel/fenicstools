@@ -40,12 +40,17 @@ class ObjectiveImageDenoising():
         self.solverM.parameters['symmetric'] = True
         self.solverM.parameters['reuse_factorization'] = True
         self.solverM.set_operator(self.M)
-        self.targetnorm = np.sqrt((self.M*self.f_true.vector()).inner(self.f_true.vector()))
+        # identity matrix
+        self.I = dl.assemble(self.Mweak)
+        self.I.zero()
+        self.I.set_diagonal(dl.interpolate(dl.Constant(1), self.V).vector())
+        #self.targetnorm = np.sqrt((self.M*self.f_true.vector()).inner(self.f_true.vector()))
+        self.targetnorm = np.sqrt((self.f_true.vector()).inner(self.f_true.vector()))
         # line search parameters
         self.parameters = {'alpha0':1.0, 'rho':0.5, 'c':5e-5, 'max_backtrack':12}
         # regularization
-        self.parameters({'eps':1e-4, 'k':1.0, \
-        'regularization':'TV', 'mode':'primaldual', 'GNhessian':False})
+        self.parameters.update({'eps':1e-4, 'k':1.0, \
+        'regularization':'TV', 'mode':'primaldual'})
         self.parameters.update(parameters)
         self.define_regularization()
         self.regparam = 1.0
@@ -59,7 +64,7 @@ class ObjectiveImageDenoising():
         """ compute data and add noisepercent (%) of noise """
         sigma = noisepercent*np.linalg.norm(self.f_true.vector().array())/np.sqrt(self.dimV)
         print 'sigma_noise = ', sigma
-        np.random.seed(0)  #TODO: tmp
+        np.random.seed(11)  #TODO: tmp
         eta = sigma*np.random.randn(self.dimV)
         self.dn = dl.Function(self.V)
         setfct(self.dn, eta)
@@ -82,12 +87,13 @@ class ObjectiveImageDenoising():
         elif regularization == 'TV':
             eps = self.parameters['eps']
             k = self.parameters['k']
-            GN = self.parameters['GNhessian']
             mode = self.parameters['mode']
             if mode == 'primaldual':
                 self.Reg = self.Reg = TVPD({'eps':eps, 'k':k, 'Vm':self.V, 'GNhessian':False})
+            elif mode == 'full':
+                self.Reg = TV({'eps':eps, 'k':k, 'Vm':self.V, 'GNhessian':False})
             else:
-                self.Reg = TV({'eps':eps, 'k':k, 'Vm':self.V, 'GNhessian':GN})
+                self.Reg = TV({'eps':eps, 'k':k, 'Vm':self.V, 'GNhessian':True})
             self.inexact = False
 
 
@@ -96,7 +102,8 @@ class ObjectiveImageDenoising():
         """ Compute cost functional at f """
         if f == None:   f = self.g
         df = f.vector() - self.dn.vector()
-        self.misfit = 0.5 * (self.M*df).inner(df)
+        #self.misfit = 0.5 * (self.M*df).inner(df)
+        self.misfit = 0.5 * df.inner(df)
         self.reg = self.Reg.cost(f)
         self.cost = self.misfit + self.regparam*self.reg
         return self.cost
@@ -105,7 +112,8 @@ class ObjectiveImageDenoising():
         """ Compute M.g (discrete gradient) at a given point f """
         if f == None:   f = self.g
         df = f.vector() - self.dn.vector()
-        self.MGk = self.M*df
+        #self.MGk = self.M*df
+        self.MGk = df
         self.MGr = self.Reg.grad(f)
         self.MG = self.MGk + self.MGr*self.regparam
         self.solverM.solve(self.Grad.vector(), self.MG)
@@ -118,7 +126,8 @@ class ObjectiveImageDenoising():
         regularization = self.parameters['regularization']
         if regularization == 'TV':  
             self.Reg.assemble_hessian(f)
-            self.Hess = self.M + self.Reg.H*self.regparam
+            self.Hess = self.I + self.Reg.H*self.regparam
+            #self.Hess = self.M + self.Reg.H*self.regparam
         elif regularization == 'tikhonov':
             self.Hess = self.M + self.Reg.Minvprior*self.regparam
         
@@ -173,17 +182,19 @@ class ObjectiveImageDenoising():
         'tol_cg', 'n_cg')
         #
         if regularization == 'tikhonov':
-             self.searchdirection()
-             self.g.vector().axpy(1.0, self.dg.vector())
-             self.computecost()
-             self.alpha = 1.0
-             self.printout()
+            # pb is linear with tikhonov regularization
+            self.searchdirection()
+            self.g.vector().axpy(1.0, self.dg.vector())
+            self.computecost()
+            self.alpha = 1.0
+            self.printout()
         else:
             self.computecost()
             cost = self.cost
             # initial printout
             df = self.f_true.vector() - self.g.vector()
-            self.medmisfit = np.sqrt((self.M*df).inner(df))
+            self.medmisfit = np.sqrt(df.inner(df))
+            #self.medmisfit = np.sqrt((self.M*df).inner(df))
             self.relmedmisfit = self.medmisfit/self.targetnorm
             print ('{:12.1e} {:12.4e} {:12.4e} {:12.4e} {:12s} {:12s} {:12.2e}'\
             +' ({:.3f})').format(\
@@ -240,7 +251,7 @@ class ObjectiveImageDenoising():
         eps = 1e-5
         self.gradient(f)
         for nn in xrange(1, n+1):
-            expr = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=nn)
+            expr = dl.Expression('sin(n*pi*x[0]/200)*sin(n*pi*x[1]/100)', n=nn)
             df = dl.interpolate(expr, self.V)
             MGdf = self.MG.inner(df.vector())
             cost = []
@@ -259,7 +270,7 @@ class ObjectiveImageDenoising():
         eps = 1e-5
         self.Hessian(f)
         for nn in xrange(1, n+1):
-            expr = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=nn)
+            expr = dl.Expression('sin(n*pi*x[0]/200)*sin(n*pi*x[1]/100)', n=nn)
             df = dl.interpolate(expr, self.V)
             Hdf = (self.Hess*df.vector()).array()
             MG = []

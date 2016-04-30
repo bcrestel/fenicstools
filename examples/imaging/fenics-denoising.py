@@ -11,6 +11,9 @@ from fenicstools.miscfenics import setfct
 
 dl.set_log_active(False)
 
+
+
+
 def run_exple(denoise, PLOT=True, TEST=False):
     # testcase == 0
     print 'Run basic example -- PLOT={}. TEST={}'.format(PLOT, TEST)
@@ -65,7 +68,7 @@ else:
 
 # Generate data 
 denoise = ObjectiveImageDenoising(mesh, trueImage, \
-{'regularization':'TV', 'eps':1e-4, 'k':1.0, 'mode':'full', 'GNhessian':False})
+{'regularization':'TV', 'eps':1e-4, 'k':1.0, 'mode':'full'})
 #{'regularization':'tikhonov', 'gamma':10., 'beta':0.0})
 denoise.generatedata(0.6)
 
@@ -75,8 +78,10 @@ denoise.generatedata(0.6)
 # 1 = continuation on eps
 testcase = 0
 # choose options
-PLOT = True
-TEST = False
+PLOT = 0
+TEST = 1
+
+
 
 # plot
 if PLOT:
@@ -84,11 +89,11 @@ if PLOT:
     denoise.plot(1)
 # test gradient and Hessian
 if TEST:
-    print 'Test gradient and Hessian'
+    print 'Test gradient'
     denoise.test_gradient()
+    print '\nTest Hessian'
     denoise.test_hessian()
     sys.exit(0)
-
 # run
 if testcase == 0:   
     run_exple(denoise, PLOT, TEST)
