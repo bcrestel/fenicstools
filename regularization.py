@@ -67,9 +67,14 @@ class TV():
         if self.isPD(): 
             self.updatePD()
             self.wkformhess = self.wkformPDhess
+            print 'TV regularization -- primal-dual Newton'
         else:
-            if GN: self.wkformhess = self.wkformGNhess
-            else:   self.wkformhess = self.wkformFhess
+            if GN: 
+                self.wkformhess = self.wkformGNhess
+                print 'TV regularization -- GN Hessian'
+            else:   
+                self.wkformhess = self.wkformFhess
+                print 'TV regularization -- full Hessian'
 
     def cost(self, m_in):
         """ returns the cost functional for self.m=m_in """

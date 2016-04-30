@@ -16,7 +16,7 @@ class ObjectiveImageDenoising():
     """
     Class to do image denoising
     """
-    def __init__(self, mesh, trueImage, parameters=None):
+    def __init__(self, mesh, trueImage, parameters=[]):
         """
         Inputs:
             mesh = Fenics mesh
@@ -44,9 +44,10 @@ class ObjectiveImageDenoising():
         # line search parameters
         self.parameters = {'alpha0':1.0, 'rho':0.5, 'c':5e-5, 'max_backtrack':12}
         # regularization
-        if not parameters == None: 
-            self.parameters.update(parameters)
-            self.define_regularization()
+        self.parameters({'eps':1e-4, 'k':1.0, \
+        'regularization':'TV', 'mode':'primaldual', 'GNhessian':False})
+        self.parameters.update(parameters)
+        self.define_regularization()
         self.regparam = 1.0
         # plots:
         filename, ext = os.path.splitext(sys.argv[0])
@@ -81,9 +82,12 @@ class ObjectiveImageDenoising():
         elif regularization == 'TV':
             eps = self.parameters['eps']
             k = self.parameters['k']
-            GN = self.parameters['GN']
-            if GN:  self.Reg = TV({'eps':eps, 'k':k, 'Vm':self.V, 'GN':GN})
-            else:   self.Reg = TVPD({'eps':eps, 'k':k, 'Vm':self.V})
+            GN = self.parameters['GNhessian']
+            mode = self.parameters['mode']
+            if mode == 'primaldual':
+                self.Reg = self.Reg = TVPD({'eps':eps, 'k':k, 'Vm':self.V, 'GNhessian':False})
+            else:
+                self.Reg = TV({'eps':eps, 'k':k, 'Vm':self.V, 'GNhessian':GN})
             self.inexact = False
 
 
