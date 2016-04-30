@@ -6,7 +6,6 @@ Test for the TV regularization class.
 - test with V order = 1, 2, 3. Works but some derivatives are too close to zero
   to check (Still okay!)
 """
-#TODO: think about analytical derivatives
 
 import dolfin as dl
 import numpy as np
@@ -26,51 +25,13 @@ m_in = dl.Function(V)
 TV1 = TV({'Vm':V, 'eps':dl.Constant(0.0001), 'k':k, 'GNhessian':False})
 TV2 = TVPD({'Vm':V, 'eps':dl.Constant(0.0001), 'k':k})
 
-# Verification point, i.e., point at which gradient and Hessian are checked
-m_exp = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=1)
-m = dl.interpolate(m_exp, V)
+for ii in range(1,4):
+    # Verification point, i.e., point at which gradient and Hessian are checked
+    print 'Verification point', str(ii)
+    m_exp = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii)
+    m = dl.interpolate(m_exp, V)
 
-print '\nGradient:'
-failures = 0
-for nn in range(8):
-    print '\ttest ' + str(nn+1)
-    dm_exp = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=nn+1)
-    dm = dl.interpolate(dm_exp, V)
-
-    for h in HH:
-        success = False
-        setfct(m_in, m)
-        m_in.vector().axpy(h, dm.vector())
-        cost1 = TV1.cost(m_in)
-
-        setfct(m_in, m)
-        m_in.vector().axpy(-h, dm.vector())
-        cost2 = TV1.cost(m_in)
-
-        cost = TV1.cost(m)
-
-        GradFD = (cost1 - cost2)/(2.*h)
-
-        Grad1m = TV1.grad(m) 
-        Grad1m_h = Grad1m.inner(dm.vector())
-        Grad2m = TV2.grad(m) 
-        Grad2m_h = Grad2m.inner(dm.vector())
-
-        err1 = np.abs(GradFD-Grad1m_h)/np.abs(Grad1m_h)
-        err2 = np.abs(GradFD-Grad2m_h)/np.abs(Grad2m_h)
-        print 'h={}, GradFD={}, Grad1m_h={}, err1={}'.format(\
-        h, GradFD, Grad1m_h, err1)
-        print 'h={}, GradFD={}, Grad2m_h={}, err2={}'.format(\
-        h, GradFD, Grad2m_h, err2)
-        if err1 < 1e-6:  
-            print 'test {}: OK!'.format(nn+1)
-            success = True
-            break
-    if not success: failures+=1
-print '\nTest gradient -- Summary: {} test(s) failed'.format(failures)
-
-if failures < 5:
-    print '\n\nHessian:'
+    print '\nGradient:'
     failures = 0
     for nn in range(8):
         print '\ttest ' + str(nn+1)
@@ -81,27 +42,67 @@ if failures < 5:
             success = False
             setfct(m_in, m)
             m_in.vector().axpy(h, dm.vector())
-            grad1 = TV1.grad(m_in)
-            #
+            cost1 = TV1.cost(m_in)
+
             setfct(m_in, m)
             m_in.vector().axpy(-h, dm.vector())
-            grad2 = TV1.grad(m_in)
-            #
-            HessFD = (grad1 - grad2)/(2.*h)
+            cost2 = TV1.cost(m_in)
 
-            TV1.assemble_hessian(m)
-            Hess1mdm = TV1.hessian(dm.vector())
-            TV2.assemble_hessian(m)
-            Hess2mdm = TV2.hessian(dm.vector())
+            cost = TV1.cost(m)
 
-            err1 = (HessFD-Hess1mdm).norm('l2')/Hess1mdm.norm('l2')
-            err2 = (HessFD-Hess2mdm).norm('l2')/Hess2mdm.norm('l2')
-            print 'h={}, err1={}, err2={}'.format(h, err1, err2)
+            GradFD = (cost1 - cost2)/(2.*h)
 
+            Grad1m = TV1.grad(m) 
+            Grad1m_h = Grad1m.inner(dm.vector())
+            Grad2m = TV2.grad(m) 
+            Grad2m_h = Grad2m.inner(dm.vector())
+
+            err1 = np.abs(GradFD-Grad1m_h)/np.abs(Grad1m_h)
+            err2 = np.abs(GradFD-Grad2m_h)/np.abs(Grad2m_h)
+            print 'h={}, GradFD={}, Grad1m_h={}, err1={}'.format(\
+            h, GradFD, Grad1m_h, err1)
+            print 'h={}, GradFD={}, Grad2m_h={}, err2={}'.format(\
+            h, GradFD, Grad2m_h, err2)
             if err1 < 1e-6:  
                 print 'test {}: OK!'.format(nn+1)
                 success = True
                 break
         if not success: failures+=1
-    print '\nTest Hessian --  Summary: {} test(s) failed\n'.format(failures)
+    print '\nTest gradient -- Summary: {} test(s) failed'.format(failures)
+
+    if failures < 5:
+        print '\n\nHessian:'
+        failures = 0
+        for nn in range(8):
+            print '\ttest ' + str(nn+1)
+            dm_exp = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=nn+1)
+            dm = dl.interpolate(dm_exp, V)
+
+            for h in HH:
+                success = False
+                setfct(m_in, m)
+                m_in.vector().axpy(h, dm.vector())
+                grad1 = TV1.grad(m_in)
+                #
+                setfct(m_in, m)
+                m_in.vector().axpy(-h, dm.vector())
+                grad2 = TV1.grad(m_in)
+                #
+                HessFD = (grad1 - grad2)/(2.*h)
+
+                TV1.assemble_hessian(m)
+                Hess1mdm = TV1.hessian(dm.vector())
+                TV2.assemble_hessian(m)
+                Hess2mdm = TV2.hessian(dm.vector())
+
+                err1 = (HessFD-Hess1mdm).norm('l2')/Hess1mdm.norm('l2')
+                err2 = (HessFD-Hess2mdm).norm('l2')/Hess2mdm.norm('l2')
+                print 'h={}, err1={}, err2={}'.format(h, err1, err2)
+
+                if err1 < 1e-6:  
+                    print 'test {}: OK!'.format(nn+1)
+                    success = True
+                    break
+            if not success: failures+=1
+        print '\nTest Hessian --  Summary: {} test(s) failed\n'.format(failures)
 
