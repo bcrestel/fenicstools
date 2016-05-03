@@ -22,10 +22,10 @@ from fenicstools.optimsolver import checkgradfd_med, checkhessfd_med, checkhessf
 
 
 # ABC:
-class LeftRight(dl.SubDomain):
-    def inside(self, x, on_boundary):
-        return (x[0] < 1e-16 or x[0] > 1.0 - 1e-16) \
-        and on_boundary
+#class LeftRight(dl.SubDomain):
+#    def inside(self, x, on_boundary):
+#        return (x[0] < 1e-16 or x[0] > 1.0 - 1e-16) \
+#        and on_boundary
 
 #@profile
 def run_test(fpeak, lambdamin, lambdamax, Nxy, tfilterpts, r, Dt, skip):
@@ -64,11 +64,11 @@ def run_test(fpeak, lambdamin, lambdamax, Nxy, tfilterpts, r, Dt, skip):
     [[ii/10., 0.8] for ii in range(3,8)]
     obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
     # define pde operator:
-    wavepde = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
-    wavepde.timestepper = 'centered'
+    wavepde = AcousticWave({'V':V, 'Vm':Vl})
+    wavepde.timestepper = 'backward'
     wavepde.lump = True
-    wavepde.set_abc(mesh, LeftRight(), True)
-    wavepde.update({'lambda':lambda_target_fn, 'rho':1.0, \
+    #wavepde.set_abc(mesh, LeftRight(), True)
+    wavepde.update({'b':lambda_target_fn, 'a':1.0, \
     't0':t0, 'tf':tf, 'Dt':Dt, 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
     wavepde.ftime = mysrc
     # define objective function:
@@ -86,10 +86,10 @@ def run_test(fpeak, lambdamin, lambdamax, Nxy, tfilterpts, r, Dt, skip):
     waveobj.dd = dd + sigmas.reshape((len(sigmas),1))*rndnoise
     # gradient
     print 'generate observations'
-    waveobj.update_m(lambda_init_fn)
+    waveobj.update_m([None, lambda_init_fn])
     waveobj.solvefwd_cost()
-    cost1 = waveobj.misfit
-    print 'misfit = {}'.format(waveobj.misfit)
+    cost1 = waveobj.cost_misfit
+    print 'misfit = {}'.format(waveobj.cost_misfit)
     myplot.plot_timeseries(waveobj.solfwd, 'p', 0, skip, fctV)
     # Plot data and observations
     fig = plt.figure()
@@ -104,27 +104,29 @@ def run_test(fpeak, lambdamin, lambdamax, Nxy, tfilterpts, r, Dt, skip):
     print 'compute gradient'
     waveobj.solveadj_constructgrad()
     myplot.plot_timeseries(waveobj.soladj, 'v', 0, skip, fctV)
-    MG = waveobj.MGv.array().copy()
+    _,MGb = waveobj.MG.split(deepcopy=True)
+    MG = MGb.vector().array().copy()
     myplot.set_varname('grad')
-    myplot.plot_vtk(waveobj.Grad)
+    _,Gradb = waveobj.Grad.split(deepcopy=True)
+    myplot.plot_vtk(Gradb)
     print 'check gradient with FD'
     Medium = np.zeros((5, Vl.dim()))
     for ii in range(5):
         smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
         smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
         Medium[ii,:] = smoothperturb_fn.vector().array()
-    checkgradfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-4])
+    #checkgradfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-4])
     print 'check Hessian with FD'
-    checkhessfd_med(waveobj, Medium, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4, 1e-5], False)
+    #checkhessfd_med(waveobj, Medium, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4, 1e-5], False)
 
 
 if __name__ == "__main__":
-    dl.parameters['form_compiler']['cpp_optimize'] = True
-    dl.parameters['form_compiler']['cpp_optimize_flags'] = '-O2'
-    dl.parameters['form_compiler']['optimize'] = True
-    ffc.parameters.FFC_PARAMETERS['optimize'] = True
-    ffc.parameters.FFC_PARAMETERS['cpp_optimize'] = True
-    ffc.parameters.FFC_PARAMETERS['cpp_optimize_flags'] = '-O2'
+#    dl.parameters['form_compiler']['cpp_optimize'] = True
+#    dl.parameters['form_compiler']['cpp_optimize_flags'] = '-O2'
+#    dl.parameters['form_compiler']['optimize'] = True
+#    ffc.parameters.FFC_PARAMETERS['optimize'] = True
+#    ffc.parameters.FFC_PARAMETERS['cpp_optimize'] = True
+#    ffc.parameters.FFC_PARAMETERS['cpp_optimize_flags'] = '-O2'
     # Inputs:
     fpeak = 1.0  #Hz
     lambdamin = 1.0
