@@ -40,13 +40,14 @@ for Nxy in NN:
     Vl = FunctionSpace(mesh, 'Lagrange', 1)
     Dt = h/(q*8.*np.sqrt(2))
 
-    Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
+    Wave = AcousticWave({'V':V, 'Vm':Vl})
     Wave.timestepper = 'backward'
     Wave.lump = True
     Wave.exact = Function(V)
     Wave.bc = DirichletBC(V, ubc, u0_boundary)
-    Wave.update({'lambda':8.0, 'rho':2.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
+    Wave.update({'b':8.0, 'a':2.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
     'u0init':interpolate(u0_expr, V), 'utinit':Function(V)})
+    Wave.ftime = lambda t: 0.0
     sol, error = Wave.solve()
     ERROR.append(error)
     if myrank == 0: print 'relative error = {:.5e}'.format(error)

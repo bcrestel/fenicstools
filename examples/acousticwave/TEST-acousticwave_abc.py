@@ -23,9 +23,9 @@ NN = np.array((10, 20, 40, 80))
 ERROR = []
 
 # Medium ppties:
-lam = 8.0
-rho = 2.0
-c = np.sqrt(lam/rho)
+b = 8.0
+a = 2.0
+c = np.sqrt(b/a)
 tf = 0.5/c # Final time
 direction = 0   # direction of the 1D wave
 u0_expr = Expression(\
@@ -51,14 +51,15 @@ for Nxy in NN:
     Dt = h/(q*alpha*c)
     if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 
-    Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
+    Wave = AcousticWave({'V':V, 'Vm':Vl})
     #Wave.verbose = True
     Wave.timestepper = 'centered'
     Wave.lump = True
     Wave.set_abc(mesh, LeftRight(), True)
     Wave.exact = interpolate(exact_expr, V)
-    Wave.update({'lambda':lam, 'rho':rho, 't0':0.0, 'tf':tf, 'Dt':Dt,\
+    Wave.update({'b':b, 'a':a, 't0':0.0, 'tf':tf, 'Dt':Dt,\
     'u0init':interpolate(u0_expr, V), 'utinit':Function(V)})
+    Wave.ftime = lambda t: 0.0 
     sol, error = Wave.solve()
     ERROR.append(error)
     if myrank == 0: print 'relative error = {:.5e}'.format(error)
