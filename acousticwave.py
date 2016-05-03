@@ -47,7 +47,6 @@ class AcousticWave():
         self.u1init = None  # provides u1 = u(t=t0+/-Dt)
         self.bc = None
         self.abc = False
-        self.ftime = lambda t: 0.0  # ftime(tt) = src term @ t=tt (in np.array())
         self.set_fwd()  # default is forward problem
 
 
