@@ -88,14 +88,14 @@ class AcousticWave():
         self.weak_m = inner(self.a*self.trial,self.test)*dx
 
 
-#    def set_abc(self, mesh, class_bc_abc, lumpD=False):
-#        self.abc = True # False means zero-Neumann all-around
-#        if lumpD:    self.lumpD = True
-#        abc_boundaryparts = FacetFunction("size_t", mesh)
-#        class_bc_abc.mark(abc_boundaryparts, 1)
-#        self.ds = Measure("ds")[abc_boundaryparts]
-#        self.weak_d = inner(sqrt(self.lam*self.rho)*self.trial, self.test)*self.ds(1)
-#        self.class_bc_abc = class_bc_abc    # to make copies
+    def set_abc(self, mesh, class_bc_abc, lumpD=False):
+        self.abc = True # False means zero-Neumann all-around
+        if lumpD:    self.lumpD = True
+        abc_boundaryparts = FacetFunction("size_t", mesh)
+        class_bc_abc.mark(abc_boundaryparts, 1)
+        self.ds = Measure("ds")[abc_boundaryparts]
+        self.weak_d = inner(sqrt(self.a*self.b)*self.trial, self.test)*self.ds(1)
+        self.class_bc_abc = class_bc_abc    # to make copies
 
 
     def set_fwd(self):  
