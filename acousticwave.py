@@ -82,7 +82,6 @@ class AcousticWave():
         self.Vm = functionspaces_V['Vm']
         self.a = Function(self.Vm)
         self.b = Function(self.Vm)
-        self.elastic = False
         self.weak_k = inner(self.b*nabla_grad(self.trial), nabla_grad(self.test))*dx
         self.weak_m = inner(self.a*self.trial,self.test)*dx
 
@@ -132,12 +131,13 @@ class AcousticWave():
         if parameters_m.has_key('u1init'):   self.u1init = parameters_m['u1init']
         if parameters_m.has_key('um1init'):   self.um1init = parameters_m['um1init']
         # Medium parameters:
-        setfct(self.a, parameters_m['a'])
-        if self.verbose: print 'assemble K',
-        self.K = assemble(self.weak_k)
-        if self.verbose: print ' -- K assembled'
         if parameters_m.has_key('b'):
             setfct(self.b, parameters_m['b'])
+            if self.verbose: print 'assemble K',
+            self.K = assemble(self.weak_k)
+            if self.verbose: print ' -- K assembled'
+        if parameters_m.has_key('a'):
+            setfct(self.a, parameters_m['a'])
             # Mass matrix:
             if self.verbose: print 'assemble M',
             Mfull = assemble(self.weak_m)
