@@ -60,7 +60,7 @@ def mysrc(tt):
     return Ricker(tt)*mydelta
 # Computation:
 if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
-Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
+Wave = AcousticWave({'V':V, 'Vm':Vl})
 #Wave.verbose = True
 Wave.timestepper = 'backward'
 Wave.lump = True
@@ -68,7 +68,7 @@ Wave.lump = True
 lambda_target = Expression('1.0 + 3.0*(' \
 '(x[0]>=0.3)*(x[0]<=0.7)*(x[1]>=0.3)*(x[1]<=0.7))') 
 lambda_target_fn = interpolate(lambda_target, Vl)
-Wave.update({'lambda':lambda_target_fn, 'rho':1.0, \
+Wave.update({'b':lambda_target_fn, 'a':1.0, \
 't0':0.0, 'tf':tf, 'Dt':Dt, 'u0init':Function(V), 'utinit':Function(V)})
 Wave.ftime = mysrc
 sol, tmp = Wave.solve()

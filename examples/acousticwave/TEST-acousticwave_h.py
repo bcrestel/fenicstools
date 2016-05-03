@@ -35,10 +35,10 @@ Pt = PointSources(Vex, [[.5,.5]])
 mydelta = Pt[0].array()
 def mysrc(tt):
     return Ricker(tt)*mydelta
-Waveex = AcousticWave({'V':Vex, 'Vl':Vl, 'Vr':Vl})
+Waveex = AcousticWave({'V':Vex, 'Vm':Vl})
 Waveex.timestepper = 'backward'
 Waveex.lump = True
-Waveex.update({'lambda':1.0, 'rho':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
+Waveex.update({'a':1.0, 'b':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
 'u0init':dl.Function(Vex), 'utinit':dl.Function(Vex)})
 Waveex.ftime = mysrc
 sol,_ = Waveex.solve()
@@ -65,10 +65,10 @@ for qq in QQ:
     mydelta = Pt[0].array()
     def mysrc(tt):
         return Ricker(tt)*mydelta
-    Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
+    Wave = AcousticWave({'V':V, 'Vm':Vl})
     Wave.timestepper = 'backward'
     Wave.lump = True
-    Wave.update({'lambda':1.0, 'rho':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
+    Wave.update({'a':1.0, 'b':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
     'u0init':dl.Function(V), 'utinit':dl.Function(V)})
     Wave.ftime = mysrc
     sol,_ = Wave.solve()

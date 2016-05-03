@@ -50,13 +50,14 @@ for Nxy in NN:
     Dt = h/(q*alpha*c)
     if myrank == 0: print '\n\th = {} - Dt = {}'.format(h, Dt)
 
-    Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
+    Wave = AcousticWave({'V':V, 'Vm':Vl})
     Wave.timestepper = 'backward'
     Wave.lump = True
     Wave.exact = interpolate(uex_expr, V)
     Wave.bc = DirichletBC(V, ubc, u0_boundary)
-    Wave.update({'lambda':lam, 'rho':rho, 't0':0.0, 'tf':tf, 'Dt':Dt,\
+    Wave.update({'b':lam, 'a':rho, 't0':0.0, 'tf':tf, 'Dt':Dt,\
     'u0init':interpolate(u0_expr, V), 'utinit':Function(V)})
+    Wave.ftime = lambda t: 0.0
     sol, error = Wave.solve()
     ERROR.append(error)
     if myrank == 0: print 'relative error = {:.5e}'.format(error)

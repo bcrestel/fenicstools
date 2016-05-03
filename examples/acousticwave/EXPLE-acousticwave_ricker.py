@@ -49,13 +49,13 @@ for r in RR:
         return Ricker(tt)*mydelta
     # Computation:
     if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
-    Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
+    Wave = AcousticWave({'V':V, 'Vm':Vl})
     #Wave.verbose = True
     Wave.timestepper = 'centered'
     Wave.lump = True
     Wave.set_abc(mesh, AllFour(), True)
     Wave.exact = Function(V)
-    Wave.update({'lambda':1.0, 'rho':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
+    Wave.update({'b':1.0, 'a':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
     'u0init':Function(V), 'utinit':Function(V)})
     Wave.ftime = mysrc
     sol, error = Wave.solve()

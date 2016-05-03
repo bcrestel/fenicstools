@@ -43,7 +43,7 @@ Dt = 1e-3
 checkdt_abc(Dt, h, q, c_max, True, True, 'centered')
 if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 
-Wave = AcousticWave({'V':V, 'Vl':Vl, 'Vr':Vl})
+Wave = AcousticWave({'V':V, 'Vm':Vl})
 #Wave.verbose = True
 Wave.timestepper = 'centered'
 Wave.lump = True
@@ -51,8 +51,9 @@ Wave.set_abc(mesh, LeftRight(), True)
 # Medium ppties:
 lam_expr = Expression('1.0 + 3.0*(x[i]<=0.25)', i=direction)
 lam = interpolate(lam_expr, Vl)
-Wave.update({'lambda':lam, 'rho':1.0, 't0':0.0, 'tf':1.5, 'Dt':Dt,\
+Wave.update({'b':lam, 'a':1.0, 't0':0.0, 'tf':1.5, 'Dt':Dt,\
 'u0init':interpolate(u0_expr, V), 'utinit':Function(V)})
+Wave.ftime = lambda t: 0.0
 sol, tmp = Wave.solve()
 if not mycomm == None:  MPI.barrier(mycomm)
 
