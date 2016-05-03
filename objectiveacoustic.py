@@ -1,7 +1,7 @@
 import numpy as np
 
 from dolfin import LinearOperator, Function, TestFunction, TrialFunction, \
-assemble, inner, nabla_grad, dx, sqrt, LUSolver
+assemble, inner, nabla_grad, dx, sqrt, LUSolver, assign
 from miscfenics import setfct, isequal, ZeroRegularization
 
 class ObjectiveAcoustic(LinearOperator):
@@ -12,7 +12,7 @@ class ObjectiveAcoustic(LinearOperator):
     #TODO: add support for multiple sources
 
     # CONSTRUCTORS:
-    def __init__(self, acousticwavePDE, regularization=None):
+    def __init__(self, acousticwavePDE, regularization=[None,None]):
         """ 
         Input:
             acousticwavePDE should be an instantiation from class AcousticWave
@@ -20,32 +20,43 @@ class ObjectiveAcoustic(LinearOperator):
         self.PDE = acousticwavePDE
         self.PDE.exact = None
         self.fwdsource = self.PDE.ftime
-        self.MG = Function(self.PDE.Vl)
+        # functions for gradient
+        self.MG = Function(self.PDE.Vm*self.PDE.Vm)
         self.MGv = self.MG.vector()
-        self.Grad = Function(self.PDE.Vl)
-        self.Gradv = self.Grad.vector()
-        self.srchdir = Function(self.PDE.Vl)
-        self.delta_m = Function(self.PDE.Vl)
-        LinearOperator.__init__(self, self.MG.vector(), self.MG.vector())
+        self.Grad = Function(self.PDE.Vm*self.PDE.Vm)
+        self.srchdir = Function(self.PDE.Vm*self.PDE.Vm)
+        self.delta_m = Function(self.PDE.Vm*self.PDE.Vm)
+        self.ab = Function(self.PDE.Vm*self.PDE.Vm)
+        #LinearOperator.__init__(self, self.MG.vector(), self.MG.vector())
         self.obsop = None   # Observation operator
         self.dd = None  # observations
-        if regularization == None:  self.regularization = ZeroRegularization()
-        else:   self.regularization = regularization
+        # regularization
+        if regularization[0] == None:   self.regularizationa = ZeroRegularization()
+        else:   self.regularizationa = regularization[0]
+        if regularization[1] == None:   self.regularizationb = ZeroRegularization()
+        else:   self.regularizationb = regularization[1]
         self.alpha_reg = 1.0
-        # gradient
-        self.lamtest, self.lamtrial = TestFunction(self.PDE.Vl), TrialFunction(self.PDE.Vl)
-        self.p, self.v = Function(self.PDE.V), Function(self.PDE.V)
-        self.wkformgrad = inner(self.lamtest*nabla_grad(self.p), nabla_grad(self.v))*dx
-        # incremental rhs
-        self.lamhat = Function(self.PDE.Vl)
+        # gradient a
+        self.mtest, self.mtrial = TestFunction(self.PDE.Vm), TrialFunction(self.PDE.Vm)
+        self.p, self.q = Function(self.PDE.V), Function(self.PDE.V)
+        self.wkformgrada = inner(self.mtest*self.p, self.q)*dx
+        # gradient b
+        self.wkformgradb = inner(self.mtest*nabla_grad(self.p), nabla_grad(self.q))*dx
+        # incremental rhs a
+        self.ahat, self.bhat = Function(self.PDE.Vm), Function(self.PDE.Vm)
         self.ptrial, self.ptest = TrialFunction(self.PDE.V), TestFunction(self.PDE.V)
-        self.wkformrhsincr = inner(self.lamhat*nabla_grad(self.ptrial), nabla_grad(self.ptest))*dx
-        # Hessian
-        self.phat, self.vhat = Function(self.PDE.V), Function(self.PDE.V)
-        self.wkformhess = inner(self.lamtest*nabla_grad(self.phat), nabla_grad(self.v))*dx \
-        + inner(self.lamtest*nabla_grad(self.p), nabla_grad(self.vhat))*dx
+        self.wkformrhsincrb = inner(self.bhat*nabla_grad(self.ptrial), nabla_grad(self.ptest))*dx
+        # incremental rhs b
+        self.wkformrhsincra = inner(self.ahat*self.ptrial, self.ptest)*dx
+        # Hessian a
+        self.phat, self.qhat = Function(self.PDE.V), Function(self.PDE.V)
+        self.wkformhessa = inner(self.mtest*self.phat, self.q)*dx \
+        + inner(self.mtest*self.p, self.qhat)*dx
+        # Hessian b
+        self.wkformhessb = inner(self.mtest*nabla_grad(self.phat), nabla_grad(self.q))*dx \
+        + inner(self.mtest*nabla_grad(self.p), nabla_grad(self.qhat))*dx
         # Mass matrix:
-        weak_m =  inner(self.lamtrial,self.lamtest)*dx
+        weak_m =  inner(self.mtrial,self.mtest)*dx
         Mass = assemble(weak_m)
         self.solverM = LUSolver()
         self.solverM.parameters['reuse_factorization'] = True
@@ -57,26 +68,26 @@ class ObjectiveAcoustic(LinearOperator):
         self.factors *= self.PDE.Dt
         self.invDt = 1./self.PDE.Dt
         # Absorbing BCs
-        if self.PDE.abc:
-            #TODO: should probably be tested in other situations
-            if self.PDE.lumpD:
-                print '*** Warning: Damping matrix D is lumped. ',\
-                'Make sure gradient is consistent.'
-            self.vD, self.pD, self.p1D, self.p2D = Function(self.PDE.V), \
-            Function(self.PDE.V), Function(self.PDE.V), Function(self.PDE.V)
-            self.wkformgradD = inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
-            *self.pD, self.vD*self.lamtest)*self.PDE.ds(1)
-            self.wkformDprime = inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
-            *self.lamhat*self.ptrial, self.ptest)*self.PDE.ds(1)
-            self.dp, self.dph, self.vhatD = Function(self.PDE.V), \
-            Function(self.PDE.V), Function(self.PDE.V)
-            self.p1hatD, self.p2hatD = Function(self.PDE.V), Function(self.PDE.V)
-            self.wkformhessD = inner(-0.25*sqrt(self.PDE.rho)/(self.PDE.lam*sqrt(self.PDE.lam))\
-            *self.lamhat*self.dp, self.vD*self.lamtest)*self.PDE.ds(1) \
-            + inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
-            *self.dph, self.vD*self.lamtest)*self.PDE.ds(1)\
-            + inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
-            *self.dp, self.vhatD*self.lamtest)*self.PDE.ds(1)
+        #TODO: not implemented yet
+#        if self.PDE.abc:
+#            if self.PDE.lumpD:
+#                print '*** Warning: Damping matrix D is lumped. ',\
+#                'Make sure gradient is consistent.'
+#            self.vD, self.pD, self.p1D, self.p2D = Function(self.PDE.V), \
+#            Function(self.PDE.V), Function(self.PDE.V), Function(self.PDE.V)
+#            self.wkformgradD = inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
+#            *self.pD, self.vD*self.lamtest)*self.PDE.ds(1)
+#            self.wkformDprime = inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
+#            *self.bhat*self.ptrial, self.ptest)*self.PDE.ds(1)
+#            self.dp, self.dph, self.vhatD = Function(self.PDE.V), \
+#            Function(self.PDE.V), Function(self.PDE.V)
+#            self.p1hatD, self.p2hatD = Function(self.PDE.V), Function(self.PDE.V)
+#            self.wkformhessD = inner(-0.25*sqrt(self.PDE.rho)/(self.PDE.lam*sqrt(self.PDE.lam))\
+#            *self.bhat*self.dp, self.vD*self.lamtest)*self.PDE.ds(1) \
+#            + inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
+#            *self.dph, self.vD*self.lamtest)*self.PDE.ds(1)\
+#            + inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
+#            *self.dp, self.vhatD*self.lamtest)*self.PDE.ds(1)
 
 
     def copy(self):
@@ -100,15 +111,15 @@ class ObjectiveAcoustic(LinearOperator):
             self.Bp[:,index] = self.obsop.obs(self.p)
         if cost:
             assert not self.dd == None, "Provide observations"
-            self.misfit = self.obsop.costfct(self.Bp, self.dd, self.PDE.times)
-            self.cost_reg = self.regularization.cost(self.PDE.lam)
-            self.cost = self.misfit + self.alpha_reg*self.cost_reg
+            self.cost_misfit = self.obsop.costfct(self.Bp, self.dd, self.PDE.times)
+            self.cost_reg = self.regularizationa.cost(self.PDE.a) + \
+            self.regularizationb.cost(self.PDE.b)
+            self.cost = self.cost_misfit + self.alpha_reg*self.cost_reg
 
     def solvefwd_cost(self):    self.solvefwd(True)
 
 
     # ADJOINT PROBLEM + GRAD:
-    #@profile
     def solveadj(self, grad=False):
         self.PDE.set_adj()
         self.obsop.assemble_rhsadj(self.Bp, self.dd, self.PDE.times, self.PDE.bc)
@@ -116,9 +127,13 @@ class ObjectiveAcoustic(LinearOperator):
         self.soladj,_ = self.PDE.solve()
         if grad:
             self.MGv.zero()
-            if self.PDE.abc:
-                self.vD.vector().zero(); self.pD.vector().zero();
-                self.p1D.vector().zero(); self.p2D.vector().zero();
+            MGa, MGb = self.MG.split(deepcopy=True)
+            MGav, MGbv = MGa.vector(), MGb.vector()
+            Grada, Gradb = self.Grad.split(deepcopy=True)
+            Gradav, Gradbv = Grada.vector(), Gradb.vector()
+#            if self.PDE.abc:
+#                self.vD.vector().zero(); self.pD.vector().zero();
+#                self.p1D.vector().zero(); self.p2D.vector().zero();
             index = 0
             for fwd, adj, fact in \
             zip(self.solfwd, reversed(self.soladj), self.factors):
@@ -126,29 +141,32 @@ class ObjectiveAcoustic(LinearOperator):
                 assert isequal(ttf, tta, 1e-16), \
                 'tfwd={}, tadj={}, reldiff={}'.format(ttf, tta, abs(ttf-tta)/ttf)
                 setfct(self.p, fwd[0])
-                setfct(self.v, adj[0])
-                self.MGv.axpy(fact, assemble(self.wkformgrad))
-#                self.MGv.axpy(fact, assemble(self.wkformgrad, \
-#                form_compiler_parameters={'optimize':True,\
-#                'representation':'quadrature'}))
-                if self.PDE.abc:
-                    if index%2 == 0:
-                        self.p2D.vector().axpy(1.0, self.p.vector())
-                        setfct(self.pD, self.p2D)
-                        self.MGv.axpy(1.0*0.5*self.invDt, assemble(self.wkformgradD))
-                        #self.MGv.axpy(fact*0.5*self.invDt, assemble(self.wkformgradD))
-                        setfct(self.p2D, -1.0*self.p.vector())
-                        setfct(self.vD, self.v)
-                    else:
-                        self.p1D.vector().axpy(1.0, self.p.vector())
-                        setfct(self.pD, self.p1D)
-                        self.MGv.axpy(1.0*0.5*self.invDt, assemble(self.wkformgradD))
-                        #self.MGv.axpy(fact*0.5*self.invDt, assemble(self.wkformgradD))
-                        setfct(self.p1D, -1.0*self.p.vector())
-                        setfct(self.vD, self.v)
+                setfct(self.q, adj[0])
+                MGbv.axpy(fact, assemble(self.wkformgradb))
+#                if self.PDE.abc:
+#                    if index%2 == 0:
+#                        self.p2D.vector().axpy(1.0, self.p.vector())
+#                        setfct(self.pD, self.p2D)
+#                        self.MGv.axpy(1.0*0.5*self.invDt, assemble(self.wkformgradD))
+#                        setfct(self.p2D, -1.0*self.p.vector())
+#                        setfct(self.vD, self.v)
+#                    else:
+#                        self.p1D.vector().axpy(1.0, self.p.vector())
+#                        setfct(self.pD, self.p1D)
+#                        self.MGv.axpy(1.0*0.5*self.invDt, assemble(self.wkformgradD))
+#                        setfct(self.p1D, -1.0*self.p.vector())
+#                        setfct(self.vD, self.v)
                 index += 1
-            self.MGv.axpy(self.alpha_reg, self.regularization.grad(self.PDE.lam))
-            self.solverM.solve(self.Gradv, self.MGv)
+            # add regularization
+            MGav.axpy(self.alpha_reg, self.regularizationa.grad(self.PDE.a))
+            self.solverM.solve(Gradav, MGav)
+            MGbv.axpy(self.alpha_reg, self.regularizationb.grad(self.PDE.b))
+            self.solverM.solve(Gradbv, MGbv)
+            # assemble
+            assign(self.MG.sub(0), MGa)
+            assign(self.Grad.sub(0), Grada)
+            assign(self.MG.sub(1), MGb)
+            assign(self.Grad.sub(1), Gradb)
 
     def solveadj_constructgrad(self):   self.solveadj(True)
 
@@ -162,7 +180,7 @@ class ObjectiveAcoustic(LinearOperator):
             print 'Error in ftimeincrfwd at time {}'.format(tt)
             print np.min(np.abs(self.PDE.times-tt))
             sys.exit(0)
-        # lamhat * grad(p).grad(vtilde)
+        # bhat * grad(p).grad(vtilde)
         assert isequal(tt, self.solfwd[index][1], 1e-16)
         setfct(self.p, self.solfwd[index][0])
         setfct(self.v, self.C*self.p.vector())
@@ -182,7 +200,7 @@ class ObjectiveAcoustic(LinearOperator):
             print 'Error in ftimeincradj at time {}'.format(tt)
             print np.min(np.abs(self.PDE.times-tt))
             sys.exit(0)
-        # lamhat * grad(ptilde).grad(v)
+        # bhat * grad(ptilde).grad(v)
         assert isequal(tt, self.soladj[indexa][1], 1e-16)
         setfct(self.v, self.soladj[indexa][0])
         setfct(self.vhat, self.C*self.v.vector())
@@ -205,7 +223,7 @@ class ObjectiveAcoustic(LinearOperator):
         """
         self.regularization.assemble_hessian(lamhat)
         setfct(self.lamhat, lamhat)
-        self.C = assemble(self.wkformrhsincr)
+        self.C = assemble(self.wkformrhsincrb)
         if self.PDE.abc:    self.Dp = assemble(self.wkformDprime)
         # solve for phat
         self.PDE.set_fwd()
@@ -261,16 +279,23 @@ class ObjectiveAcoustic(LinearOperator):
 
     # SETTERS + UPDATE:
     def update_PDE(self, parameters): self.PDE.update(parameters)
-    def update_m(self, lam):    self.update_PDE({'lambda':lam})
+    def update_m(self, medparam):
+        """ medparam is a np.array containing both med parameters """
+        setfct(self.ab, medparam)
+        a, b = self.ab.split(deepcopy=True)
+        self.update_PDE({'a':a, 'b':b})
     def set_abc(self, mesh, class_bc_abc, lumpD):  
         self.PDE.set_abc(mesh, class_bc_abc, lumpD)
-    def backup_m(self): self.lam_bkup = self.getmarray()
-    def restore_m(self):    self.update_m(self.lam_bkup)
+    def backup_m(self): 
+        self.a_bkup, self.b_bkup = self.getmarray()
+    def restore_m(self):    
+        self.update_m({'a':self.a_bkup, 'b':self.b_bkup})
     def setsrcterm(self, ftime):    self.PDE.ftime = ftime
 
 
     # GETTERS:
-    def getmcopyarray(self):    return self.lam_bkup
-    def getmarray(self):    return self.PDE.lam.vector().array()
+    def getmcopyarray(self):    self.getmarray()
+    def getmarray(self):    
+        return (self.PDE.a.vector().array(), self.PDE.b.vector().array())
     def getMGarray(self):   return self.MGv.array()
 
