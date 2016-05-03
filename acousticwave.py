@@ -24,13 +24,17 @@ from linalg.lumpedmatrixsolver import LumpedMatrixSolverS
 class AcousticWave():
     """
     Solution of forward and adjoint equations for acoustic inverse problem
+    a*p'' - div(b*grad(p)) = f
+    note: proper acoustic model has a=1/lambda, and b=1/rho, with
+    lambda = bulk modulus, rho = ambient density, lambda = rho c^2
     """
 
     def __init__(self, functionspaces_V):
         """
         Input:
-            functionspaces_V = dict containing functionspaces for state/adj
-        ('V') and med param ('Vl' for lambda and 'Vr' for rho)
+            functionspaces_V = dict containing functionspaces
+                V, for state/adj
+                Vm, for a and b medium parameters
         """
         self.readV(functionspaces_V)
         self.verbose = False    # print info
@@ -49,7 +53,7 @@ class AcousticWave():
 
     def copy(self):
         """(hard) copy constructor"""
-        newobj = self.__class__({'V':self.V, 'Vl':self.Vl, 'Vr':self.Vr})
+        newobj = self.__class__({'V':self.V, 'Vm':self.Vm})
         newobj.lump = self.lump
         newobj.timestepper = self.timestepper
         newobj.exact = self.exact
@@ -59,14 +63,14 @@ class AcousticWave():
         if self.abc == True:
             newobj.set_abc(self.V.mesh(), self.class_bc_abc, self.lumpD)
         newobj.ftime = self.ftime
-        newobj.update({'lambda':self.lam, 'rho':self.rho, \
+        newobj.update({'a':self.a, 'b':self.b, \
         't0':self.t0, 'tf':self.tf, 'Dt':self.Dt, \
         'u0init':self.u0init, 'utinit':self.utinit, 'u1init':self.u1init})
         return newobj
 
 
     def readV(self, functionspaces_V):
-        # Solutions:
+        # solutions:
         self.V = functionspaces_V['V']
         self.test = TestFunction(self.V)
         self.trial = TrialFunction(self.V)
@@ -75,31 +79,23 @@ class AcousticWave():
         self.u2 = Function(self.V)    # u(t+Dt)
         self.rhs = Function(self.V)
         self.sol = Function(self.V)
-        # Parameters:
-        self.Vl = functionspaces_V['Vl']
-        self.lam = Function(self.Vl)
-        self.Vr = functionspaces_V['Vr']
-        self.rho = Function(self.Vr)
-        if functionspaces_V.has_key('Vm'):
-            self.Vm = functionspaces_V['Vm']
-            self.mu = Function(self.Vm)
-            self.elastic = True
-            assert(False)
-        else:   
-            self.elastic = False
-            self.weak_k = inner(self.lam*nabla_grad(self.trial), \
-            nabla_grad(self.test))*dx
-            self.weak_m = inner(self.rho*self.trial,self.test)*dx
+        # medium parameters:
+        self.Vm = functionspaces_V['Vm']
+        self.a = Function(self.Vm)
+        self.b = Function(self.Vm)
+        self.elastic = False
+        self.weak_k = inner(self.b*nabla_grad(self.trial), nabla_grad(self.test))*dx
+        self.weak_m = inner(self.a*self.trial,self.test)*dx
 
 
-    def set_abc(self, mesh, class_bc_abc, lumpD=False):
-        self.abc = True # False means zero-Neumann all-around
-        if lumpD:    self.lumpD = True
-        abc_boundaryparts = FacetFunction("size_t", mesh)
-        class_bc_abc.mark(abc_boundaryparts, 1)
-        self.ds = Measure("ds")[abc_boundaryparts]
-        self.weak_d = inner(sqrt(self.lam*self.rho)*self.trial, self.test)*self.ds(1)
-        self.class_bc_abc = class_bc_abc    # to make copies
+#    def set_abc(self, mesh, class_bc_abc, lumpD=False):
+#        self.abc = True # False means zero-Neumann all-around
+#        if lumpD:    self.lumpD = True
+#        abc_boundaryparts = FacetFunction("size_t", mesh)
+#        class_bc_abc.mark(abc_boundaryparts, 1)
+#        self.ds = Measure("ds")[abc_boundaryparts]
+#        self.weak_d = inner(sqrt(self.lam*self.rho)*self.trial, self.test)*self.ds(1)
+#        self.class_bc_abc = class_bc_abc    # to make copies
 
 
     def set_fwd(self):  
@@ -137,18 +133,14 @@ class AcousticWave():
         if parameters_m.has_key('u1init'):   self.u1init = parameters_m['u1init']
         if parameters_m.has_key('um1init'):   self.um1init = parameters_m['um1init']
         # Medium parameters:
-        setfct(self.lam, parameters_m['lambda'])
-        if self.verbose: print 'lambda updated '
-        if self.elastic == True:    
-            setfct(self.mu, parameters_m['mu'])
-            if self.verbose: print 'mu updated'
+        setfct(self.a, parameters_m['a'])
         if self.verbose: print 'assemble K',
         self.K = assemble(self.weak_k)
         if self.verbose: print ' -- K assembled'
-        if parameters_m.has_key('rho'):
-            setfct(self.rho, parameters_m['rho'])
+        if parameters_m.has_key('b'):
+            setfct(self.b, parameters_m['b'])
             # Mass matrix:
-            if self.verbose: print 'rho updated\nassemble M',
+            if self.verbose: print 'assemble M',
             Mfull = assemble(self.weak_m)
             if self.lump:
                 self.solverM = LumpedMatrixSolverS(self.V)
