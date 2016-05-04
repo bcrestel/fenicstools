@@ -148,13 +148,13 @@ class ObjectiveAcoustic(LinearOperator):
 #                    if index%2 == 0:
 #                        self.p2D.vector().axpy(1.0, self.p.vector())
 #                        setfct(self.pD, self.p2D)
-#                        self.MGv.axpy(1.0*0.5*self.invDt, assemble(self.wkformgradD))
+#                        self.MGv.axpy(fact*0.5*self.invDt, assemble(self.wkformgradD))
 #                        setfct(self.p2D, -1.0*self.p.vector())
 #                        setfct(self.vD, self.v)
 #                    else:
 #                        self.p1D.vector().axpy(1.0, self.p.vector())
 #                        setfct(self.pD, self.p1D)
-#                        self.MGv.axpy(1.0*0.5*self.invDt, assemble(self.wkformgradD))
+#                        self.MGv.axpy(fact*0.5*self.invDt, assemble(self.wkformgradD))
 #                        setfct(self.p1D, -1.0*self.p.vector())
 #                        setfct(self.vD, self.v)
                 index += 1
