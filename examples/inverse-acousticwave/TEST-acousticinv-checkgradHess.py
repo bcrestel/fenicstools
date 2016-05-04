@@ -86,7 +86,7 @@ def run_test(fpeak, lambdamin, lambdamax, Nxy, tfilterpts, r, Dt, skip):
     waveobj.dd = dd + sigmas.reshape((len(sigmas),1))*rndnoise
     # gradient
     print 'generate observations'
-    waveobj.update_m([None, lambda_init_fn])
+    waveobj.update_PDE({'b':lambda_init_fn})
     waveobj.solvefwd_cost()
     cost1 = waveobj.cost_misfit
     print 'misfit = {}'.format(waveobj.cost_misfit)
@@ -110,12 +110,14 @@ def run_test(fpeak, lambdamin, lambdamax, Nxy, tfilterpts, r, Dt, skip):
     _,Gradb = waveobj.Grad.split(deepcopy=True)
     myplot.plot_vtk(Gradb)
     print 'check gradient with FD'
-    Medium = np.zeros((5, Vl.dim()))
+    Medium = np.zeros((5, 2*Vl.dim()))
+    tmp = dl.Function(Vl*Vl)
     for ii in range(5):
         smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
         smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
-        Medium[ii,:] = smoothperturb_fn.vector().array()
-    #checkgradfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-4])
+        dl.assign(tmp.sub(1), smoothperturb_fn)
+        Medium[ii,:] = tmp.vector().array()
+    checkgradfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-4])
     print 'check Hessian with FD'
     #checkhessfd_med(waveobj, Medium, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4, 1e-5], False)
 
