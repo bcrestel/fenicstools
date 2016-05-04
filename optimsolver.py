@@ -52,7 +52,7 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4
     ObjFctal.solveadj_constructgrad()
 
 
-def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4]):
+def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doublesided=True):
     """
     Finite-difference check for the gradient of an ObjectiveFunctional object
         ObjFctal = object describing objective functional; must have methods:
@@ -66,7 +66,9 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4]):
     """
     lenm = len(ObjFctal.getmcopyarray())
     ObjFctal.backup_m()
-    factor = [1.0, -1.0]
+    if doublesided: factor = [1.0, -1.0]
+    else:   factor = [1.0]
+    costref = ObjFctal.cost
     MGdir = Medium.dot(ObjFctal.getMGarray())
     for textnb, dirct, mgdir in zip(range(lenm), Medium, MGdir):
         print 'Gradient check -- direction {0}: MGdir={1:.5e}'\
@@ -77,7 +79,8 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4]):
                 ObjFctal.update_m(ObjFctal.getmcopyarray() + fact*hh*dirct)
                 ObjFctal.solvefwd_cost()
                 cost.append(ObjFctal.cost)
-            FDgrad = (cost[0] - cost[1])/(2.0*hh)
+            if doublesided: FDgrad = (cost[0] - cost[1])/(2.0*hh)
+            else:   FDgrad = (cost[0] - costref)/hh
             err = abs(mgdir - FDgrad) / abs(FDgrad)
             if err < tolgradchk:   
                 print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e} -> OK!'\
