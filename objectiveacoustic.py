@@ -147,27 +147,27 @@ class ObjectiveAcoustic(LinearOperator):
                 setfct(self.p, fwd[0])
                 setfct(self.q, adj[0])
                 MGbv.axpy(fact, assemble(self.wkformgradb))
-#                # technique 1
-#                ttfm, ttfp = fwdm[1], fwdp[1]
-#                assert isequal(ttfm+self.PDE.Dt, tta, 1e-15), 'a={}, b={}, err={}'.\
-#                format(ttfm+self.PDE.Dt, tta, np.abs(ttfm+self.PDE.Dt-tta)/tta)
-#                assert isequal(ttfp-self.PDE.Dt, tta, 1e-15), 'a={}, b={}, err={}'.\
-#                format(ttfp-self.PDE.Dt, tta, np.abs(ttfp-self.PDE.Dt-tta)/tta)
-#                if index > 0:   # do not include term at t=0
-#                    setfct(self.ptmp, fwdm[0])
-#                    self.p.vector().axpy(-0.5, self.ptmp.vector())
-#                    setfct(self.ptmp, fwdp[0])
-#                    self.p.vector().axpy(-0.5, self.ptmp.vector())
-#                else:
-#                    setfct(self.ptmp, fwdp[0])
-#                    self.p.vector().axpy(-1.0, self.ptmp.vector())
-#                MGav.axpy(-2.0*self.invDt*self.invDt*fact, assemble(self.wkformgrada))
-                # technique 3
-                setfct(self.ppprhs, self.fwdsource(ttf))
-                setfct(self.ptmp, fwd[0])
-                self.ppprhs.vector().axpy(-1.0, self.PDE.K*self.ptmp.vector())
-                self.PDE.solverM.solve(self.p.vector(), self.ppprhs.vector())
-                MGav.axpy(fact, assemble(self.wkformgrada))
+                # technique 1
+                ttfm, ttfp = fwdm[1], fwdp[1]
+                assert isequal(ttfm+self.PDE.Dt, tta, 1e-15), 'a={}, b={}, err={}'.\
+                format(ttfm+self.PDE.Dt, tta, np.abs(ttfm+self.PDE.Dt-tta)/tta)
+                assert isequal(ttfp-self.PDE.Dt, tta, 1e-15), 'a={}, b={}, err={}'.\
+                format(ttfp-self.PDE.Dt, tta, np.abs(ttfp-self.PDE.Dt-tta)/tta)
+                if index > 0:   # do not include term at t=0
+                    setfct(self.ptmp, fwdm[0])
+                    self.p.vector().axpy(-0.5, self.ptmp.vector())
+                    setfct(self.ptmp, fwdp[0])
+                    self.p.vector().axpy(-0.5, self.ptmp.vector())
+                else:
+                    setfct(self.ptmp, fwdp[0])
+                    self.p.vector().axpy(-1.0, self.ptmp.vector())
+                MGav.axpy(-2.0*self.invDt*self.invDt*fact, assemble(self.wkformgrada))
+#                # technique 3
+#                setfct(self.ppprhs, self.fwdsource(ttf))
+#                setfct(self.ptmp, fwd[0])
+#                self.ppprhs.vector().axpy(-1.0, self.PDE.K*self.ptmp.vector())
+#                self.PDE.solverM.solve(self.p.vector(), self.ppprhs.vector())
+#                MGav.axpy(fact, assemble(self.wkformgrada))
 
 #                if self.PDE.abc:
 #                    if index%2 == 0:
