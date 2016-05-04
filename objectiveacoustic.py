@@ -33,13 +33,16 @@ class ObjectiveAcoustic(LinearOperator):
         self.dd = None  # observations
         # regularization
         if regularization == None:  
-            print '*** Warning: Use zero regularization'
+            print '*** Warning: Using zero regularization'
             self.regularization = ZeroRegularization()
         else:   self.regularization = regularization
         self.alpha_reg = 1.0
         # gradient a
         self.mtest, self.mtrial = TestFunction(self.PDE.Vm), TrialFunction(self.PDE.Vm)
         self.p, self.q = Function(self.PDE.V), Function(self.PDE.V)
+        self.ppprhs = Function(self.PDE.V)
+        self.ptmp = Function(self.PDE.V)
+        #TODO: not consistent with lumped mass matrix -- needs to think about that
         self.wkformgrada = inner(self.mtest*self.p, self.q)*dx
         # gradient b
         self.wkformgradb = inner(self.mtest*nabla_grad(self.p), nabla_grad(self.q))*dx
@@ -130,20 +133,42 @@ class ObjectiveAcoustic(LinearOperator):
             self.MGv.zero()
             MGa, MGb = self.MG.split(deepcopy=True)
             MGav, MGbv = MGa.vector(), MGb.vector()
-            Grada, Gradb = self.Grad.split(deepcopy=True)
-            Gradav, Gradbv = Grada.vector(), Gradb.vector()
 #            if self.PDE.abc:
 #                self.vD.vector().zero(); self.pD.vector().zero();
 #                self.p1D.vector().zero(); self.p2D.vector().zero();
             index = 0
-            for fwd, adj, fact in \
-            zip(self.solfwd, reversed(self.soladj), self.factors):
+            for fwd, adj, fact, fwdm, fwdp in \
+            zip(self.solfwd, reversed(self.soladj), self.factors,\
+            [[np.zeros(self.PDE.V.dim()), -self.PDE.Dt]]+self.solfwd[:-1], \
+            self.solfwd[1:]+[[np.zeros(self.PDE.V.dim()), self.PDE.times[-1]+self.PDE.Dt]]):
                 ttf, tta = fwd[1], adj[1]
                 assert isequal(ttf, tta, 1e-16), \
                 'tfwd={}, tadj={}, reldiff={}'.format(ttf, tta, abs(ttf-tta)/ttf)
                 setfct(self.p, fwd[0])
                 setfct(self.q, adj[0])
                 MGbv.axpy(fact, assemble(self.wkformgradb))
+#                # technique 1
+#                ttfm, ttfp = fwdm[1], fwdp[1]
+#                assert isequal(ttfm+self.PDE.Dt, tta, 1e-15), 'a={}, b={}, err={}'.\
+#                format(ttfm+self.PDE.Dt, tta, np.abs(ttfm+self.PDE.Dt-tta)/tta)
+#                assert isequal(ttfp-self.PDE.Dt, tta, 1e-15), 'a={}, b={}, err={}'.\
+#                format(ttfp-self.PDE.Dt, tta, np.abs(ttfp-self.PDE.Dt-tta)/tta)
+#                if index > 0:   # do not include term at t=0
+#                    setfct(self.ptmp, fwdm[0])
+#                    self.p.vector().axpy(-0.5, self.ptmp.vector())
+#                    setfct(self.ptmp, fwdp[0])
+#                    self.p.vector().axpy(-0.5, self.ptmp.vector())
+#                else:
+#                    setfct(self.ptmp, fwdp[0])
+#                    self.p.vector().axpy(-1.0, self.ptmp.vector())
+#                MGav.axpy(-2.0*self.invDt*self.invDt*fact, assemble(self.wkformgrada))
+                # technique 3
+                setfct(self.ppprhs, self.fwdsource(ttf))
+                setfct(self.ptmp, fwd[0])
+                self.ppprhs.vector().axpy(-1.0, self.PDE.K*self.ptmp.vector())
+                self.PDE.solverM.solve(self.p.vector(), self.ppprhs.vector())
+                MGav.axpy(fact, assemble(self.wkformgrada))
+
 #                if self.PDE.abc:
 #                    if index%2 == 0:
 #                        self.p2D.vector().axpy(1.0, self.p.vector())
@@ -159,6 +184,8 @@ class ObjectiveAcoustic(LinearOperator):
 #                        setfct(self.vD, self.v)
                 index += 1
             # add regularization
+            Grada, Gradb = self.Grad.split(deepcopy=True)
+            Gradav, Gradbv = Grada.vector(), Gradb.vector()
             MGav.axpy(self.alpha_reg, self.regularization.grada(self.PDE.a))
             self.solverM.solve(Gradav, MGav)
             MGbv.axpy(self.alpha_reg, self.regularization.gradb(self.PDE.b))
