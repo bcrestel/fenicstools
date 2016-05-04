@@ -13,7 +13,10 @@ create separate class for primal-dual (cleaner)
 
 
     - ACOUSTIC:
+* implement joint inversion
+* implement ABC in joint inversion
 * implement misfit with blurring kernel
+* PML
 * profile + improve gradient and Hessian computation steps
 * GLL integration points in Fenics
 * Look at dolfin-adjoint
