@@ -27,6 +27,7 @@ class ObjectiveAcoustic(LinearOperator):
         self.srchdir = Function(self.PDE.Vm*self.PDE.Vm)
         self.delta_m = Function(self.PDE.Vm*self.PDE.Vm)
         self.ab = Function(self.PDE.Vm*self.PDE.Vm)
+        self.ab_bkup = Function(self.PDE.Vm*self.PDE.Vm)
         #LinearOperator.__init__(self, self.MG.vector(), self.MG.vector())
         self.obsop = None   # Observation operator
         self.dd = None  # observations
@@ -287,15 +288,17 @@ class ObjectiveAcoustic(LinearOperator):
     def set_abc(self, mesh, class_bc_abc, lumpD):  
         self.PDE.set_abc(mesh, class_bc_abc, lumpD)
     def backup_m(self): 
-        self.a_bkup, self.b_bkup = self.getmarray()
+        """ back-up current value of med param a and b """
+        assign(self.ab_bkup.sub(0), self.PDE.a)
+        assign(self.ab_bkup.sub(1), self.PDE.b)
     def restore_m(self):    
-        self.update_m({'a':self.a_bkup, 'b':self.b_bkup})
+        """ restore backed-up values of a and b """
+        a, b = self.ab_bkup.split(deepcopy=True)
+        self.update_m({'a':a, 'b':b})
     def setsrcterm(self, ftime):    self.PDE.ftime = ftime
 
 
     # GETTERS:
-    def getmcopyarray(self):    self.getmarray()
-    def getmarray(self):    
-        return (self.PDE.a.vector().array(), self.PDE.b.vector().array())
+    def getmcopyarray(self):    return self.ab_bkup.vector().array()
     def getMGarray(self):   return self.MGv.array()
 
