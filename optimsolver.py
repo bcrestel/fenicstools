@@ -59,7 +59,6 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4]):
             - getmcopyarray: return medium parameter in np.array format
             - backup_m: create safe copy of current medium parameter
             - getMGarray: return Mass*gradient in np.array format
-            - getmcopyarray: return copy of medium parameter in np.array format
             - update_m: update medium parameter from a np.array
             - solvefwd_cost: solve fwd pb and compute cost
     and member:
