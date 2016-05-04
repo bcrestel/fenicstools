@@ -62,7 +62,7 @@ class ObjectiveAcoustic(LinearOperator):
         # Mass matrix:
         weak_m =  inner(self.mtrial,self.mtest)*dx
         Mass = assemble(weak_m)
-        self.solverM = LUSolver()
+        self.solverM = LUSolver("petsc")
         self.solverM.parameters['reuse_factorization'] = True
         self.solverM.parameters['symmetric'] = True
         self.solverM.set_operator(Mass)

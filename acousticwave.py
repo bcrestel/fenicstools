@@ -147,7 +147,7 @@ class AcousticWave():
                 self.M = self.solverM
             else:
                 if mpisize == 1:
-                    self.solverM = LUSolver()
+                    self.solverM = LUSolver("petsc")
                     self.solverM.parameters['reuse_factorization'] = True
                     self.solverM.parameters['symmetric'] = True
                 else:
