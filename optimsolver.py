@@ -147,7 +147,9 @@ def checkhessfd_med(ObjFctal, Medium, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4], d
         # Do computations for analytical Hessian:
         setfct(dirfct, dirct)
         ObjFctal.mult(dirfct.vector(), hessxdir.vector())
-        normhess = np.linalg.norm(hessxdir.vector().array())
+        _, bh1 = hessxdir.split(deepcopy=True)
+        normhess = np.linalg.norm(bh1.vector().array())
+        #normhess = np.linalg.norm(hessxdir.vector().array())
         print 'Hessian check -- direction {0}: ||H.x||={1:.5e}'\
         .format(textnb+1, normhess)
         # Do computations for FD Hessian:
@@ -161,7 +163,11 @@ def checkhessfd_med(ObjFctal, Medium, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4], d
             if doublesided: FDHessx = (MG[0] - MG[1])/(2.0*hh)
             else:   FDHessx = (MG[0] - MGref)/hh
             # Compute errors:
-            err = np.linalg.norm(hessxdir.vector().array()-FDHessx)/normhess
+            # only in b
+            setfct(hessxdir, FDHessx)
+            _, bh2 = hessxdir.split(deepcopy=True)
+            err = np.linalg.norm(bh1.vector().array()-bh2.vector().array())/normhess
+            #err = np.linalg.norm(hessxdir.vector().array()-FDHessx)/normhess
             if err < tolgradchk:   
                 print '\th={0:.1e}: ||FDH.x||={1:.5e}, error={2:.2e} -> OK!'\
                 .format(hh, np.linalg.norm(FDHessx), err)

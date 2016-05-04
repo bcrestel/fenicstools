@@ -12,7 +12,7 @@ class ObjectiveAcoustic(LinearOperator):
     #TODO: add support for multiple sources
 
     # CONSTRUCTORS:
-    def __init__(self, acousticwavePDE, regularization=[None,None]):
+    def __init__(self, acousticwavePDE, regularization=None):
         """ 
         Input:
             acousticwavePDE should be an instantiation from class AcousticWave
@@ -32,10 +32,10 @@ class ObjectiveAcoustic(LinearOperator):
         self.obsop = None   # Observation operator
         self.dd = None  # observations
         # regularization
-        if regularization[0] == None:   self.regularizationa = ZeroRegularization()
-        else:   self.regularizationa = regularization[0]
-        if regularization[1] == None:   self.regularizationb = ZeroRegularization()
-        else:   self.regularizationb = regularization[1]
+        if regularization == None:  
+            print '*** Warning: Use zero regularization'
+            self.regularization = ZeroRegularization()
+        else:   self.regularization = regularization
         self.alpha_reg = 1.0
         # gradient a
         self.mtest, self.mtrial = TestFunction(self.PDE.Vm), TrialFunction(self.PDE.Vm)
@@ -46,9 +46,9 @@ class ObjectiveAcoustic(LinearOperator):
         # incremental rhs a
         self.ahat, self.bhat = Function(self.PDE.Vm), Function(self.PDE.Vm)
         self.ptrial, self.ptest = TrialFunction(self.PDE.V), TestFunction(self.PDE.V)
-        self.wkformrhsincrb = inner(self.bhat*nabla_grad(self.ptrial), nabla_grad(self.ptest))*dx
-        # incremental rhs b
         self.wkformrhsincra = inner(self.ahat*self.ptrial, self.ptest)*dx
+        # incremental rhs b
+        self.wkformrhsincrb = inner(self.bhat*nabla_grad(self.ptrial), nabla_grad(self.ptest))*dx
         # Hessian a
         self.phat, self.qhat = Function(self.PDE.V), Function(self.PDE.V)
         self.wkformhessa = inner(self.mtest*self.phat, self.q)*dx \
@@ -113,8 +113,8 @@ class ObjectiveAcoustic(LinearOperator):
         if cost:
             assert not self.dd == None, "Provide observations"
             self.cost_misfit = self.obsop.costfct(self.Bp, self.dd, self.PDE.times)
-            self.cost_reg = self.regularizationa.cost(self.PDE.a) + \
-            self.regularizationb.cost(self.PDE.b)
+            self.cost_reg = self.regularization.costa(self.PDE.a) + \
+            self.regularization.costb(self.PDE.b)
             self.cost = self.cost_misfit + self.alpha_reg*self.cost_reg
 
     def solvefwd_cost(self):    self.solvefwd(True)
@@ -159,9 +159,9 @@ class ObjectiveAcoustic(LinearOperator):
 #                        setfct(self.vD, self.v)
                 index += 1
             # add regularization
-            MGav.axpy(self.alpha_reg, self.regularizationa.grad(self.PDE.a))
+            MGav.axpy(self.alpha_reg, self.regularization.grada(self.PDE.a))
             self.solverM.solve(Gradav, MGav)
-            MGbv.axpy(self.alpha_reg, self.regularizationb.grad(self.PDE.b))
+            MGbv.axpy(self.alpha_reg, self.regularization.gradb(self.PDE.b))
             self.solverM.solve(Gradbv, MGbv)
             # assemble
             assign(self.MG.sub(0), MGa)
@@ -184,13 +184,13 @@ class ObjectiveAcoustic(LinearOperator):
         # bhat * grad(p).grad(vtilde)
         assert isequal(tt, self.solfwd[index][1], 1e-16)
         setfct(self.p, self.solfwd[index][0])
-        setfct(self.v, self.C*self.p.vector())
+        setfct(self.q, self.C*self.p.vector())
         # D'.dot(p)
-        if self.PDE.abc and index > 0:
-                setfct(self.p, \
-                self.solfwd[index+1][0] - self.solfwd[index-1][0])
-                self.v.vector().axpy(.5*self.invDt, self.Dp*self.p.vector())
-        return -1.0*self.v.vector().array()
+#        if self.PDE.abc and index > 0:
+#                setfct(self.p, \
+#                self.solfwd[index+1][0] - self.solfwd[index-1][0])
+#                self.v.vector().axpy(.5*self.invDt, self.Dp*self.p.vector())
+        return -1.0*self.q.vector().array()
 
     def ftimeincradj(self, tt):
         """ Compute rhs for incremental adjoint at time tt """
@@ -203,29 +203,33 @@ class ObjectiveAcoustic(LinearOperator):
             sys.exit(0)
         # bhat * grad(ptilde).grad(v)
         assert isequal(tt, self.soladj[indexa][1], 1e-16)
-        setfct(self.v, self.soladj[indexa][0])
-        setfct(self.vhat, self.C*self.v.vector())
+        setfct(self.q, self.soladj[indexa][0])
+        setfct(self.qhat, self.C*self.q.vector())
         # B* B phat
         assert isequal(tt, self.solincrfwd[indexf][1], 1e-16)
         setfct(self.phat, self.solincrfwd[indexf][0])
-        self.vhat.vector().axpy(1.0, self.obsop.incradj(self.phat, tt))
+        self.qhat.vector().axpy(1.0, self.obsop.incradj(self.phat, tt))
         # D'.dot(v)
-        if self.PDE.abc and indexa > 0:
-                setfct(self.v, \
-                self.soladj[indexa-1][0] - self.soladj[indexa+1][0])
-                self.vhat.vector().axpy(-.5*self.invDt, self.Dp*self.v.vector())
-        return -1.0*self.vhat.vector().array()
+#        if self.PDE.abc and indexa > 0:
+#                setfct(self.v, \
+#                self.soladj[indexa-1][0] - self.soladj[indexa+1][0])
+#                self.vhat.vector().axpy(-.5*self.invDt, self.Dp*self.v.vector())
+        return -1.0*self.qhat.vector().array()
         
-    def mult(self, lamhat, y):
+    def mult(self, abhat, y):
         """
-        mult(self, lamhat, y): return y = Hessian * lamhat
+        mult(self, abhat, y): return y = Hessian * lamhat
         inputs:
-            y, lamhat = Function(V).vector()
+            y, abhat = Function(V).vector()
         """
-        self.regularization.assemble_hessian(lamhat)
-        setfct(self.lamhat, lamhat)
+        # get ahat, bhat:
+        setfct(self.ab, abhat)
+        ahat, bhat = self.ab.split(deepcopy=True)
+        setfct(self.ahat, ahat)
+        setfct(self.bhat, bhat)
+        self.regularization.assemble_hessian(abhat)
         self.C = assemble(self.wkformrhsincrb)
-        if self.PDE.abc:    self.Dp = assemble(self.wkformDprime)
+        #if self.PDE.abc:    self.Dp = assemble(self.wkformDprime)
         # solve for phat
         self.PDE.set_fwd()
         self.PDE.ftime = self.ftimeincrfwd
@@ -234,13 +238,15 @@ class ObjectiveAcoustic(LinearOperator):
         self.PDE.set_adj()
         self.PDE.ftime = self.ftimeincradj
         self.solincradj,_ = self.PDE.solve()
-        # Compute Hessian*lamhat
-        y.zero()
+        # Compute Hessian*abhat
+        self.ab.vector().zero()
+        yaF, ybF = self.ab.split(deepcopy=True)
+        ya, yb = yaF.vector(), ybF.vector()
         index = 0
-        if self.PDE.abc:
-            self.vD.vector().zero(); self.vhatD.vector().zero(); 
-            self.p1D.vector().zero(); self.p2D.vector().zero();
-            self.p1hatD.vector().zero(); self.p2hatD.vector().zero();
+#        if self.PDE.abc:
+#            self.vD.vector().zero(); self.vhatD.vector().zero(); 
+#            self.p1D.vector().zero(); self.p2D.vector().zero();
+#            self.p1hatD.vector().zero(); self.p2hatD.vector().zero();
         for fwd, adj, incrfwd, incradj, fact in \
         zip(self.solfwd, reversed(self.soladj), \
         self.solincrfwd, reversed(self.solincradj), self.factors):
@@ -250,32 +256,36 @@ class ObjectiveAcoustic(LinearOperator):
             assert isequal(ttf, ttf2, 1e-16), 'tfwd={}, tadj={}, reldiff={}'.\
             format(ttf, ttf2, abs(ttf-ttf2)/ttf)
             setfct(self.p, fwd[0])
-            setfct(self.v, adj[0])
+            setfct(self.q, adj[0])
             setfct(self.phat, incrfwd[0])
-            setfct(self.vhat, incradj[0])
-            y.axpy(fact, assemble(self.wkformhess))
-            if self.PDE.abc:
-                if index%2 == 0:
-                    self.p2D.vector().axpy(1.0, self.p.vector())
-                    self.p2hatD.vector().axpy(1.0, self.phat.vector())
-                    setfct(self.dp, self.p2D)
-                    setfct(self.dph, self.p2hatD)
-                    y.axpy(1.0*0.5*self.invDt, assemble(self.wkformhessD))
-                    setfct(self.p2D, -1.0*self.p.vector())
-                    setfct(self.p2hatD, -1.0*self.phat.vector())
-                else:
-                    self.p1D.vector().axpy(1.0, self.p.vector())
-                    self.p1hatD.vector().axpy(1.0, self.phat.vector())
-                    setfct(self.dp, self.p1D)
-                    setfct(self.dph, self.p1hatD)
-                    y.axpy(1.0*0.5*self.invDt, assemble(self.wkformhessD))
-                    setfct(self.p1D, -1.0*self.p.vector())
-                    setfct(self.p1hatD, -1.0*self.phat.vector())
-                setfct(self.vD, self.v)
-                setfct(self.vhatD, self.vhat)
+            setfct(self.qhat, incradj[0])
+            yb.axpy(fact, assemble(self.wkformhessb))
+#            if self.PDE.abc:
+#                if index%2 == 0:
+#                    self.p2D.vector().axpy(1.0, self.p.vector())
+#                    self.p2hatD.vector().axpy(1.0, self.phat.vector())
+#                    setfct(self.dp, self.p2D)
+#                    setfct(self.dph, self.p2hatD)
+#                    y.axpy(1.0*0.5*self.invDt, assemble(self.wkformhessD))
+#                    setfct(self.p2D, -1.0*self.p.vector())
+#                    setfct(self.p2hatD, -1.0*self.phat.vector())
+#                else:
+#                    self.p1D.vector().axpy(1.0, self.p.vector())
+#                    self.p1hatD.vector().axpy(1.0, self.phat.vector())
+#                    setfct(self.dp, self.p1D)
+#                    setfct(self.dph, self.p1hatD)
+#                    y.axpy(1.0*0.5*self.invDt, assemble(self.wkformhessD))
+#                    setfct(self.p1D, -1.0*self.p.vector())
+#                    setfct(self.p1hatD, -1.0*self.phat.vector())
+#                setfct(self.vD, self.v)
+#                setfct(self.vhatD, self.vhat)
             index += 1
+        assign(self.ab.sub(0), yaF)
+        assign(self.ab.sub(1), ybF)
+        y.zero()
+        y.axpy(1.0, self.ab.vector())
         # add regularization term
-        y.axpy(self.alpha_reg, self.regularization.hessian(lamhat))
+        y.axpy(self.alpha_reg, self.regularization.hessian(abhat))
 
 
     # SETTERS + UPDATE:

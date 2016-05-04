@@ -114,10 +114,20 @@ class ZeroRegularization():
     def cost(self, m_in):
         return 0.0
 
+    def costa(self, m_in):  
+        return self.cost(m_in)
+    def costb(self, m_in):  
+        return self.cost(m_in)
+
     def grad(self, m_in):
         out = m_in.copy(deepcopy=True)
         out.vector().zero()
         return out.vector()
+
+    def grada(self, m_in):  
+        return self.grad(m_in)
+    def gradb(self, m_in):  
+        return self.grad(m_in)
 
     def assemble_hessian(self, m_in):
         pass
