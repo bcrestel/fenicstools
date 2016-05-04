@@ -14,7 +14,7 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4
     """
     Finite-difference check for the gradient of an ObjectiveFunctional object
         ObjFctal = object describing objective functional; must have methods:
-            - getmarray: return medium parameter in np.array format
+            - getmcopyarray: return medium parameter in np.array format
             - backup_m: create safe copy of current medium parameter
             - getMGarray: return Mass*gradient in np.array format
             - getmcopyarray: return copy of medium parameter in np.array format
@@ -23,7 +23,7 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4
     and member:
             - cost: value of cost function
     """
-    lenm = len(ObjFctal.getmarray())
+    lenm = len(ObjFctal.getmcopyarray())
     ObjFctal.backup_m()
     rnddirc = np.random.randn(nbgradcheck, lenm)
     factor = [1.0, -1.0]
@@ -56,7 +56,7 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4]):
     """
     Finite-difference check for the gradient of an ObjectiveFunctional object
         ObjFctal = object describing objective functional; must have methods:
-            - getmarray: return medium parameter in np.array format
+            - getmcopyarray: return medium parameter in np.array format
             - backup_m: create safe copy of current medium parameter
             - getMGarray: return Mass*gradient in np.array format
             - getmcopyarray: return copy of medium parameter in np.array format
@@ -65,7 +65,7 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4]):
     and member:
             - cost: value of cost function
     """
-    lenm = len(ObjFctal.getmarray())
+    lenm = len(ObjFctal.getmcopyarray())
     ObjFctal.backup_m()
     factor = [1.0, -1.0]
     MGdir = Medium.dot(ObjFctal.getMGarray())
@@ -96,7 +96,7 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4]):
 def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4]):
     """Finite-difference check for the Hessian of an ObjectiveFunctional
     object"""
-    lenm = len(ObjFctal.getmarray())
+    lenm = len(ObjFctal.getmcopyarray())
     ObjFctal.backup_m()
     rnddirc = np.random.randn(nbhesscheck, lenm)
     factor = [1.0, -1.0]
@@ -137,7 +137,7 @@ def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4
 def checkhessfd_med(ObjFctal, Medium, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4], doublesided=True):
     """Finite-difference check for the Hessian of an ObjectiveFunctional
     object"""
-    lenm = len(ObjFctal.getmarray())
+    lenm = len(ObjFctal.getmcopyarray())
     ObjFctal.backup_m()
     MGref = ObjFctal.getMGarray()
     if doublesided: factor = [1.0, -1.0]
