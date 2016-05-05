@@ -1,13 +1,14 @@
-from dolfin import GenericLinearSolver, Function, Constant
+import dolfin as dl
 
 from miscroutines import get_diagonal
+from fenicstools.miscfenics import setfct
 
-class LumpedMatrixSolver(GenericLinearSolver):
+class LumpedMatrixSolver(dl.GenericLinearSolver):
     """ Lump matrix by row-sum technique """
 
     def __init__(self, V):
-        u = Function(V)
-        u.assign(Constant('1.0'))
+        u = dl.Function(V)
+        u.assign(dl.Constant('1.0'))
         self.one = u.vector()
         self.invMdiag = self.one.copy()
 
@@ -36,13 +37,14 @@ class LumpedMatrixSolver(GenericLinearSolver):
 
 
 
-class LumpedMatrixSolverS(GenericLinearSolver):
+class LumpedMatrixSolverS(dl.GenericLinearSolver):
     """ Lump matrix by special lumping technique, i.e.,
     scaling diagonal to preserve total mass """
 
     def __init__(self, V):
-        u = Function(V)
-        u.assign(Constant('1.0'))
+        """ V = FunctionSpace for the matrix """
+        u = dl.Function(V)
+        u.assign(dl.Constant('1.0'))
         self.one = u.vector()
         self.Mdiag = self.one.copy()
         self.Mdiag2 = self.one.copy()
@@ -54,8 +56,8 @@ class LumpedMatrixSolverS(GenericLinearSolver):
         bc as the operator """
         # Lump matrix:
         self.Mdiag[:] = get_diagonal(M)
-        ratio = self.one.inner(M*self.one) / self.one.inner(self.Mdiag)
-        self.Mdiag = ratio * self.Mdiag
+        self.ratio = self.one.inner(M*self.one) / self.one.inner(self.Mdiag)
+        self.Mdiag = self.ratio * self.Mdiag
         if invMdiag:
             assert self.Mdiag.array().min() > 0., self.Mdiag.array().min()
         if not bc == None:
@@ -69,16 +71,16 @@ class LumpedMatrixSolverS(GenericLinearSolver):
         bc only applies to M """
         # Lump matrix M:
         self.Mdiag[:] = get_diagonal(M)
-        ratio = self.one.inner(M*self.one) / self.one.inner(self.Mdiag)
-        self.Mdiag = ratio * self.Mdiag
+        self.ratio = self.one.inner(M*self.one) / self.one.inner(self.Mdiag)
+        self.Mdiag = self.ratio * self.Mdiag
         assert self.Mdiag.array().min() > 0., self.Mdiag.array().min()
         if not bc == None:
             indexbc = bc.get_boundary_values().keys()
             self.Mdiag[indexbc] = 1.0
         # Lump matrix D:
         self.Mdiag2[:] = get_diagonal(D)
-        ratio2 = self.one.inner(D*self.one) / self.one.inner(self.Mdiag2)
-        self.Mdiag2 = ratio2 * self.Mdiag2
+        self.ratio2 = self.one.inner(D*self.one) / self.one.inner(self.Mdiag2)
+        self.Mdiag2 = self.ratio2 * self.Mdiag2
         # Assemble M+coeff*D:
         self.Mdiag.axpy(coeff, self.Mdiag2)
         # Compute inverse of (M+coeff*D):
@@ -96,3 +98,41 @@ class LumpedMatrixSolverS(GenericLinearSolver):
         inputs:
             bvector must be a Fenics Vector """
         return self.Mdiag * bvector
+
+
+class LumpedMassMatrixPrime():
+    """ Assemble tensor for the derivative of a lumped weighted mass matrix wrt
+    to the weight parameter 
+    mass matrix is \int rho phi_i phi_j dx.
+    we consider a lumping by diagonal scaling, i.e., corresponding to Lumped MatrixSolverS
+    we consider the derivative wrt parameter rho """
+
+    def __init__(self, Vr, Vphi, ratioM=None):
+        """ Vr = FunctionSpace for weight-parameter in mass matrix
+        Vphi = FunctionSpace for test and trial functions in mass matrix
+        ratioM = ratio used for the lumping of mass matrix """
+        test, trial = dl.TestFunction(Vphi), dl.TrialFunction(Vphi)
+        gradM = dl.Function(Vr)
+        self.gradMv = gradM.vector()
+        rho = dl.Function(Vr)
+        self.ratioM = ratioM
+        wkform = dl.inner(rho*test, trial)*dl.dx
+        diagM = dl.Function(Vphi)
+        self.Mprime = []
+        for ii in xrange(Vr.dim()):
+            rho.vector().zero()
+            rho.vector()[ii] = 1.0
+            M = dl.assemble(wkform)
+            setfct(diagM, get_diagonal(M))
+            self.Mprime.append(diagM.vector().copy())
+
+    def updater(self, ratioM):  self.ratioM = ratioM
+
+    def get_gradient(self, u, v):
+        """ compute gradient of the expression u^T.M.v with respect to weight-parameter
+        rho in weighted-mass matrix 
+            u, v = Vectors """
+        self.gradMv.zero()
+        for ii, mp in enumerate(self.Mprime):
+            self.gradMv[ii] = self.ratioM*u.inner(mp*v)
+        return self.gradMv
