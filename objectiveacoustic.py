@@ -1,8 +1,9 @@
 import numpy as np
 
 from dolfin import LinearOperator, Function, TestFunction, TrialFunction, \
-assemble, inner, nabla_grad, dx, sqrt, LUSolver, assign
+assemble, inner, nabla_grad, dx, sqrt, LUSolver, assign, Constant
 from miscfenics import setfct, isequal, ZeroRegularization
+from linalg.lumpedmatrixsolver import LumpedMassMatrixPrime
 
 class ObjectiveAcoustic(LinearOperator):
     """
@@ -42,23 +43,26 @@ class ObjectiveAcoustic(LinearOperator):
         self.p, self.q = Function(self.PDE.V), Function(self.PDE.V)
         self.ppprhs = Function(self.PDE.V)
         self.ptmp = Function(self.PDE.V)
-        #TODO: not consistent with lumped mass matrix -- needs to think about that
-        self.wkformgrada = inner(self.mtest*self.p, self.q)*dx
+        if self.PDE.lump:
+            self.Mprime = LumpedMassMatrixPrime(self.PDE.Vm, self.PDE.V, self.PDE.M.ratio)
+        else:
+            self.wkformgrada = inner(self.mtest*self.p, self.q)*dx
         # gradient b
         self.wkformgradb = inner(self.mtest*nabla_grad(self.p), nabla_grad(self.q))*dx
+        self.Ha, self.Hb = Constant(0.0), Constant(1.0)
         # incremental rhs a
         self.ahat, self.bhat = Function(self.PDE.Vm), Function(self.PDE.Vm)
         self.ptrial, self.ptest = TrialFunction(self.PDE.V), TestFunction(self.PDE.V)
-        self.wkformrhsincra = inner(self.ahat*self.ptrial, self.ptest)*dx
+        self.wkformrhsincra = inner(self.Ha*self.ahat*self.ptrial, self.ptest)*dx
         # incremental rhs b
-        self.wkformrhsincrb = inner(self.bhat*nabla_grad(self.ptrial), nabla_grad(self.ptest))*dx
+        self.wkformrhsincrb = inner(self.Hb*self.bhat*nabla_grad(self.ptrial), nabla_grad(self.ptest))*dx
         # Hessian a
         self.phat, self.qhat = Function(self.PDE.V), Function(self.PDE.V)
-        self.wkformhessa = inner(self.mtest*self.phat, self.q)*dx \
-        + inner(self.mtest*self.p, self.qhat)*dx
+        self.wkformhessa = inner(self.Ha*self.phat*self.mtest, self.q)*dx \
+        + inner(self.Ha*self.p*self.mtest, self.qhat)*dx
         # Hessian b
-        self.wkformhessb = inner(self.mtest*nabla_grad(self.phat), nabla_grad(self.q))*dx \
-        + inner(self.mtest*nabla_grad(self.p), nabla_grad(self.qhat))*dx
+        self.wkformhessb = inner(self.Hb*nabla_grad(self.phat)*self.mtest, nabla_grad(self.q))*dx \
+        + inner(self.Hb*nabla_grad(self.p)*self.mtest, nabla_grad(self.qhat))*dx
         # Mass matrix:
         weak_m =  inner(self.mtrial,self.mtest)*dx
         Mass = assemble(weak_m)
@@ -161,14 +165,10 @@ class ObjectiveAcoustic(LinearOperator):
                 else:
                     setfct(self.ptmp, fwdp[0])
                     self.p.vector().axpy(-1.0, self.ptmp.vector())
-                MGav.axpy(-2.0*self.invDt*self.invDt*fact, assemble(self.wkformgrada))
-#                # technique 3
-#                setfct(self.ppprhs, self.fwdsource(ttf))
-#                setfct(self.ptmp, fwd[0])
-#                self.ppprhs.vector().axpy(-1.0, self.PDE.K*self.ptmp.vector())
-#                self.PDE.solverM.solve(self.p.vector(), self.ppprhs.vector())
-#                MGav.axpy(fact, assemble(self.wkformgrada))
-
+                if self.PDE.lump:
+                        grada = self.Mprime.get_gradient(self.p.vector(), self.q.vector())
+                else:   grada = assemble(self.wkformgrada)
+                MGav.axpy(-2.0*self.invDt*self.invDt*fact, grada) 
 #                if self.PDE.abc:
 #                    if index%2 == 0:
 #                        self.p2D.vector().axpy(1.0, self.p.vector())
@@ -208,10 +208,20 @@ class ObjectiveAcoustic(LinearOperator):
             print 'Error in ftimeincrfwd at time {}'.format(tt)
             print np.min(np.abs(self.PDE.times-tt))
             sys.exit(0)
-        # bhat * grad(p).grad(vtilde)
+        # bhat: bhat*grad(p).grad(qtilde)
         assert isequal(tt, self.solfwd[index][1], 1e-16)
         setfct(self.p, self.solfwd[index][0])
         setfct(self.q, self.C*self.p.vector())
+        # ahat: ahat*p''*qtilde:
+        if index > 0:   # do not include term at t=0
+            setfct(self.ptmp, self.solfwd[index-1][0])
+            self.p.vector().axpy(-0.5, self.ptmp.vector())
+            setfct(self.ptmp, self.solfwd[index+1][0])
+            self.p.vector().axpy(-0.5, self.ptmp.vector())
+        else:
+            setfct(self.ptmp, self.solfwd[index+1][0])
+            self.p.vector().axpy(-1.0, self.ptmp.vector())
+        self.q.vector().axpy(-2.0*self.invDt*self.invDt, self.E*self.p.vector())
         # D'.dot(p)
 #        if self.PDE.abc and index > 0:
 #                setfct(self.p, \
@@ -228,10 +238,20 @@ class ObjectiveAcoustic(LinearOperator):
             print 'Error in ftimeincradj at time {}'.format(tt)
             print np.min(np.abs(self.PDE.times-tt))
             sys.exit(0)
-        # bhat * grad(ptilde).grad(v)
+        # bhat: bhat*grad(ptilde).grad(v)
         assert isequal(tt, self.soladj[indexa][1], 1e-16)
         setfct(self.q, self.soladj[indexa][0])
         setfct(self.qhat, self.C*self.q.vector())
+        # ahat: ahat*ptilde*q'':
+        if indexa < self.PDE.times.size-1:   # do not include term at t=T
+            setfct(self.ptmp, self.soladj[indexa-1][0])
+            self.q.vector().axpy(-0.5, self.ptmp.vector())
+            setfct(self.ptmp, self.soladj[indexa+1][0])
+            self.q.vector().axpy(-0.5, self.ptmp.vector())
+        else:
+            setfct(self.ptmp, self.soladj[indexa-1][0])
+            self.q.vector().axpy(-1.0, self.ptmp.vector())
+        self.qhat.vector().axpy(-2.0*self.invDt*self.invDt, self.E*self.q.vector())
         # B* B phat
         assert isequal(tt, self.solincrfwd[indexf][1], 1e-16)
         setfct(self.phat, self.solincrfwd[indexf][0])
@@ -256,6 +276,7 @@ class ObjectiveAcoustic(LinearOperator):
         setfct(self.bhat, bhat)
         self.regularization.assemble_hessian(abhat)
         self.C = assemble(self.wkformrhsincrb)
+        self.E = assemble(self.wkformrhsincra)
         #if self.PDE.abc:    self.Dp = assemble(self.wkformDprime)
         # solve for phat
         self.PDE.set_fwd()
@@ -274,9 +295,14 @@ class ObjectiveAcoustic(LinearOperator):
 #            self.vD.vector().zero(); self.vhatD.vector().zero(); 
 #            self.p1D.vector().zero(); self.p2D.vector().zero();
 #            self.p1hatD.vector().zero(); self.p2hatD.vector().zero();
-        for fwd, adj, incrfwd, incradj, fact in \
+        for fwd, adj, incrfwd, incradj, fwdm, fwdp, incrfwdm, incrfwdp, fact in \
         zip(self.solfwd, reversed(self.soladj), \
-        self.solincrfwd, reversed(self.solincradj), self.factors):
+        self.solincrfwd, reversed(self.solincradj), \
+        [[np.zeros(self.PDE.V.dim()), -self.PDE.Dt]]+self.solfwd[:-1], \
+        self.solfwd[1:]+[[np.zeros(self.PDE.V.dim()), self.PDE.times[-1]+self.PDE.Dt]], \
+        [[np.zeros(self.PDE.V.dim()), -self.PDE.Dt]]+self.solincrfwd[:-1], \
+        self.solincrfwd[1:]+[[np.zeros(self.PDE.V.dim()), self.PDE.times[-1]+self.PDE.Dt]], \
+        self.factors):
             ttf, tta, ttf2 = incrfwd[1], incradj[1], fwd[1]
             assert isequal(ttf, tta, 1e-16), 'tfwd={}, tadj={}, reldiff={}'.\
             format(ttf, tta, abs(ttf-tta)/ttf)
@@ -287,6 +313,22 @@ class ObjectiveAcoustic(LinearOperator):
             setfct(self.phat, incrfwd[0])
             setfct(self.qhat, incradj[0])
             yb.axpy(fact, assemble(self.wkformhessb))
+            if index > 0:   # do not include term at t=0
+                setfct(self.ptmp, fwdm[0])
+                self.p.vector().axpy(-0.5, self.ptmp.vector())
+                setfct(self.ptmp, fwdp[0])
+                self.p.vector().axpy(-0.5, self.ptmp.vector())
+                setfct(self.ptmp, incrfwdm[0])
+                self.phat.vector().axpy(-0.5, self.ptmp.vector())
+                setfct(self.ptmp, incrfwdp[0])
+                self.phat.vector().axpy(-0.5, self.ptmp.vector())
+            else:
+                setfct(self.ptmp, incrfwdp[0])
+                self.phat.vector().axpy(-1.0, self.ptmp.vector())
+            scalingdiff = -2.0*self.invDt*self.invDt
+            setfct(self.p, self.p.vector()*scalingdiff)
+            setfct(self.phat, self.phat.vector()*scalingdiff)
+            ya.axpy(fact, assemble(self.wkformhessa))
 #            if self.PDE.abc:
 #                if index%2 == 0:
 #                    self.p2D.vector().axpy(1.0, self.p.vector())
