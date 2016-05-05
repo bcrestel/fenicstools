@@ -45,8 +45,10 @@ class ObjectiveAcoustic(LinearOperator):
         self.ptmp = Function(self.PDE.V)
         if self.PDE.lump:
             self.Mprime = LumpedMassMatrixPrime(self.PDE.Vm, self.PDE.V, self.PDE.M.ratio)
+            self.get_gradienta = self.get_gradienta_lumped
         else:
             self.wkformgrada = inner(self.mtest*self.p, self.q)*dx
+            self.get_gradienta = self.get_gradienta_full
         # gradient b
         self.wkformgradb = inner(self.mtest*nabla_grad(self.p), nabla_grad(self.q))*dx
         self.Ha, self.Hb = Constant(0.0), Constant(1.0)
@@ -143,6 +145,7 @@ class ObjectiveAcoustic(LinearOperator):
             index = 0
             for fwd, adj, fact, fwdm, fwdp in \
             zip(self.solfwd, reversed(self.soladj), self.factors,\
+            #[[self.solfwd[1][0], -self.PDE.Dt]]+self.solfwd[:-1], \ #less accurate
             [[np.zeros(self.PDE.V.dim()), -self.PDE.Dt]]+self.solfwd[:-1], \
             self.solfwd[1:]+[[np.zeros(self.PDE.V.dim()), self.PDE.times[-1]+self.PDE.Dt]]):
                 ttf, tta = fwd[1], adj[1]
@@ -151,24 +154,16 @@ class ObjectiveAcoustic(LinearOperator):
                 setfct(self.p, fwd[0])
                 setfct(self.q, adj[0])
                 MGbv.axpy(fact, assemble(self.wkformgradb))
-                # technique 1
                 ttfm, ttfp = fwdm[1], fwdp[1]
                 assert isequal(ttfm+self.PDE.Dt, tta, 1e-15), 'a={}, b={}, err={}'.\
                 format(ttfm+self.PDE.Dt, tta, np.abs(ttfm+self.PDE.Dt-tta)/tta)
                 assert isequal(ttfp-self.PDE.Dt, tta, 1e-15), 'a={}, b={}, err={}'.\
                 format(ttfp-self.PDE.Dt, tta, np.abs(ttfp-self.PDE.Dt-tta)/tta)
-                if index > 0:   # do not include term at t=0
-                    setfct(self.ptmp, fwdm[0])
-                    self.p.vector().axpy(-0.5, self.ptmp.vector())
-                    setfct(self.ptmp, fwdp[0])
-                    self.p.vector().axpy(-0.5, self.ptmp.vector())
-                else:
-                    setfct(self.ptmp, fwdp[0])
-                    self.p.vector().axpy(-1.0, self.ptmp.vector())
-                if self.PDE.lump:
-                        grada = self.Mprime.get_gradient(self.p.vector(), self.q.vector())
-                else:   grada = assemble(self.wkformgrada)
-                MGav.axpy(-2.0*self.invDt*self.invDt*fact, grada) 
+                setfct(self.ptmp, fwdm[0])
+                self.p.vector().axpy(-0.5, self.ptmp.vector())
+                setfct(self.ptmp, fwdp[0])
+                self.p.vector().axpy(-0.5, self.ptmp.vector())
+                MGav.axpy(-2.0*self.invDt*self.invDt*fact, self.get_gradienta()) 
 #                if self.PDE.abc:
 #                    if index%2 == 0:
 #                        self.p2D.vector().axpy(1.0, self.p.vector())
@@ -198,6 +193,10 @@ class ObjectiveAcoustic(LinearOperator):
 
     def solveadj_constructgrad(self):   self.solveadj(True)
 
+    def get_gradienta_lumped(self):
+        return self.Mprim.get_gradient(self.p.vector(), self.q.vector())
+    def get_gradienta_full(self):
+        return assemble(self.wkformgrada)
 
     # HESSIAN:
     def ftimeincrfwd(self, tt):
