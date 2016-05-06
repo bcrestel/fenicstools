@@ -13,7 +13,7 @@ class ObjectiveAcoustic(LinearOperator):
     #TODO: add support for multiple sources
 
     # CONSTRUCTORS:
-    def __init__(self, acousticwavePDE, regularization=None):
+    def __init__(self, acousticwavePDE, invparam='ab', regularization=None):
         """ 
         Input:
             acousticwavePDE should be an instantiation from class AcousticWave
@@ -22,16 +22,35 @@ class ObjectiveAcoustic(LinearOperator):
         self.PDE.exact = None
         self.fwdsource = self.PDE.ftime
         # functions for gradient
-        self.MG = Function(self.PDE.Vm*self.PDE.Vm)
-        self.MGv = self.MG.vector()
-        self.Grad = Function(self.PDE.Vm*self.PDE.Vm)
-        self.srchdir = Function(self.PDE.Vm*self.PDE.Vm)
-        self.delta_m = Function(self.PDE.Vm*self.PDE.Vm)
+        self.MGab = Function(self.PDE.Vm*self.PDE.Vm)
+        self.MGabv = self.MGab.vector()
         self.ab = Function(self.PDE.Vm*self.PDE.Vm)
         self.ab_bkup = Function(self.PDE.Vm*self.PDE.Vm)
-        #LinearOperator.__init__(self, self.MG.vector(), self.MG.vector())
         self.obsop = None   # Observation operator
         self.dd = None  # observations
+        # decide whether ahat and bhat are used
+        self.invparam = invparam
+        if self.invparam == 'ab':
+            self.Ha, self.Hb = Constant(1.0), Constant(1.0)
+            self.MG = self.MGab
+            self.MGv = self.MGabv
+            self.Grad = Function(self.PDE.Vm*self.PDE.Vm)
+            self.srchdir = Function(self.PDE.Vm*self.PDE.Vm)
+            self.delta_m = Function(self.PDE.Vm*self.PDE.Vm)
+            self.get_costreg = self.get_costreg_joint
+        else:
+            self.MG = Function(self.PDE.Vm)
+            self.MGv = self.MG.vector()
+            self.Grad = Function(self.PDE.Vm)
+            self.srchdir = Function(self.PDE.Vm)
+            self.delta_m = Function(self.PDE.Vm)
+            if self.invparam == 'a':
+                self.Ha, self.Hb = Constant(1.0), Constant(0.0)
+                self.get_costreg = self.get_costreg_a
+            elif self.invparam == 'b':
+                self.Ha, self.Hb = Constant(0.0), Constant(1.0)
+                self.get_costreg = self.get_costreg_b
+        LinearOperator.__init__(self, self.MGv, self.MGv)
         # regularization
         if regularization == None:  
             print '*** Warning: Using zero regularization'
@@ -44,15 +63,16 @@ class ObjectiveAcoustic(LinearOperator):
         self.ppprhs = Function(self.PDE.V)
         self.ptmp = Function(self.PDE.V)
         if self.PDE.lump:
+            #TODO: complete Hessian + finish gradient for case a, b, and ab.
+            print 'should not use lumped mass matrix for now'
+            sys.exit(1)
             self.Mprime = LumpedMassMatrixPrime(self.PDE.Vm, self.PDE.V, self.PDE.M.ratio)
             self.get_gradienta = self.get_gradienta_lumped
         else:
-            self.wkformgrada = inner(self.mtest*self.p, self.q)*dx
+            self.wkformgrada = inner(self.Ha*self.mtest*self.p, self.q)*dx
             self.get_gradienta = self.get_gradienta_full
         # gradient b
-        self.wkformgradb = inner(self.mtest*nabla_grad(self.p), nabla_grad(self.q))*dx
-        # decide whether ahat and bhat are used
-        self.Ha, self.Hb = Constant(1.0), Constant(1.0)
+        self.wkformgradb = inner(self.Hb*self.mtest*nabla_grad(self.p), nabla_grad(self.q))*dx
         # incremental rhs a
         self.ahat, self.bhat = Function(self.PDE.Vm), Function(self.PDE.Vm)
         self.ptrial, self.ptest = TrialFunction(self.PDE.V), TestFunction(self.PDE.V)
@@ -104,7 +124,7 @@ class ObjectiveAcoustic(LinearOperator):
     def copy(self):
         """(hard) copy constructor"""
         newobj = self.__class__(self.PDE.copy())
-        setfct(newobj.MG, self.MG)
+        setfct(newobj.MGab, self.MGab)
         setfct(newobj.srchdir, self.srchdir)
         newobj.obsop = self.obsop
         return newobj
@@ -123,12 +143,17 @@ class ObjectiveAcoustic(LinearOperator):
         if cost:
             assert not self.dd == None, "Provide observations"
             self.cost_misfit = self.obsop.costfct(self.Bp, self.dd, self.PDE.times)
-            self.cost_reg = self.regularization.costa(self.PDE.a) + \
-            self.regularization.costb(self.PDE.b)
+            #self.cost_reg = self.regularization.costa(self.PDE.a) + \
+            #self.regularization.costb(self.PDE.b)
+            self.cost_reg = self.get_costreg()
             self.cost = self.cost_misfit + self.alpha_reg*self.cost_reg
 
     def solvefwd_cost(self):    self.solvefwd(True)
 
+    def get_costreg_joint(self):    return self.regularization.costab(self.PDE.a, self.PDE.b)
+    def get_costreg_a(self):    return self.regularization.cost(self.PDE.a)
+    def get_costreg_b(self):    return self.regularization.cost(self.PDE.b)
+        
 
     # ADJOINT PROBLEM + GRAD:
     #@profile
@@ -138,8 +163,8 @@ class ObjectiveAcoustic(LinearOperator):
         self.PDE.ftime = self.obsop.ftimeadj
         self.soladj,_ = self.PDE.solve()
         if grad:
-            self.MGv.zero()
-            MGa, MGb = self.MG.split(deepcopy=True)
+            self.MGabv.zero()
+            MGa, MGb = self.MGab.split(deepcopy=True)
             MGav, MGbv = MGa.vector(), MGb.vector()
 #            if self.PDE.abc:
 #                self.vD.vector().zero(); self.pD.vector().zero();
@@ -180,18 +205,29 @@ class ObjectiveAcoustic(LinearOperator):
 #                        setfct(self.p1D, -1.0*self.p.vector())
 #                        setfct(self.vD, self.v)
                 index += 1
-            # add regularization
-            Grada, Gradb = self.Grad.split(deepcopy=True)
-            Gradav, Gradbv = Grada.vector(), Gradb.vector()
-            MGav.axpy(self.alpha_reg, self.regularization.grada(self.PDE.a))
-            self.solverM.solve(Gradav, MGav)
-            MGbv.axpy(self.alpha_reg, self.regularization.gradb(self.PDE.b))
-            self.solverM.solve(Gradbv, MGbv)
             # assemble
-            assign(self.MG.sub(0), MGa)
-            assign(self.Grad.sub(0), Grada)
-            assign(self.MG.sub(1), MGb)
-            assign(self.Grad.sub(1), Gradb)
+            if self.invparam == 'ab':
+                # add regularization
+                MGav.axpy(self.alpha_reg, self.regularization.grada(self.PDE.a))
+                MGbv.axpy(self.alpha_reg, self.regularization.gradb(self.PDE.b))
+                assign(self.MGab.sub(0), MGa)
+                assign(self.MGab.sub(1), MGb)
+                Grada, Gradb = self.Grad.split(deepcopy=True)
+                Gradav, Gradbv = Grada.vector(), Gradb.vector()
+                self.solverM.solve(Gradav, MGav)
+                self.solverM.solve(Gradbv, MGbv)
+                assign(self.Grad.sub(0), Grada)
+                assign(self.Grad.sub(1), Gradb)
+            else:
+                if self.invparam == 'a':
+                    # add regularization
+                    MGav.axpy(self.alpha_reg, self.regularization.grad(self.PDE.a))
+                    setfct(self.MG, MGav)
+                elif self.invparam == 'b':
+                    # add regularization
+                    MGbv.axpy(self.alpha_reg, self.regularization.grad(self.PDE.b))
+                    setfct(self.MG, MGbv)
+                self.solverM.solve(self.Grad.vector(), self.MGv)
 
     def solveadj_constructgrad(self):   self.solveadj(True)
 
@@ -269,11 +305,18 @@ class ObjectiveAcoustic(LinearOperator):
         inputs:
             y, abhat = Function(V).vector()
         """
-        # get ahat, bhat:
-        setfct(self.ab, abhat)
-        ahat, bhat = self.ab.split(deepcopy=True)
-        setfct(self.ahat, ahat)
-        setfct(self.bhat, bhat)
+        if self.invparam == 'ab':
+            # get ahat, bhat:
+            setfct(self.ab, abhat)
+            ahat, bhat = self.ab.split(deepcopy=True)
+            setfct(self.ahat, ahat)
+            setfct(self.bhat, bhat)
+        elif self.invparam == 'a':
+            setfct(self.ahat, abhat)
+            setfct(self.bhat, 0.0)
+        elif self.invparam == 'b':
+            setfct(self.ahat, 0.0)
+            setfct(self.bhat, abhat)
         self.regularization.assemble_hessian(abhat)
         self.C = assemble(self.wkformrhsincrb)
         self.E = assemble(self.wkformrhsincra)
@@ -347,15 +390,22 @@ class ObjectiveAcoustic(LinearOperator):
 #                setfct(self.vD, self.v)
 #                setfct(self.vhatD, self.vhat)
             index += 1
-        assign(self.ab.sub(0), yaF)
-        assign(self.ab.sub(1), ybF)
         y.zero()
-        y.axpy(1.0, self.ab.vector())
+        if self.invparam == 'ab':
+            assign(self.ab.sub(0), yaF)
+            assign(self.ab.sub(1), ybF)
+            y.axpy(1.0, self.ab.vector())
+        elif self.invparam == 'a':
+            y.axpy(1.0, ya)
+        elif self.invparam == 'b':
+            y.axpy(1.0, yb)
         # add regularization term
         y.axpy(self.alpha_reg, self.regularization.hessian(abhat))
 
 
     # SETTERS + UPDATE:
+    #TODO: Continue here -- see how these method interact with other modules,
+    #in particular optimsolver.py
     def update_PDE(self, parameters): self.PDE.update(parameters)
     def update_m(self, medparam):
         """ medparam is a np.array containing both med parameters """

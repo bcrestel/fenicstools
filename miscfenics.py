@@ -114,10 +114,8 @@ class ZeroRegularization():
     def cost(self, m_in):
         return 0.0
 
-    def costa(self, m_in):  
-        return self.cost(m_in)
-    def costb(self, m_in):  
-        return self.cost(m_in)
+    def costab(self, ma_in, mb_int):  
+        return self.cost(ma_in)
 
     def grad(self, m_in):
         out = m_in.copy(deepcopy=True)
