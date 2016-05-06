@@ -1,4 +1,5 @@
 import dolfin as dl
+import numpy as np
 
 from miscroutines import get_diagonal
 from fenicstools.miscfenics import setfct
@@ -99,7 +100,6 @@ class LumpedMatrixSolverS(dl.GenericLinearSolver):
             bvector must be a Fenics Vector """
         return self.Mdiag * bvector
 
-
 class LumpedMassMatrixPrime():
     """ Assemble tensor for the derivative of a lumped weighted mass matrix wrt
     to the weight parameter 
@@ -107,6 +107,7 @@ class LumpedMassMatrixPrime():
     we consider a lumping by diagonal scaling, i.e., corresponding to Lumped MatrixSolverS
     we consider the derivative wrt parameter rho """
 
+    #@profile
     def __init__(self, Vr, Vphi, ratioM=None):
         """ Vr = FunctionSpace for weight-parameter in mass matrix
         Vphi = FunctionSpace for test and trial functions in mass matrix
@@ -119,20 +120,31 @@ class LumpedMassMatrixPrime():
         wkform = dl.inner(rho*test, trial)*dl.dx
         diagM = dl.Function(Vphi)
         self.Mprime = []
+        M = dl.assemble(wkform)
         for ii in xrange(Vr.dim()):
             rho.vector().zero()
             rho.vector()[ii] = 1.0
-            M = dl.assemble(wkform)
+            dl.assemble(wkform, tensor=M)
+            #M = dl.assemble(wkform)
+            #dM = get_diagonal(M)
+            #setfct(diagM, dM)
             setfct(diagM, get_diagonal(M))
             self.Mprime.append(diagM.vector().copy())
 
     def updater(self, ratioM):  self.ratioM = ratioM
 
+    #@profile
     def get_gradient(self, u, v):
         """ compute gradient of the expression u^T.M.v with respect to weight-parameter
         rho in weighted-mass matrix 
             u, v = Vectors """
         self.gradMv.zero()
+        outarr = np.zeros(len(self.gradMv))
         for ii, mp in enumerate(self.Mprime):
-            self.gradMv[ii] = self.ratioM*u.inner(mp*v)
+#            mpv = mp*v
+#            umpv = u.inner(mpv)
+#            out = self.ratioM*umpv
+#            outarr[ii] = out
+            outarr[ii] = self.ratioM*(u.inner(mp*v))
+        self.gradMv[:] = outarr
         return self.gradMv
