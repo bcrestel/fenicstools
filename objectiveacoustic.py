@@ -131,6 +131,7 @@ class ObjectiveAcoustic(LinearOperator):
 
 
     # ADJOINT PROBLEM + GRAD:
+    #@profile
     def solveadj(self, grad=False):
         self.PDE.set_adj()
         self.obsop.assemble_rhsadj(self.Bp, self.dd, self.PDE.times, self.PDE.bc)
@@ -195,11 +196,12 @@ class ObjectiveAcoustic(LinearOperator):
     def solveadj_constructgrad(self):   self.solveadj(True)
 
     def get_gradienta_lumped(self):
-        return self.Mprim.get_gradient(self.p.vector(), self.q.vector())
+        return self.Mprime.get_gradient(self.p.vector(), self.q.vector())
     def get_gradienta_full(self):
         return assemble(self.wkformgrada)
 
     # HESSIAN:
+    #@profile
     def ftimeincrfwd(self, tt):
         """ Compute rhs for incremental forward at time tt """
         try:
@@ -227,6 +229,7 @@ class ObjectiveAcoustic(LinearOperator):
 #                self.v.vector().axpy(.5*self.invDt, self.Dp*self.p.vector())
         return -1.0*self.q.vector().array()
 
+    #@profile
     def ftimeincradj(self, tt):
         """ Compute rhs for incremental adjoint at time tt """
         try:
@@ -259,6 +262,7 @@ class ObjectiveAcoustic(LinearOperator):
 #                self.vhat.vector().axpy(-.5*self.invDt, self.Dp*self.v.vector())
         return -1.0*self.qhat.vector().array()
         
+    #@profile
     def mult(self, abhat, y):
         """
         mult(self, abhat, y): return y = Hessian * lamhat
