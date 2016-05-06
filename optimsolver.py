@@ -136,7 +136,8 @@ def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4
     ObjFctal.solveadj_constructgrad()
 
 
-def checkhessfd_med(ObjFctal, Medium, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4], doublesided=True):
+def checkhessfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
+H = [1e-5, 1e-6, 1e-4], doublesided=True, direction='b'):
     """Finite-difference check for the Hessian of an ObjectiveFunctional
     object"""
     lenm = len(ObjFctal.getmcopyarray())
@@ -150,11 +151,12 @@ def checkhessfd_med(ObjFctal, Medium, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4], d
         # Do computations for analytical Hessian:
         setfct(dirfct, dirct)
         ObjFctal.mult(dirfct.vector(), hessxdir.vector())
-        _, bh1 = hessxdir.split(deepcopy=True)
-        normhess = np.linalg.norm(bh1.vector().array())
-        #normhess = np.linalg.norm(hessxdir.vector().array())
-        print 'Hessian check -- direction {0}: ||H.x||={1:.5e}'\
-        .format(textnb+1, normhess)
+        ah1, bh1 = hessxdir.split(deepcopy=True)
+        normhessa = np.linalg.norm(ah1.vector().array())
+        normhessb = np.linalg.norm(bh1.vector().array())
+        normhess = np.linalg.norm(hessxdir.vector().array())
+        print 'Hessian check -- direction {}: |H.x|a={:.5e}, |H.x|b={:.5e}, |H.x|={:.5e}'\
+        .format(textnb+1, normhessa, normhessb, normhess)
         # Do computations for FD Hessian:
         for hh in H:
             MG = []
@@ -166,18 +168,30 @@ def checkhessfd_med(ObjFctal, Medium, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4], d
             if doublesided: FDHessx = (MG[0] - MG[1])/(2.0*hh)
             else:   FDHessx = (MG[0] - MGref)/hh
             # Compute errors:
-            # only in b
-            setfct(hessxdir, FDHessx)
-            _, bh2 = hessxdir.split(deepcopy=True)
-            err = np.linalg.norm(bh1.vector().array()-bh2.vector().array())/normhess
-            #err = np.linalg.norm(hessxdir.vector().array()-FDHessx)/normhess
-            if err < tolgradchk:   
-                print '\th={0:.1e}: ||FDH.x||={1:.5e}, error={2:.2e} -> OK!'\
-                .format(hh, np.linalg.norm(FDHessx), err)
-                break
+            setfct(dirfct, FDHessx)
+            ah2, bh2 = dirfct.split(deepcopy=True)
+            erra = np.linalg.norm(ah1.vector().array()-ah2.vector().array())/normhessa
+            errb = np.linalg.norm(bh1.vector().array()-bh2.vector().array())/normhessb
+            err = np.linalg.norm(hessxdir.vector().array()-FDHessx)/normhess
+            print '\t\th={:.1e}: |FDH.x|a={:.5e}, |FDH.x|b={:.5e}, |FDH.x|={:.5e}'\
+            .format(hh, np.linalg.norm(ah2.vector().array()), \
+            np.linalg.norm(bh2.vector().array()), np.linalg.norm(FDHessx))
+            print '\t\t\t\terra={:.2e}, errb={:.2e}, err={:.2e}'.format(erra, errb, err),
+            if direction == 'a':
+                if erra < tolgradchk:
+                    print '\t =>> OK!'
+                    break
+                else:   print ''
+            elif direction == 'b':
+                if errb < tolgradchk:
+                    print '\t =>> OK!'
+                    break
+                else:   print ''
             else:
-                print '\th={0:.1e}: ||FDH.x||={1:.5e}, error={2:.2e}'\
-                .format(hh, np.linalg.norm(FDHessx), err)
+                if err < tolgradchk:
+                    print '\t =>> OK!'
+                    break
+                else:   print ''
     # Restore initial value of m:
     ObjFctal.restore_m()
     ObjFctal.solvefwd_cost()
