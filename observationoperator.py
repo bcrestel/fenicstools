@@ -237,15 +237,16 @@ class ObsPointwise(ObservationOperator):
         u = Function(self.V)
         out = u.vector()
         for ii, bb in enumerate(self.B):
-            out += bb*uin[ii]
+            out.axpy(uin[ii], bb)
         return out.array()
 
+    #@profile
     def BTdotvec(self, uin, outvect):
         """ Compute B^T.uin """
         isarray(uin)
         outvect.zero()
         for ii, bb in enumerate(self.B):
-            outvect += bb*uin[ii]
+            outvect.axpy(uin[ii], bb)
 
     def obs(self, uin):
         """Compute B.uin + eps, where eps is noise
@@ -353,6 +354,7 @@ class TimeObsPtwise():
         self.times = times
         self.bcadj = bcadj
 
+    #@profile
     def ftimeadj(self, tt):
         """ Evaluate source term for adj eqn at time tt """
         try:
@@ -366,6 +368,7 @@ class TimeObsPtwise():
         if not self.bcadj == None:  self.bcadj.apply(self.outvec.vector())
         return -1.0*self.st(tt)*self.outvec.array()
 
+    #@profile
     def incradj(self, uhat, tt):
         """ Compute B^T B uhat """
         self.PtwiseObs.BTdotvec(self.obs(uhat), self.outvec)
