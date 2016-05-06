@@ -77,7 +77,7 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     wavepde = AcousticWave({'V':V, 'Vm':Vl})
     wavepde.timestepper = 'backward'
     #wavepde.lump = True
-    #wavepde.set_abc(mesh, LeftRight(), True)
+    #wavepde.set_abc(mesh, LeftRight(), True)   # not set-up yet
     wavepde.update({'b':lambda_target_fn, 'a':rho_target_fn, \
     't0':tfilterpts[0], 'tf':tfilterpts[-1], 'Dt':Dt, 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
     wavepde.ftime = mysrc
@@ -120,19 +120,8 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     myplot.plot_vtk(Grada)
     myplot.set_varname('gradb')
     myplot.plot_vtk(Gradb)
+    """
     print 'check a-gradient with FD'
-#    p0, t0 = waveobj.solfwd[0]
-#    p1, t1 = waveobj.solfwd[1]
-#    print t0, np.amin(p0), np.amax(p0)
-#    print t1, np.amin(p1), np.amax(p1)
-#    q0, t0 = waveobj.soladj[0]
-#    q1, t1 = waveobj.soladj[1]
-#    qT, tT = waveobj.soladj[-1]
-#    qT1, tT1 = waveobj.soladj[-2]
-#    print t0, np.amin(q0), np.amax(q0)
-#    print t1, np.amin(q1), np.amax(q1)
-#    print tT, np.amin(qT), np.amax(qT)
-#    print tT1, np.amin(qT1), np.amax(qT1)
     Medium = np.zeros((5, 2*Vl.dim()))
     tmp = dl.Function(Vl*Vl)
     for ii in range(5):
@@ -140,8 +129,9 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
         smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
         dl.assign(tmp.sub(0), smoothperturb_fn)
         Medium[ii,:] = tmp.vector().array()
-    checkgradfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6])
-    #checkgradfd_med(waveobj, Medium, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4, 1e-5], False)
+    checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
+    print 'check a-Hessian with FD'
+    checkhessfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'a')
     print 'check b-gradient with FD'
     Medium = np.zeros((5, 2*Vl.dim()))
     tmp = dl.Function(Vl*Vl)
@@ -150,11 +140,21 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
         smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
         dl.assign(tmp.sub(1), smoothperturb_fn)
         Medium[ii,:] = tmp.vector().array()
-    checkgradfd_med(waveobj, Medium, 1e-16, [1e-3, 1e-4, 1e-5, 1e-6])
+    checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
+    print 'check b-Hessian with FD'
+    checkhessfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'b')
     """
-    print 'check Hessian with FD'
-    checkhessfd_med(waveobj, Medium, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4, 1e-5], False)
-    """
+    print 'check gradient with FD'
+    Medium = np.zeros((5, 2*Vl.dim()))
+    tmp = dl.Function(Vl*Vl)
+    for ii in range(5):
+        smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
+        smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
+        dl.assign(tmp.sub(0), smoothperturb_fn)
+        dl.assign(tmp.sub(1), smoothperturb_fn)
+        Medium[ii,:] = tmp.vector().array()
+    checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
+    checkhessfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'all')
 
 
 if __name__ == "__main__":
@@ -171,7 +171,7 @@ if __name__ == "__main__":
     rhomin = 1.0
     rhomax = 1.5
     Nxy = 25
-    t0, t1, t2, tf = 0.0, 0.5, 2.5, 3.0
+    t0, t1, t2, tf = 0.0, 0.5, 1.0, 1.5
     tfilterpts = [t0, t1, t2, tf]
     r = 2   # order polynomial approx
     Dt = 2.5e-3

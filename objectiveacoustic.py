@@ -52,7 +52,7 @@ class ObjectiveAcoustic(LinearOperator):
         # gradient b
         self.wkformgradb = inner(self.mtest*nabla_grad(self.p), nabla_grad(self.q))*dx
         # decide whether ahat and bhat are used
-        self.Ha, self.Hb = Constant(1.0), Constant(0.0)
+        self.Ha, self.Hb = Constant(1.0), Constant(1.0)
         # incremental rhs a
         self.ahat, self.bhat = Function(self.PDE.Vm), Function(self.PDE.Vm)
         self.ptrial, self.ptest = TrialFunction(self.PDE.V), TestFunction(self.PDE.V)
