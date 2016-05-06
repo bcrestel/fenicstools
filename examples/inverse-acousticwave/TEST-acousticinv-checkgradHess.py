@@ -27,7 +27,7 @@ from fenicstools.optimsolver import checkgradfd_med, checkhessfd_med, checkhessf
 #        return (x[0] < 1e-16 or x[0] > 1.0 - 1e-16) \
 #        and on_boundary
 
-#@profile
+@profile
 def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     lambdamin, lambdamax = lambdaa
     rhomin, rhomax = rho
@@ -114,6 +114,7 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     fig.savefig(filename + '/observations.eps')
     print 'compute gradient'
     waveobj.solveadj_constructgrad()
+    sys.exit(0) #TODO: tmp
     myplot.plot_timeseries(waveobj.soladj, 'v', 0, skip, fctV)
     Grada,Gradb = waveobj.Grad.split(deepcopy=True)
     myplot.set_varname('grada')
