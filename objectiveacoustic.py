@@ -25,7 +25,6 @@ class ObjectiveAcoustic(LinearOperator):
         self.MGab = Function(self.PDE.Vm*self.PDE.Vm)
         self.MGabv = self.MGab.vector()
         self.ab = Function(self.PDE.Vm*self.PDE.Vm)
-        self.ab_bkup = Function(self.PDE.Vm*self.PDE.Vm)
         self.obsop = None   # Observation operator
         self.dd = None  # observations
         # decide whether ahat and bhat are used
@@ -38,18 +37,29 @@ class ObjectiveAcoustic(LinearOperator):
             self.srchdir = Function(self.PDE.Vm*self.PDE.Vm)
             self.delta_m = Function(self.PDE.Vm*self.PDE.Vm)
             self.get_costreg = self.get_costreg_joint
+            self.update_m = self.update_ab
+            self.m_bkup = Function(self.PDE.Vm*self.PDE.Vm)
+            self.backup_m = self.backup_ab
+            self.restore_m = self.restore_ab
         else:
             self.MG = Function(self.PDE.Vm)
             self.MGv = self.MG.vector()
             self.Grad = Function(self.PDE.Vm)
             self.srchdir = Function(self.PDE.Vm)
             self.delta_m = Function(self.PDE.Vm)
+            self.m_bkup = Function(self.PDE.Vm)
             if self.invparam == 'a':
                 self.Ha, self.Hb = Constant(1.0), Constant(0.0)
                 self.get_costreg = self.get_costreg_a
+                self.update_m = self.update_a
+                self.backup_m = self.backup_a
+                self.restore_m = self.restore_a
             elif self.invparam == 'b':
                 self.Ha, self.Hb = Constant(0.0), Constant(1.0)
                 self.get_costreg = self.get_costreg_b
+                self.update_m = self.update_b
+                self.backup_m = self.backup_b
+                self.restore_m = self.restore_b
         LinearOperator.__init__(self, self.MGv, self.MGv)
         # regularization
         if regularization == None:  
@@ -124,9 +134,11 @@ class ObjectiveAcoustic(LinearOperator):
     def copy(self):
         """(hard) copy constructor"""
         newobj = self.__class__(self.PDE.copy())
-        setfct(newobj.MGab, self.MGab)
+        setfct(newobj.MG, self.MG)
+        setfct(newobj.Grad, self.Grad)
         setfct(newobj.srchdir, self.srchdir)
         newobj.obsop = self.obsop
+        newobj.dd = self.dd
         return newobj
 
 
@@ -141,7 +153,7 @@ class ObjectiveAcoustic(LinearOperator):
             setfct(self.p, sol[0])
             self.Bp[:,index] = self.obsop.obs(self.p)
         if cost:
-            assert not self.dd == None, "Provide observations"
+            assert not self.dd == None, "Provide data observations to compute cost"
             self.cost_misfit = self.obsop.costfct(self.Bp, self.dd, self.PDE.times)
             #self.cost_reg = self.regularization.costa(self.PDE.a) + \
             #self.regularization.costb(self.PDE.b)
@@ -163,6 +175,7 @@ class ObjectiveAcoustic(LinearOperator):
         self.PDE.ftime = self.obsop.ftimeadj
         self.soladj,_ = self.PDE.solve()
         if grad:
+            # split gradient parts a and b
             self.MGabv.zero()
             MGa, MGb = self.MGab.split(deepcopy=True)
             MGav, MGbv = MGa.vector(), MGb.vector()
@@ -205,13 +218,15 @@ class ObjectiveAcoustic(LinearOperator):
 #                        setfct(self.p1D, -1.0*self.p.vector())
 #                        setfct(self.vD, self.v)
                 index += 1
-            # assemble
             if self.invparam == 'ab':
                 # add regularization
-                MGav.axpy(self.alpha_reg, self.regularization.grada(self.PDE.a))
-                MGbv.axpy(self.alpha_reg, self.regularization.gradb(self.PDE.b))
                 assign(self.MGab.sub(0), MGa)
                 assign(self.MGab.sub(1), MGb)
+                self.MGabv.axpy(self.alpha_reg, \
+                self.regularization.gradab(self.PDE.a, self.PDE.b)
+                # compute Grad
+                MGa, MGb = self.MGab.split(deepcopy=True)
+                MGav, MGbv = MGa.vector(), MGb.vector()
                 Grada, Gradb = self.Grad.split(deepcopy=True)
                 Gradav, Gradbv = Grada.vector(), Gradb.vector()
                 self.solverM.solve(Gradav, MGav)
@@ -313,9 +328,9 @@ class ObjectiveAcoustic(LinearOperator):
             setfct(self.bhat, bhat)
         elif self.invparam == 'a':
             setfct(self.ahat, abhat)
-            setfct(self.bhat, 0.0)
+            self.bhat.vector().zero()
         elif self.invparam == 'b':
-            setfct(self.ahat, 0.0)
+            self.ahat.vector().zero()
             setfct(self.bhat, abhat)
         self.regularization.assemble_hessian(abhat)
         self.C = assemble(self.wkformrhsincrb)
@@ -407,25 +422,42 @@ class ObjectiveAcoustic(LinearOperator):
     #TODO: Continue here -- see how these method interact with other modules,
     #in particular optimsolver.py
     def update_PDE(self, parameters): self.PDE.update(parameters)
-    def update_m(self, medparam):
+
+    def update_ab(self, medparam):
         """ medparam is a np.array containing both med parameters """
         setfct(self.ab, medparam)
         a, b = self.ab.split(deepcopy=True)
         self.update_PDE({'a':a, 'b':b})
+    def update_a(self, medparam):
+        self.update_PDE({'a':medparam})
+    def update_b(self, medparam):
+        self.update_PDE({'b':medparam})
+
     def set_abc(self, mesh, class_bc_abc, lumpD):  
         self.PDE.set_abc(mesh, class_bc_abc, lumpD)
-    def backup_m(self): 
+
+    def backup_ab(self): 
         """ back-up current value of med param a and b """
-        assign(self.ab_bkup.sub(0), self.PDE.a)
-        assign(self.ab_bkup.sub(1), self.PDE.b)
-    def restore_m(self):    
+        assign(self.m_bkup.sub(0), self.PDE.a)
+        assign(self.m_bkup.sub(1), self.PDE.b)
+    def backup_a(self):
+        setfct(self.m_bkup, self.PDE.a)
+    def backup_b(self):
+        setfct(self.m_bkup, self.PDE.b)
+
+    def restore_ab(self):    
         """ restore backed-up values of a and b """
-        a, b = self.ab_bkup.split(deepcopy=True)
-        self.update_m({'a':a, 'b':b})
+        a, b = self.m_bkup.split(deepcopy=True)
+        self.update_PDE({'a':a, 'b':b})
+    def restore_a(self):
+        self.update_PDE({'a':self.m_bkup})
+    def restore_b(self):
+        self.update_PDE({'b':self.m_bkup})
+
     def setsrcterm(self, ftime):    self.PDE.ftime = ftime
 
 
     # GETTERS:
-    def getmcopyarray(self):    return self.ab_bkup.vector().array()
+    def getmcopyarray(self):    return self.m_bkup.vector().array()
     def getMGarray(self):   return self.MGv.array()
 

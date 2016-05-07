@@ -122,10 +122,8 @@ class ZeroRegularization():
         out.vector().zero()
         return out.vector()
 
-    def grada(self, m_in):  
-        return self.grad(m_in)
-    def gradb(self, m_in):  
-        return self.grad(m_in)
+    def gradab(self, ma_in, mb_in):  
+        return self.grad(ma_in)
 
     def assemble_hessian(self, m_in):
         pass
