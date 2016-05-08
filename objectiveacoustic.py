@@ -223,7 +223,7 @@ class ObjectiveAcoustic(LinearOperator):
                 assign(self.MGab.sub(0), MGa)
                 assign(self.MGab.sub(1), MGb)
                 self.MGabv.axpy(self.alpha_reg, \
-                self.regularization.gradab(self.PDE.a, self.PDE.b)
+                self.regularization.gradab(self.PDE.a, self.PDE.b))
                 # compute Grad
                 MGa, MGb = self.MGab.split(deepcopy=True)
                 MGav, MGbv = MGa.vector(), MGb.vector()
