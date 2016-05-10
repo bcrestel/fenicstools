@@ -33,7 +33,7 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     lambdamin, lambdamax = lambdaa
     rhomin, rhomax = rho
     h = 1./Nxy
-    checkdt(Dt, h, r, np.sqrt(lambdamax), True)
+    checkdt(Dt, h, r, np.sqrt(lambdamax), False)
     mesh = dl.UnitSquareMesh(Nxy, Nxy)
     Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
     V = dl.FunctionSpace(mesh, 'Lagrange', r)
@@ -182,7 +182,7 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip, param):
     myplot = PlotFenics(filename)
     # source:
     Ricker = RickerWavelet(fpeak, 1e-10)
-    Pt = PointSources(V, [[0.5,0.5]])
+    Pt = PointSources(V, [[0.5,1.0]])
     mydelta = Pt[0].array()
     def mysrc(tt):
         return Ricker(tt)*mydelta
@@ -289,5 +289,5 @@ if __name__ == "__main__":
     skip = 20
     # run
     #run_testab(fpeak, [lambdamin, lambdamax], [rhomin, rhomax], Nxy, tfilterpts, r, Dt, skip)
-    run_testa(fpeak, [lambdamin, lambdamax], [rhomin, rhomax], Nxy, tfilterpts, r, Dt, skip)
-    #run_testb(fpeak, [lambdamin, lambdamax], [rhomin, rhomax], Nxy, tfilterpts, r, Dt, skip)
+    #run_testa(fpeak, [lambdamin, lambdamax], [rhomin, rhomax], Nxy, tfilterpts, r, Dt, skip)
+    run_testb(fpeak, [lambdamin, lambdamax], [rhomin, rhomax], Nxy, tfilterpts, r, Dt, skip)
