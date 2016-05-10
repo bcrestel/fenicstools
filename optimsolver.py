@@ -241,62 +241,50 @@ H = [1e-5, 1e-6, 1e-4], doublesided=True, direction='b'):
     ObjFctal.solveadj_constructgrad()
 
 
-def compute_searchdirection(ObjFctal, keyword, gradnorm_init=None, maxtolcg=0.5):
+def compute_searchdirection(objfctal, keyword, tolcg = 1e-8):
     """Compute search direction for Line Search based on keyword.
     keyword can be 'sd' (steepest descent) or 'Newt' (Newton's method).
     Whether we use full Hessian or GN Hessian in Newton's method depend on
-    parameter ObjFctal.GN
+    parameter objfctal.GN
     Inputs:
-        ObjFctal = object for objective functional; should contain methods:
+        objfctal = object for objective functional; should contain methods:
             - setsrchdir: set search direction from np.array
-            - setgradxdir: set value gradient times search direction
-            - getsrchdirarray: return search direction in np.array
-            - getMGarray: return Mass*Gradient in np.array
             for Newton's method, should also contain methods:
-            - getGradnorm: return norm of gradient
             - mult: matrix operation A.x from fenics class LinearOperator
             - getprecond: return preconditioner for computation Newton's step
             and members:
             - srchdir: search direction
-            - MG: Mass*Gradient
+            - MGv: Mass*Gradient in vector format
         keyword = 'sd' or 'Newt'
-        gradnorminit = norm of gradient at first step of iteration
-        maxtolcg = max value for tol CG
     """
     if keyword == 'sd':
-        ObjFctal.setsrchdir(-1.0*ObjFctal.getGradarray())
+        objfctal.setsrchdir(-1.0*objfctal.getGradarray())
     elif keyword == 'Newt':
-        # Compute tolcg for Inexact-CG Newton's method:
-        gradnorm = ObjFctal.getGradnorm()
-        gradnormrel = gradnorm/max(1.0, gradnorm_init)
-        tolcg = min(maxtolcg, np.sqrt(gradnormrel))
         # Define solver
         solver = CGSolverSteihaug()
-        solver.set_operator(ObjFctal)
-        solver.set_preconditioner(ObjFctal.getprecond())
+        solver.set_operator(objfctal)
+        solver.set_preconditioner(objfctal.getprecond())
         solver.parameters["rel_tolerance"] = tolcg
         solver.parameters["zero_initial_guess"] = True
         solver.parameters["print_level"] = -1
-        solver.solve(ObjFctal.srchdir.vector(), -ObjFctal.MG.vector())
+        solver.solve(objfctal.srchdir.vector(), -objfctal.MGv)
     else:
         raise ValueError("Wrong keyword")
-    ObjFctal.setgradxdir( np.dot(ObjFctal.getsrchdirarray(), \
-    ObjFctal.getMGarray()) )
-    if ObjFctal.getgradxdir() > 0.0: 
+    # check it is a descent direction
+    GradxDir = objfctal.MGv.inner(objfctal.srchdir.vector())
+    if GradxDir > 0.0: 
         raise ValueError("Search direction is not a descent direction")
         sys.exit(1)
     if keyword == 'Newt':
         return [solver.iter, solver.final_norm, solver.reasonid, tolcg]
 
 
-def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
+def bcktrcklinesearch(objfctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
     """Run backtracking line search in 'search_direction'. 
     Default 'search_direction is steepest descent.
     'rho' is multiplicative factor for alpha.
-    ObjFctal should contain methods:
+    objfctal should contain methods:
         - backup_m
-        - getcost
-        - getsrchdirarray
         - getmcopyarray
         - update_m
         - solvefwd_cost
@@ -308,18 +296,19 @@ def bcktrcklinesearch(ObjFctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
         raise ValueError("rho must be between 0 and 1")
     if alpha_init < 1e-16:    raise ValueError("alpha must be positive")
     # Prelim steps:
-    ObjFctal.backup_m()
-    cost_mk = ObjFctal.getcost()[0]
+    objfctal.backup_m()
+    cost_mk = objfctal.cost
     LScount = 0
     success = False
     alpha = alpha_init
-    srch_dir = ObjFctal.getsrchdirarray()
+    srch_dir = objfctal.srchdir.vector().array()
+    GradxDir = objfctal.MGv.inner(objfctal.srchdir.vector())
     # Start Line Search:
     while LScount < nbLS:
         LScount += 1
-        ObjFctal.update_m(ObjFctal.getmcopyarray() + alpha*srch_dir)
-        ObjFctal.solvefwd_cost()
-        if ObjFctal.getcost()[0] < (cost_mk + alpha*c*ObjFctal.getgradxdir()):
+        objfctal.update_m(objfctal.getmcopyarray() + alpha*srch_dir)
+        objfctal.solvefwd_cost()
+        if objfctal.cost < (cost_mk + alpha*c*GradxDir):
             success = True
             break
         alpha *= rho
