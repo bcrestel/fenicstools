@@ -210,8 +210,20 @@ class AcousticWave():
         if self.verbose:    print 'Compute solution -- time {}'.format(tt)
         solout.append([self.u1.vector().array(), tt])
         # Iteration
+        myprint = True
         for nn in xrange(2, self.Nt+1):
             iterate(tt)
+            ####TODO: TMP
+            if np.isnan(self.u2.vector().array()).any() and myprint:
+                print 't={}'.format(tt)
+                print 'min(u0)={}, max(u0)={}'.format(\
+                np.amin(self.u0.vector().array()), np.amax(self.u0.vector().array()))
+                print 'min(u1)={}, max(u1)={}'.format(\
+                np.amin(self.u1.vector().array()), np.amax(self.u1.vector().array()))
+                print 'min(rhs)={}, max(rhs)={}'.format(\
+                np.amin(self.rhs.vector().array()), np.amax(self.rhs.vector().array()))
+                myprint = False
+            #### TMP
             # Advance to next time step
             setfct(self.u0, self.u1)
             setfct(self.u1, self.u2)
