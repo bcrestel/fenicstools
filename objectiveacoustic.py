@@ -1,7 +1,8 @@
 import numpy as np
 
 from dolfin import LinearOperator, Function, TestFunction, TrialFunction, \
-assemble, inner, nabla_grad, dx, sqrt, LUSolver, assign, Constant
+assemble, inner, nabla_grad, dx, sqrt, LUSolver, assign, Constant, \
+PETScKrylovSolver
 from miscfenics import setfct, isequal, ZeroRegularization
 from linalg.lumpedmatrixsolver import LumpedMassMatrixPrime
 
@@ -97,12 +98,17 @@ class ObjectiveAcoustic(LinearOperator):
         self.wkformhessb = inner(nabla_grad(self.phat)*self.mtest, nabla_grad(self.q))*dx \
         + inner(nabla_grad(self.p)*self.mtest, nabla_grad(self.qhat))*dx
         # Mass matrix:
-        weak_m =  inner(self.mtrial,self.mtest)*dx
-        Mass = assemble(weak_m)
+        if self.invparam == 'ab':
+            self.mmtest, self.mmtrial = TestFunction(self.PDE.Vm*self.PDE.Vm), \
+            TrialFunction(self.PDE.Vm*self.PDE.Vm)
+        else:
+            self.mmtest, self.mmtrial = self.mtest, self.mtrial
+        weak_m =  inner(self.mmtrial, self.mmtest)*dx
+        self.Mass = assemble(weak_m)
         self.solverM = LUSolver("petsc")
         self.solverM.parameters['reuse_factorization'] = True
         self.solverM.parameters['symmetric'] = True
-        self.solverM.set_operator(Mass)
+        self.solverM.set_operator(self.Mass)
         # Time-integration factors
         self.factors = np.ones(self.PDE.times.size)
         self.factors[0], self.factors[-1] = 0.5, 0.5
@@ -151,7 +157,14 @@ class ObjectiveAcoustic(LinearOperator):
         self.Bp = np.zeros((len(self.obsop.PtwiseObs.Points),len(self.solfwd)))
         for index, sol in enumerate(self.solfwd):
             setfct(self.p, sol[0])
-            self.Bp[:,index] = self.obsop.obs(self.p)
+            #self.Bp[:,index] = self.obsop.obs(self.p)
+            Bp = self.obsop.obs(self.p)
+            self.Bp[:,index] = Bp
+            ######TODO: TMP 
+            #if np.isnan(Bp).any():
+            #    print index, self.PDE.times[index], Bp
+            #    print np.isnan(self.p.vector().array()).any()
+            ###### TMP
         if cost:
             assert not self.dd == None, "Provide data observations to compute cost"
             self.cost_misfit = self.obsop.costfct(self.Bp, self.dd, self.PDE.times)
@@ -224,15 +237,6 @@ class ObjectiveAcoustic(LinearOperator):
                 assign(self.MGab.sub(1), MGb)
                 self.MGabv.axpy(self.alpha_reg, \
                 self.regularization.gradab(self.PDE.a, self.PDE.b))
-                # compute Grad
-                MGa, MGb = self.MGab.split(deepcopy=True)
-                MGav, MGbv = MGa.vector(), MGb.vector()
-                Grada, Gradb = self.Grad.split(deepcopy=True)
-                Gradav, Gradbv = Grada.vector(), Gradb.vector()
-                self.solverM.solve(Gradav, MGav)
-                self.solverM.solve(Gradbv, MGbv)
-                assign(self.Grad.sub(0), Grada)
-                assign(self.Grad.sub(1), Gradb)
             else:
                 if self.invparam == 'a':
                     # add regularization
@@ -242,7 +246,8 @@ class ObjectiveAcoustic(LinearOperator):
                     # add regularization
                     MGbv.axpy(self.alpha_reg, self.regularization.grad(self.PDE.b))
                     setfct(self.MG, MGbv)
-                self.solverM.solve(self.Grad.vector(), self.MGv)
+            # compute Grad
+            self.solverM.solve(self.Grad.vector(), self.MGv)
 
     def solveadj_constructgrad(self):   self.solveadj(True)
 
@@ -419,8 +424,9 @@ class ObjectiveAcoustic(LinearOperator):
 
 
     # SETTERS + UPDATE:
-    #TODO: Continue here -- see how these method interact with other modules,
-    #in particular optimsolver.py
+    def init_vector(self, x, dim):
+        self.Mass.init_vector(x, dim)
+
     def update_PDE(self, parameters): self.PDE.update(parameters)
 
     def update_ab(self, medparam):
@@ -460,4 +466,11 @@ class ObjectiveAcoustic(LinearOperator):
     # GETTERS:
     def getmcopyarray(self):    return self.m_bkup.vector().array()
     def getMGarray(self):   return self.MGv.array()
+    def getprecond(self):
+        Prec = PETScKrylovSolver("richardson", "amg")
+        Prec.parameters["maximum_iterations"] = 1
+        Prec.parameters["error_on_nonconvergence"] = False
+        Prec.parameters["nonzero_initial_guess"] = False
+        Prec.set_operator(self.regularization.get_precond())
+        return Prec
 
