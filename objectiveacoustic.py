@@ -99,6 +99,7 @@ class ObjectiveAcoustic(LinearOperator):
         + inner(nabla_grad(self.p)*self.mtest, nabla_grad(self.qhat))*dx
         # Mass matrix:
         if self.invparam == 'ab':
+            # mass matrix will be block-diagonal (although rows and columns are mixed)
             self.mmtest, self.mmtrial = TestFunction(self.PDE.Vm*self.PDE.Vm), \
             TrialFunction(self.PDE.Vm*self.PDE.Vm)
         else:
@@ -406,12 +407,16 @@ class ObjectiveAcoustic(LinearOperator):
             assign(self.ab.sub(0), yaF)
             assign(self.ab.sub(1), ybF)
             y.axpy(1.0, self.ab.vector())
+            # add regularization term
+            y.axpy(self.alpha_reg, self.regularization.hessianab(self.ahat, self.bhat))
         elif self.invparam == 'a':
             y.axpy(1.0, ya)
+            # add regularization term
+            y.axpy(self.alpha_reg, self.regularization.hessian(abhat))
         elif self.invparam == 'b':
             y.axpy(1.0, yb)
-        # add regularization term
-        y.axpy(self.alpha_reg, self.regularization.hessian(abhat))
+            # add regularization term
+            y.axpy(self.alpha_reg, self.regularization.hessian(abhat))
 
 
     # SETTERS + UPDATE:

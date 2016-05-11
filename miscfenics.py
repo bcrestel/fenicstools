@@ -123,9 +123,9 @@ class ZeroRegularization():
         return out.vector()
 
     def gradab(self, ma_in, mb_in):  
-        Va = ma_in.function_space()
-        Vb = mb_in.function_space()
-        u = Function(Va*Vb)
+        self.Va = ma_in.function_space()
+        self.Vb = mb_in.function_space()
+        u = Function(self.Va*self.Vb)
         u.vector().zero()
         return u.vector()
 
@@ -136,3 +136,8 @@ class ZeroRegularization():
         out = mhat.copy()
         out.zero()
         return out
+
+    def hessianab(self, ahat, bhat):
+        u = Function(self.Va*self.Vb)
+        u.vector().zero()
+        return u.vector()
