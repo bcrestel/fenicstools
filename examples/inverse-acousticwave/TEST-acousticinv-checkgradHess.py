@@ -69,10 +69,14 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     myplot.plot_vtk(lambda_init_fn)
     # observation operator:
     #obspts = [[0.2, 0.5], [0.5, 0.2], [0.5, 0.8], [0.8, 0.5]]
-    obspts = [[0.2, ii/10.] for ii in range(2,9)] + \
-    [[0.8, ii/10.] for ii in range(2,9)] + \
-    [[ii/10., 0.2] for ii in range(3,8)] + \
-    [[ii/10., 0.8] for ii in range(3,8)]
+#    obspts = [[0.2, ii/10.] for ii in range(2,9)] + \
+#    [[0.8, ii/10.] for ii in range(2,9)] + \
+#    [[ii/10., 0.2] for ii in range(3,8)] + \
+#    [[ii/10., 0.8] for ii in range(3,8)]
+    obspts = [[0.0, ii/10.] for ii in range(1,10)] + \
+    [[1.0, ii/10.] for ii in range(1,10)] + \
+    [[ii/10., 0.0] for ii in range(1,10)] + \
+    [[ii/10., 1.0] for ii in range(1,10)]
     obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
     # define pde operator:
     wavepde = AcousticWave({'V':V, 'Vm':Vl})
@@ -105,10 +109,9 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     myplot.plot_timeseries(waveobj.solfwd, 'p', 0, skip, fctV)
     # Plot data and observations
     fig = plt.figure()
-    if len(obspts) > 9: fig.set_size_inches(20., 15.)
+    fig.set_size_inches(20., 15.)
     for ii in range(len(obspts)):
-        if len(obspts) == 4:    ax = fig.add_subplot(2,2,ii+1)
-        else:   ax = fig.add_subplot(4,6,ii+1)
+        ax = fig.add_subplot(6,6,ii+1)
         ax.plot(waveobj.PDE.times, waveobj.dd[ii,:], 'k--')
         ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
         ax.set_title('Plot'+str(ii))
@@ -206,10 +209,14 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip, param):
     myplot.plot_vtk(init_fn)
     # observation operator:
     #obspts = [[0.2, 0.5], [0.5, 0.2], [0.5, 0.8], [0.8, 0.5]]
-    obspts = [[0.2, ii/10.] for ii in range(2,9)] + \
-    [[0.8, ii/10.] for ii in range(2,9)] + \
-    [[ii/10., 0.2] for ii in range(3,8)] + \
-    [[ii/10., 0.8] for ii in range(3,8)]
+#    obspts = [[0.2, ii/10.] for ii in range(2,9)] + \
+#    [[0.8, ii/10.] for ii in range(2,9)] + \
+#    [[ii/10., 0.2] for ii in range(3,8)] + \
+#    [[ii/10., 0.8] for ii in range(3,8)]
+    obspts = [[0.0, ii/10.] for ii in range(1,10)] + \
+    [[1.0, ii/10.] for ii in range(1,10)] + \
+    [[ii/10., 0.0] for ii in range(1,10)] + \
+    [[ii/10., 1.0] for ii in range(1,10)]
     obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
     # define pde operator:
     wavepde = AcousticWave({'V':V, 'Vm':Vl})
@@ -242,10 +249,9 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip, param):
     myplot.plot_timeseries(waveobj.solfwd, 'p', 0, skip, fctV)
     # Plot data and observations
     fig = plt.figure()
-    if len(obspts) > 9: fig.set_size_inches(20., 15.)
+    fig.set_size_inches(20., 15.)
     for ii in range(len(obspts)):
-        if len(obspts) == 4:    ax = fig.add_subplot(2,2,ii+1)
-        else:   ax = fig.add_subplot(4,6,ii+1)
+        ax = fig.add_subplot(6,6,ii+1)
         ax.plot(waveobj.PDE.times, waveobj.dd[ii,:], 'k--')
         ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
         ax.set_title('Plot'+str(ii))
@@ -276,18 +282,18 @@ if __name__ == "__main__":
 #    ffc.parameters.FFC_PARAMETERS['cpp_optimize'] = True
 #    ffc.parameters.FFC_PARAMETERS['cpp_optimize_flags'] = '-O2'
     # Inputs:
-    fpeak = 1.0  #Hz
+    fpeak = 0.5  #Hz
     lambdamin = 1.0
     lambdamax = 3.0
     rhomin = 1.0
     rhomax = 1.5
     Nxy = 25
-    t0, t1, t2, tf = 0.0, 0.5, 1.0, 1.5
+    t0, t1, t2, tf = 0.0, 0.5, 4.5, 5.0
     tfilterpts = [t0, t1, t2, tf]
     r = 2   # order polynomial approx
-    Dt = 2.5e-3
+    Dt = 2.0e-3
     skip = 20
     # run
-    #run_testab(fpeak, [lambdamin, lambdamax], [rhomin, rhomax], Nxy, tfilterpts, r, Dt, skip)
+    run_testab(fpeak, [lambdamin, lambdamax], [rhomin, rhomax], Nxy, tfilterpts, r, Dt, skip)
     #run_testa(fpeak, [lambdamin, lambdamax], [rhomin, rhomax], Nxy, tfilterpts, r, Dt, skip)
-    run_testb(fpeak, [lambdamin, lambdamax], [rhomin, rhomax], Nxy, tfilterpts, r, Dt, skip)
+    #run_testb(fpeak, [lambdamin, lambdamax], [rhomin, rhomax], Nxy, tfilterpts, r, Dt, skip)
