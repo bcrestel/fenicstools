@@ -1,6 +1,6 @@
 """
-Acoustic inverse problem for parameter b,
-with parameter a known exaclty
+Acoustic inverse problem for parameter a,
+with parameter b known exaclty
 """
 
 import sys
@@ -37,7 +37,7 @@ myplot.plot_vtk(a_target_fn)
 
 # define objective function:
 regul = LaplacianPrior({'Vm':Vm,'gamma':5e-4,'beta':1e-14})
-waveobj = ObjectiveAcoustic(wavepde, 'b', regul)
+waveobj = ObjectiveAcoustic(wavepde, 'a', regul)
 waveobj.obsop = obsop
 
 # noisy data
@@ -65,9 +65,9 @@ for ii in range(5):
 
 print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t{:10s} {:12s} {:12s}'.format(\
 'iter', 'cost', 'misfit', 'reg', '|G|', 'medmisf', 'a_ls', 'tol_cg', 'n_cg')
-dtruenorm = b_target_fn.vector().inner(waveobj.Mass*b_target_fn.vector())
+dtruenorm = a_target_fn.vector().inner(waveobj.Mass*a_target_fn.vector())
 ######### Inverse problem
-waveobj.update_PDE({'b':b_initial_fn})
+waveobj.update_PDE({'a':a_initial_fn})
 waveobj.solvefwd_cost()
 myplot.set_varname('a0')
 myplot.plot_vtk(waveobj.PDE.a)
@@ -81,7 +81,7 @@ for iter in xrange(50):
     waveobj.solveadj_constructgrad()
     gradnorm = waveobj.MGv.inner(waveobj.Grad.vector())
     if iter == 0:   gradnorm0 = gradnorm
-    diff = waveobj.PDE.b.vector() - b_target_fn.vector()
+    diff = waveobj.PDE.a.vector() - a_target_fn.vector()
     medmisfit = diff.inner(waveobj.Mass*diff)
     if check and iter % 5 == 1:
         checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
