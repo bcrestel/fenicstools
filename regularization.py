@@ -5,6 +5,42 @@ from dolfin import sqrt, inner, nabla_grad, grad, dx, \
 Function, TestFunction, TrialFunction, assemble, solve, \
 Constant, plot, interactive, assign, FunctionSpace
 from miscfenics import isFunction, isVector, setfct
+from prior import LaplacianPrior
+
+
+class Tikhonovab():
+    """ Define Tikhonov regularization for a and b parameters """
+
+    def __init__(self, parameters):
+        self.rega = LaplacianPrior(parameters)
+        self.regb = LaplacianPrior(parameters)
+        self.MGa = Function(self.rega.Vm)
+        self.MGb = Function(self.regb.Vm)
+        self.MGab = Function(self.rega.Vm*self.regb.Vm)
+        self.MGvab = self.MGab.vector()
+
+    def costab(self, ma_in, mb_in):
+        return self.rega.cost(ma_in) + self.regb.cost(mb_in)
+
+    def gradab(self, ma_in, mb_in):
+        setfct(self.MGa, self.rega.grad(ma_in))
+        setfct(self.MGb, self.regb.grad(mb_in))
+        assign(self.MGab.sub(0), self.MGa)
+        assign(self.MGab.sub(1), self.MGb)
+        return self.MGvab
+
+    def assemble_hessian(self, m_in):
+        pass
+
+    def hessianab(self, ahat, bhat):
+        setfct(self.MGa, self.rega.hessian(ahat))
+        setfct(self.MGb, self.rega.hessian(bhat))
+        assign(self.MGab.sub(0), self.MGa)
+        assign(self.MGab.sub(1), self.MGb)
+        return self.MGvab
+        
+
+
 
 class TV():
     """
