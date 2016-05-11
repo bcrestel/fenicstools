@@ -157,19 +157,10 @@ class ObjectiveAcoustic(LinearOperator):
         self.Bp = np.zeros((len(self.obsop.PtwiseObs.Points),len(self.solfwd)))
         for index, sol in enumerate(self.solfwd):
             setfct(self.p, sol[0])
-            #self.Bp[:,index] = self.obsop.obs(self.p)
-            Bp = self.obsop.obs(self.p)
-            self.Bp[:,index] = Bp
-            ######TODO: TMP 
-            #if np.isnan(Bp).any():
-            #    print index, self.PDE.times[index], Bp
-            #    print np.isnan(self.p.vector().array()).any()
-            ###### TMP
+            self.Bp[:,index] = self.obsop.obs(self.p)
         if cost:
             assert not self.dd == None, "Provide data observations to compute cost"
             self.cost_misfit = self.obsop.costfct(self.Bp, self.dd, self.PDE.times)
-            #self.cost_reg = self.regularization.costa(self.PDE.a) + \
-            #self.regularization.costb(self.PDE.b)
             self.cost_reg = self.get_costreg()
             self.cost = self.cost_misfit + self.alpha_reg*self.cost_reg
 

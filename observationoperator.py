@@ -311,14 +311,6 @@ class TimeObsPtwise():
         u = Function(self.PtwiseObs.V)
         self.outvec = u.vector()
         self.st = TimeFilter(timefilter)
-        """
-        def err_handler(type, flag):
-            print "Floating point error (%s), with flag %s" % (type, flag)
-        saved_handler = np.seterrcall(err_handler)
-        save_err = np.seterr(all='call')
-        """
-        #save_err = np.seterr(all='raise')
-
 
     def obs(self, uin):
         """ return result from pointwise observation w/o time-filtering """
@@ -335,10 +327,6 @@ class TimeObsPtwise():
         assert uin.shape == udin.shape, "uin and udin must have same shape"
         assert uin.shape[0] == len(times) or uin.shape[1] == len(times), \
         "must have as many time steps in uin as in times"
-        #####TODO: TMP
-        #print np.amax(np.abs(uin)), np.amax(np.abs(udin)), np.amax(np.abs(uin-udin))
-        #if np.isnan(uin).any(): print uin
-        ##### TMP
         if uin.shape[0] == len(times):  diffuinudinsq = (uin.T - udin.T)**2
         else:   diffuinudinsq = (uin - udin)**2
         #
