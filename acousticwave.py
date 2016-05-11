@@ -215,13 +215,15 @@ class AcousticWave():
             iterate(tt)
             ####TODO: TMP
             if np.isnan(self.u2.vector().array()).any() and myprint:
-                print 't={}'.format(tt)
+                print 't={}, f(t)={}'.format(tt, self.ftime(tt))
+                print 'min(rhs)={}, max(rhs)={}'.format(\
+                np.amin(self.rhs.vector().array()), np.amax(self.rhs.vector().array()))
                 print 'min(u0)={}, max(u0)={}'.format(\
                 np.amin(self.u0.vector().array()), np.amax(self.u0.vector().array()))
                 print 'min(u1)={}, max(u1)={}'.format(\
                 np.amin(self.u1.vector().array()), np.amax(self.u1.vector().array()))
-                print 'min(rhs)={}, max(rhs)={}'.format(\
-                np.amin(self.rhs.vector().array()), np.amax(self.rhs.vector().array()))
+                print 'min(u2)={}, max(u2)={}'.format(\
+                np.amin(self.u2.vector().array()), np.amax(self.u2.vector().array()))
                 myprint = False
             #### TMP
             # Advance to next time step
