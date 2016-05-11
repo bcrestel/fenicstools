@@ -16,12 +16,12 @@ from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
 from fenicstools.prior import LaplacianPrior
 
 ######### Noisy data
-Nxy = 20
+Nxy = 25
 mesh = dl.UnitSquareMesh(Nxy, Nxy)
 Vm = dl.FunctionSpace(mesh, 'Lagrange', 1)
 r = 2
 V = dl.FunctionSpace(mesh, 'Lagrange', r)
-Dt = 2.5e-3
+Dt = 2.0e-3
 checkdt(Dt, 1./Nxy, r, np.sqrt(2.0), False)
 t0, t1, t2, tf = 0.0, 0.5, 4.5, 5.0
 # set up plots:
@@ -66,7 +66,8 @@ waveobj.obsop = obsop
 # noisy data
 print 'generate noisy data'
 waveobj.solvefwd()
-myplot.plot_timeseries(waveobj.solfwd, 'pd', 0, 20, dl.Function(V))
+skip = 20
+myplot.plot_timeseries(waveobj.solfwd, 'pd', 0, skip, dl.Function(V))
 dd = waveobj.Bp.copy()
 nbobspt, dimsol = dd.shape
 noiselevel = 0.1   # = 10%
@@ -97,12 +98,14 @@ cost = waveobj.cost
 print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11s} {:10.2e} ({:4.2f})'.\
 format(0, cost, waveobj.cost_misfit, waveobj.cost_reg, ' ', \
 medmisfit, medmisfit/dtruenorm)
-myplot.set_varname('medium0')
+myplot.set_varname('a0')
+myplot.plot_vtk(waveobj.PDE.a)
+myplot.set_varname('b0')
 myplot.plot_vtk(waveobj.PDE.b)
 tolgrad = 1e-10
 tolcost = 1e-14
 check = False
-for iter in xrange(1, 9):
+for iter in xrange(1, 50):
     waveobj.solveadj_constructgrad()
     if check and iter % 5 == 1:
         checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
@@ -120,7 +123,7 @@ for iter in xrange(1, 9):
     format(iter, cost, waveobj.cost_misfit, waveobj.cost_reg, \
     gradnorm, medmisfit, medmisfit/dtruenorm, alpha, tolcg, cgiter)
     # plots
-    myplot.plot_timeseries(waveobj.solfwd, 'p'+str(iter), 0, 20, dl.Function(V))
+    myplot.plot_timeseries(waveobj.solfwd, 'p'+str(iter), 0, skip, dl.Function(V))
     myplot.set_varname('a'+str(iter))
     myplot.plot_vtk(waveobj.PDE.a)
     myplot.set_varname('b'+str(iter))
