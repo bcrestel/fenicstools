@@ -306,11 +306,13 @@ def bcktrcklinesearch(objfctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
     # Start Line Search:
     while LScount < nbLS:
         LScount += 1
-        objfctal.update_m(objfctal.getmcopyarray() + alpha*srch_dir)
-        objfctal.solvefwd_cost()
-        if objfctal.cost < (cost_mk + alpha*c*GradxDir):
-            success = True
-            break
+        new_m = objfctal.getmcopyarray() + alpha*srch_dir
+        if np.amin(new_m) > 1e-14:
+            objfctal.update_m(new_m)
+            objfctal.solvefwd_cost()
+            if objfctal.cost < (cost_mk + alpha*c*GradxDir):
+                success = True
+                break
         alpha *= rho
     return [success, LScount, alpha]
 

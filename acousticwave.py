@@ -2,17 +2,15 @@ import sys
 import numpy as np
 from miscfenics import isequal
 
+from dolfin import TestFunction, TrialFunction, Function, GenericVector, \
+assemble, inner, nabla_grad, dx, ds, LUSolver, KrylovSolver, sqrt, \
+PointSource, Point, Constant, FacetFunction, Measure
 try:
-    from dolfin import TestFunction, TrialFunction, Function, GenericVector, \
-    assemble, inner, nabla_grad, dx, ds, LUSolver, KrylovSolver, sqrt, \
-    PointSource, Point, Constant, FacetFunction, Measure, MPI, mpi_comm_world
+    from dolfin import MPI, mpi_comm_world
     mycomm = mpi_comm_world()
     myrank = MPI.rank(mycomm)
     mpisize = MPI.size(mycomm)
 except:
-    from dolfin import TestFunction, TrialFunction, Function, GenericVector, \
-    assemble, inner, nabla_grad, dx, ds, LUSolver, KrylovSolver, sqrt, \
-    PointSource, Point, Constant, FacetFunction, Measure
     mycomm = None
     myrank = 0
     mpisize = 1
@@ -133,11 +131,17 @@ class AcousticWave():
         # Medium parameters:
         if parameters_m.has_key('b'):
             setfct(self.b, parameters_m['b'])
+            if np.amin(self.b.vector().array()) < 1e-14:
+                print 'negative value for parameter b'
+                sys.exit(1)
             if self.verbose: print 'assemble K',
             self.K = assemble(self.weak_k)
             if self.verbose: print ' -- K assembled'
         if parameters_m.has_key('a'):
             setfct(self.a, parameters_m['a'])
+            if np.amin(self.a.vector().array()) < 1e-14:
+                print 'negative value for parameter a'
+                sys.exit(1)
             # Mass matrix:
             if self.verbose: print 'assemble M',
             Mfull = assemble(self.weak_m)
@@ -210,22 +214,8 @@ class AcousticWave():
         if self.verbose:    print 'Compute solution -- time {}'.format(tt)
         solout.append([self.u1.vector().array(), tt])
         # Iteration
-        myprint = True
         for nn in xrange(2, self.Nt+1):
             iterate(tt)
-            ####TODO: TMP
-            if np.isnan(self.u2.vector().array()).any() and myprint:
-                print 't={}, f(t)={}'.format(tt, self.ftime(tt))
-                print 'min(rhs)={}, max(rhs)={}'.format(\
-                np.amin(self.rhs.vector().array()), np.amax(self.rhs.vector().array()))
-                print 'min(u0)={}, max(u0)={}'.format(\
-                np.amin(self.u0.vector().array()), np.amax(self.u0.vector().array()))
-                print 'min(u1)={}, max(u1)={}'.format(\
-                np.amin(self.u1.vector().array()), np.amax(self.u1.vector().array()))
-                print 'min(u2)={}, max(u2)={}'.format(\
-                np.amin(self.u2.vector().array()), np.amax(self.u2.vector().array()))
-                myprint = False
-            #### TMP
             # Advance to next time step
             setfct(self.u0, self.u1)
             setfct(self.u1, self.u2)
