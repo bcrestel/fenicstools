@@ -2,7 +2,10 @@ import sys
 from os.path import splitext, isdir
 from shutil import rmtree
 import numpy as np
+import matplotlib
+matplotlib.use('Agg')
 import matplotlib.pyplot as plt
+plt.ioff()
 import dolfin as dl
 dl.set_log_active(False)
 
