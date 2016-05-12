@@ -313,7 +313,7 @@ class ObjectiveAcoustic(LinearOperator):
     #@profile
     def mult(self, abhat, y):
         """
-        mult(self, abhat, y): return y = Hessian * lamhat
+        mult(self, abhat, y): return y = Hessian * abhat
         inputs:
             y, abhat = Function(V).vector()
         """
@@ -463,10 +463,5 @@ class ObjectiveAcoustic(LinearOperator):
     def getmcopyarray(self):    return self.m_bkup.vector().array()
     def getMGarray(self):   return self.MGv.array()
     def getprecond(self):
-        Prec = PETScKrylovSolver("richardson", "amg")
-        Prec.parameters["maximum_iterations"] = 1
-        Prec.parameters["error_on_nonconvergence"] = False
-        Prec.parameters["nonzero_initial_guess"] = False
-        Prec.set_operator(self.regularization.get_precond())
-        return Prec
+        return self.regularization.getprecond()
 

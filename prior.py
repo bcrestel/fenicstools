@@ -3,7 +3,7 @@ import numpy as np
 
 from dolfin import Function, TrialFunction, TestFunction, Vector, \
 assemble, inner, nabla_grad, dx, \
-PETScMatrix, LUSolver
+PETScMatrix, LUSolver, PETScKrylovSolver
 try:
     from dolfin import SLEPcEigenSolver
 except:
@@ -32,8 +32,18 @@ class GaussianPrior():
     @abc.abstractmethod
     def Minvpriordot(self, vect):   return None
        
-    def get_precond(self):
-        return self.precond
+    def getprecond(self):
+        solver = PETScKrylovSolver("richardson", "amg")
+        solver.parameters["maximum_iterations"] = 1
+        solver.parameters["error_on_nonconvergence"] = False
+        solver.parameters["nonzero_initial_guess"] = False
+        """
+        solver = LUSolver("petsc")
+        solver.parameters['reuse_factorization'] = True
+        solver.parameters['symmetric'] = True
+        """
+        solver.set_operator(self.precond)
+        return solver
 
     # Note: this returns global value (in parallel)
     def cost(self, m_in):
