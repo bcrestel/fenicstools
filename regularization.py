@@ -3,6 +3,7 @@ import numpy as np
 
 from dolfin import sqrt, inner, nabla_grad, grad, dx, \
 Function, TestFunction, TrialFunction, assemble, solve, \
+LUSolver, PETScKrylovSolver, \
 Constant, plot, interactive, assign, FunctionSpace
 from miscfenics import isFunction, isVector, setfct
 from prior import LaplacianPrior
@@ -33,11 +34,32 @@ class Tikhonovab():
         pass
 
     def hessianab(self, ahat, bhat):
+        """ ahat, bhat = Vector() """
         setfct(self.MGa, self.rega.hessian(ahat))
         setfct(self.MGb, self.rega.hessian(bhat))
         assign(self.MGab.sub(0), self.MGa)
         assign(self.MGab.sub(1), self.MGb)
         return self.MGvab
+
+    def mult(self, abhat, y):
+        setfct(self.MGab, abhat)
+        ahat, bhat = self.MGab.split(deepcopy=True)
+        out = self.hessianab(ahat.vector(), bhat.vector())
+        y.zero()
+        y.axpy(1.0, out)
+
+    def getprecond(self):
+        solver = PETScKrylovSolver("richardson", "amg")
+        solver.parameters["maximum_iterations"] = 1
+        solver.parameters["error_on_nonconvergence"] = False
+        solver.parameters["nonzero_initial_guess"] = False
+        """
+        solver = LUSolver("petsc")
+        solver.parameters['reuse_factorization'] = True
+        solver.parameters['symmetric'] = True
+        """
+        solver.set_operator(self)
+        return solver
         
 
 
