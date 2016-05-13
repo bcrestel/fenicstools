@@ -11,10 +11,17 @@ class Tikhonovab():
     """ Define Tikhonov regularization for a and b parameters """
 
     def __init__(self, parameters):
-        Vm = parameters['Vm']
+        V = parameters['Vm']
         gamma = parameters['gamma']
         beta = parameters['beta']
-        VV = Vm*Vm
+        m0a, m0b = Function(V), Function(V)
+        if parameters.has_key('m0'):
+            m0 = parameters['m0']
+            setfct(m0a, m0[0])
+            setfct(m0b, m0[1])
+        self.m0av = m0a.vector()
+        self.m0bv = m0b.vector()
+        VV = V*V
         test, trial = TestFunction(VV), TrialFunction(VV)
         K = assemble(inner(nabla_grad(trial), nabla_grad(test))*dx)
         M = assemble(inner(trial, test)*dx)
@@ -23,20 +30,28 @@ class Tikhonovab():
             self.precond = gamma*K + 1e-10*M
         else:
             self.precond = self.R
-        self.a, self.b = Function(Vm), Function(Vm)
+        self.a, self.b = Function(V), Function(V)
         self.ab = Function(VV)
         self.abv = self.ab.vector()
 
     def costab(self, ma_in, mb_in):
         """ ma_in, mb_in = Function(V) """
-        assign(self.ab.sub(0), ma_in)
-        assign(self.ab.sub(1), mb_in)
+        setfct(self.a, ma_in)
+        self.a.vector().axpy(-1.0, self.m0av)
+        setfct(self.b, mb_in)
+        self.b.vector().axpy(-1.0, self.m0bv)
+        assign(self.ab.sub(0), self.a)
+        assign(self.ab.sub(1), self.b)
         return 0.5 * self.abv.inner(self.R * self.abv)
 
     def gradab(self, ma_in, mb_in):
         """ ma_in, mb_in = Function(V) """
-        assign(self.ab.sub(0), ma_in)
-        assign(self.ab.sub(1), mb_in)
+        setfct(self.a, ma_in)
+        self.a.vector().axpy(-1.0, self.m0av)
+        setfct(self.b, mb_in)
+        self.b.vector().axpy(-1.0, self.m0bv)
+        assign(self.ab.sub(0), self.a)
+        assign(self.ab.sub(1), self.b)
         return self.R * self.abv
 
     def assemble_hessian(self, m_in):
@@ -46,7 +61,9 @@ class Tikhonovab():
         """ ahat, bhat = Vector(V) """
         setfct(self.a, ahat)
         setfct(self.b, bhat)
-        return self.gradab(self.a, self.b)
+        assign(self.ab.sub(0), self.a)
+        assign(self.ab.sub(1), self.b)
+        return self.R * self.abv
 
 #    def mult(self, abhat, y):
 #        setfct(self.MGab, abhat)
@@ -74,12 +91,40 @@ class Tikhonovab():
 class crossgradient():
     """ Define cross-gradient joint regularization """
     def __init__(self, parameters):
-        Vm = parameters['Vm']
+        V = parameters['Vm']
+        VV = V*V
+        self.ab = Function(VV)
+        self.abv = self.ab.vector()
+        self.MG = Function(VV)
         # cost
-        self.a, self.b = Function(Vm), Function(Vm)
+        self.a, self.b = Function(V), Function(V)
         self.cost = 0.5*( inner(nabla_grad(self.a), nabla_grad(self.a))*\
         inner(nabla_grad(self.b), nabla_grad(self.b))*dx - \
         inner(nabla_grad(self.a), nabla_grad(self.b))*\
         inner(nabla_grad(self.a), nabla_grad(self.b))*dx )
         # gradient
-        
+        test = TestFunction(V)
+        self.grada = inner( \
+        inner(nabla_grad(self.b), nabla_grad(self.b))*nabla_grad(self.a) - \
+        inner(nabla_grad(self.a), nabla_grad(self.b))*nabla_grad(self.b), \
+        test)*dx
+        self.gradb = inner( \
+        inner(nabla_grad(self.a), nabla_grad(self.a))*nabla_grad(self.b) - \
+        inner(nabla_grad(self.a), nabla_grad(self.b))*nabla_grad(self.a), \
+        test)*dx
+
+    def costab(self, ma_in, mb_in):
+        """ ma_in, mb_in = Function(V) """
+        setfct(self.a, ma_in)
+        setfct(self.b, mb_in)
+        return assemble(self.cost)
+
+    def gradab(self, ma_in, mb_in):
+        """ ma_in, mb_in = Function(V) """
+        setfct(self.a, ma_in)
+        setfct(self.b, mb_in)
+        MGa = assemble(self.grada)
+        MGb = assemble(self.gradb)
+        assign(self.MG.sub(0), MGa)
+        assign(self.MG.sub(1), MGb)
+        return self.MG.vector()
