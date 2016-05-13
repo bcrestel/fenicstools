@@ -17,7 +17,7 @@ dl.set_log_active(False)
 from fenicstools.plotfenics import PlotFenics
 from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
-from fenicstools.regularization import Tikhonovab
+from fenicstools.jointregularization import Tikhonovab
 from parametersinversion import parametersinversion
 
 # parameters
