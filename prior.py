@@ -8,7 +8,7 @@ try:
     from dolfin import SLEPcEigenSolver
 except:
     pass
-from miscfenics import isFunction, isVector
+from miscfenics import isFunction, isVector, setfct
 
 
 class GaussianPrior():
@@ -33,6 +33,7 @@ class GaussianPrior():
     def Minvpriordot(self, vect):   return None
        
     def getprecond(self):
+        """
         solver = PETScKrylovSolver("richardson", "amg")
         solver.parameters["maximum_iterations"] = 1
         solver.parameters["error_on_nonconvergence"] = False
@@ -43,7 +44,6 @@ class GaussianPrior():
         solver.parameters["relative_tolerance"] = 1e-12
         solver.parameters["error_on_nonconvergence"] = True 
         solver.parameters["nonzero_initial_guess"] = False 
-        """
         solver.set_operator(self.precond)
         return solver
 
@@ -95,10 +95,9 @@ class LaplacianPrior(GaussianPrior):
         if self.Parameters.has_key('beta'): self.beta = self.Parameters['beta']
         else:   self.beta = 0.0
         self.Vm = self.Parameters['Vm']
+        self.m0 = Function(self.Vm)
         if self.Parameters.has_key('m0'):   
-            self.m0 = self.Parameters['m0'].copy(deepcopy=True)
-            isFunction(self.m0)
-        else:   self.m0 = Function(self.Vm)
+            setfct(self.m0, self.Parameters['m0'])
         self.mtrial = TrialFunction(self.Vm)
         self.mtest = TestFunction(self.Vm)
         self.mysample = Function(self.Vm)
@@ -108,8 +107,8 @@ class LaplacianPrior(GaussianPrior):
         nabla_grad(self.mtest))*dx)
         self.M = assemble(inner(self.mtrial, self.mtest)*dx)
         # preconditioner is Gamma^{-1}:
-        if self.beta > 1e-14: self.precond = self.gamma*self.R + self.beta*self.M
-        else:   self.precond = self.gamma*self.R + (1e-14)*self.M
+        if self.beta > 1e-10: self.precond = self.gamma*self.R + self.beta*self.M
+        else:   self.precond = self.gamma*self.R + (1e-10)*self.M
         # Minvprior is M.A^2 (if you use M inner-product):
         self.Minvprior = self.gamma*self.R + self.beta*self.M
         # L is used to sample

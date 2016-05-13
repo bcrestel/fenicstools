@@ -19,8 +19,8 @@ class Tikhonovab():
         K = assemble(inner(nabla_grad(trial), nabla_grad(test))*dx)
         M = assemble(inner(trial, test)*dx)
         self.R = gamma*K + beta*M
-        if beta < 1e-14:
-            self.precond = gamma*K + 1e-14*M
+        if beta < 1e-10:
+            self.precond = gamma*K + 1e-10*M
         else:
             self.precond = self.R
         self.a, self.b = Function(Vm), Function(Vm)
@@ -56,15 +56,6 @@ class Tikhonovab():
 #        y.axpy(1.0, out)
 
     def getprecond(self):
-        """
-        # no converge w/o preconditioning
-        solver = PETScKrylovSolver("cg", "none")
-        solver.set_operator(self) 
-        solver.parameters["maximum_iterations"] = 1000
-        solver.parameters["relative_tolerance"] = 1e-10
-        solver.parameters["error_on_nonconvergence"] = True 
-        solver.parameters["nonzero_initial_guess"] = False 
-        "" "
         solver = PETScKrylovSolver("cg", "amg")
         solver.parameters["maximum_iterations"] = 1000
         solver.parameters["relative_tolerance"] = 1e-12
@@ -75,7 +66,20 @@ class Tikhonovab():
         solver.parameters["maximum_iterations"] = 1
         solver.parameters["error_on_nonconvergence"] = False
         solver.parameters["nonzero_initial_guess"] = False
+        """
         solver.set_operator(self.precond)
         return solver
         
 
+class crossgradient():
+    """ Define cross-gradient joint regularization """
+    def __init__(self, parameters):
+        Vm = parameters['Vm']
+        # cost
+        self.a, self.b = Function(Vm), Function(Vm)
+        self.cost = 0.5*( inner(nabla_grad(self.a), nabla_grad(self.a))*\
+        inner(nabla_grad(self.b), nabla_grad(self.b))*dx - \
+        inner(nabla_grad(self.a), nabla_grad(self.b))*\
+        inner(nabla_grad(self.a), nabla_grad(self.b))*dx )
+        # gradient
+        
