@@ -33,7 +33,6 @@ class GaussianPrior():
     def Minvpriordot(self, vect):   return None
        
     def getprecond(self):
-        """
         solver = PETScKrylovSolver("richardson", "amg")
         solver.parameters["maximum_iterations"] = 1
         solver.parameters["error_on_nonconvergence"] = False
@@ -44,6 +43,7 @@ class GaussianPrior():
         solver.parameters["relative_tolerance"] = 1e-12
         solver.parameters["error_on_nonconvergence"] = True 
         solver.parameters["nonzero_initial_guess"] = False 
+        """
         solver.set_operator(self.precond)
         return solver
 

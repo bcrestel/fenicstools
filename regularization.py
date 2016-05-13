@@ -65,12 +65,17 @@ class Tikhonovab():
         solver.parameters["relative_tolerance"] = 1e-10
         solver.parameters["error_on_nonconvergence"] = True 
         solver.parameters["nonzero_initial_guess"] = False 
-        """
+        "" "
         solver = PETScKrylovSolver("cg", "amg")
         solver.parameters["maximum_iterations"] = 1000
         solver.parameters["relative_tolerance"] = 1e-12
         solver.parameters["error_on_nonconvergence"] = True 
         solver.parameters["nonzero_initial_guess"] = False 
+        """
+        solver = PETScKrylovSolver("richardson", "amg")
+        solver.parameters["maximum_iterations"] = 1
+        solver.parameters["error_on_nonconvergence"] = False
+        solver.parameters["nonzero_initial_guess"] = False
         solver.set_operator(self.precond)
         return solver
         
