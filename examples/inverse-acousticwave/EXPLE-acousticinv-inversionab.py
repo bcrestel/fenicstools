@@ -36,7 +36,7 @@ myplot.set_varname('a_target')
 myplot.plot_vtk(a_target_fn)
 
 # define objective function:
-regul = Tikhonovab({'Vm':Vm,'gamma':5e-4,'beta':1e-14})
+regul = Tikhonovab({'Vm':Vm,'gamma':5e-4,'beta':1e-8, 'm0':[1.0,1.0]})
 waveobj = ObjectiveAcoustic(wavepde, 'ab', regul)
 waveobj.obsop = obsop
 
