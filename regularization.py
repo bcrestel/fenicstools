@@ -2,7 +2,7 @@ import sys
 import numpy as np
 
 from dolfin import sqrt, inner, nabla_grad, grad, dx, \
-Function, TestFunction, TrialFunction, assemble, solve
+Function, TestFunction, TrialFunction, assemble, solve, \
 Constant, plot, interactive, assign, FunctionSpace
 from miscfenics import isFunction, isVector, setfct
 
