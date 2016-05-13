@@ -108,7 +108,7 @@ class LaplacianPrior(GaussianPrior):
         nabla_grad(self.mtest))*dx)
         self.M = assemble(inner(self.mtrial, self.mtest)*dx)
         # preconditioner is Gamma^{-1}:
-        if self.beta > 1e-16: self.precond = self.gamma*self.R + self.beta*self.M
+        if self.beta > 1e-14: self.precond = self.gamma*self.R + self.beta*self.M
         else:   self.precond = self.gamma*self.R + (1e-14)*self.M
         # Minvprior is M.A^2 (if you use M inner-product):
         self.Minvprior = self.gamma*self.R + self.beta*self.M
