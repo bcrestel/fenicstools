@@ -323,13 +323,15 @@ class ObjectiveAcoustic(LinearOperator):
             ahat, bhat = self.ab.split(deepcopy=True)
             setfct(self.ahat, ahat)
             setfct(self.bhat, bhat)
+            self.regularization.assemble_hessianab(self.ahat, self.bhat)
         elif self.invparam == 'a':
             setfct(self.ahat, abhat)
             self.bhat.vector().zero()
+            self.regularization.assemble_hessian(abhat)
         elif self.invparam == 'b':
             self.ahat.vector().zero()
             setfct(self.bhat, abhat)
-        self.regularization.assemble_hessian(abhat)
+            self.regularization.assemble_hessian(abhat)
         self.C = assemble(self.wkformrhsincrb)
         self.E = assemble(self.wkformrhsincra)
         #if self.PDE.abc:    self.Dp = assemble(self.wkformDprime)
