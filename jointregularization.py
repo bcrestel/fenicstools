@@ -76,7 +76,7 @@ class Tikhonovab():
     def assemble_hessianab(self, a, b):
         if self.cgparam > 0.0:
             self.cg.assemble_hessianab(a, b)
-            self.precond = self.Rprecond + self.cgparam*self.cg.H
+            self.precond = self.Rprecond + self.cgparam*self.cg.Hdiag
         else:
             pass
 
@@ -152,7 +152,9 @@ class crossgradient():
         wkform22 = inner( nabla_grad(bt), \
         inner(nabla_grad(self.a), nabla_grad(self.a))*nabla_grad(bh) - \
         inner(nabla_grad(self.a), nabla_grad(bh))*nabla_grad(self.a) )*dx
+        #
         self.hessian = wkform11 + wkform21 + wkform12 + wkform22
+        self.precond = wkform11 + wkform22
 
     def costab(self, ma_in, mb_in):
         """ ma_in, mb_in = Function(V) """
@@ -170,6 +172,7 @@ class crossgradient():
         setfct(self.a, a)
         setfct(self.b, b)
         self.H = assemble(self.hessian)
+        self.Hdiag = assemble(self.precond)
 
     def hessianab(self, ahat, bhat):
         """ ahat, bhat = Vector(V) """
