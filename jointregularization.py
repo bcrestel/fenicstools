@@ -69,7 +69,7 @@ class Tikhonovab():
         assign(self.ab.sub(1), self.b)
         grad = self.R * self.abv
         if self.cgparam > 0.0:
-            grad.axpy(self.cgparam, self.cg.gradab(ma_in, mb_in)
+            grad.axpy(self.cgparam, self.cg.gradab(ma_in, mb_in))
         return grad
 
     def assemble_hessianab(self, a, b):
@@ -86,7 +86,7 @@ class Tikhonovab():
         assign(self.ab.sub(1), self.b)
         Hx = self.R * self.abv
         if self.cgparam > 0.0:
-            Hx.axpy(self.cgparam, self.cg.hessianab(ahat, bhat)
+            Hx.axpy(self.cgparam, self.cg.hessianab(ahat, bhat))
         return Hx
 
     def getprecond(self):
