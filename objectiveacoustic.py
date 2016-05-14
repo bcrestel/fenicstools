@@ -42,6 +42,7 @@ class ObjectiveAcoustic(LinearOperator):
             self.m_bkup = Function(self.PDE.Vm*self.PDE.Vm)
             self.backup_m = self.backup_ab
             self.restore_m = self.restore_ab
+            self.assemble_hessian = self.assemble_hessianab
         else:
             self.MG = Function(self.PDE.Vm)
             self.MGv = self.MG.vector()
@@ -55,12 +56,14 @@ class ObjectiveAcoustic(LinearOperator):
                 self.update_m = self.update_a
                 self.backup_m = self.backup_a
                 self.restore_m = self.restore_a
+                self.assemble_hessian = self.assemble_hessiana
             elif self.invparam == 'b':
                 self.Ha, self.Hb = Constant(0.0), Constant(1.0)
                 self.get_costreg = self.get_costreg_b
                 self.update_m = self.update_b
                 self.backup_m = self.backup_b
                 self.restore_m = self.restore_b
+                self.assemble_hessian = self.assemble_hessianb
         LinearOperator.__init__(self, self.MGv, self.MGv)
         # regularization
         if regularization == None:  
@@ -323,15 +326,12 @@ class ObjectiveAcoustic(LinearOperator):
             ahat, bhat = self.ab.split(deepcopy=True)
             setfct(self.ahat, ahat)
             setfct(self.bhat, bhat)
-            self.regularization.assemble_hessianab(self.ahat, self.bhat)
         elif self.invparam == 'a':
             setfct(self.ahat, abhat)
             self.bhat.vector().zero()
-            self.regularization.assemble_hessian(abhat)
         elif self.invparam == 'b':
             self.ahat.vector().zero()
             setfct(self.bhat, abhat)
-            self.regularization.assemble_hessian(abhat)
         self.C = assemble(self.wkformrhsincrb)
         self.E = assemble(self.wkformrhsincra)
         #if self.PDE.abc:    self.Dp = assemble(self.wkformDprime)
@@ -459,6 +459,13 @@ class ObjectiveAcoustic(LinearOperator):
         self.update_PDE({'b':self.m_bkup})
 
     def setsrcterm(self, ftime):    self.PDE.ftime = ftime
+
+    def assemble_hessianab(self):
+        self.regularization.assemble_hessianab(self.PDE.a, self.PDE.b)
+    def assemble_hessiana(self): 
+        self.regularization.assemble_hessian(self.PDE.a)
+    def assemble_hessianb(self): 
+        self.regularization.assemble_hessian(self.PDE.b)
 
 
     # GETTERS:

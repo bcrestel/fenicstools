@@ -75,6 +75,10 @@ class Tikhonovab():
     def assemble_hessianab(self, a, b):
         if self.cgparam > 0.0:
             self.cg.assemble_hessianab(a, b)
+            if beta < 1e-10:
+                self.precond = gamma*K + 1e-10*M + self.cgparam*self.cg.H
+            else:
+                self.precond = self.R + self.cgparam*self.cg.H
         else:
             pass
 

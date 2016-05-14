@@ -260,6 +260,7 @@ def compute_searchdirection(objfctal, keyword, tolcg = 1e-8):
     if keyword == 'sd':
         objfctal.setsrchdir(-1.0*objfctal.getGradarray())
     elif keyword == 'Newt':
+        objfctal.assemble_hessian()
         # Define solver
         solver = CGSolverSteihaug()
         solver.set_operator(objfctal)
