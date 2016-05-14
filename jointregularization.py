@@ -35,9 +35,10 @@ class Tikhonovab():
         M = assemble(inner(trial, test)*dx)
         self.R = gamma*K + beta*M
         if beta < 1e-10:
-            self.precond = gamma*K + 1e-10*M
+            self.Rprecond = gamma*K + 1e-10*M
         else:
-            self.precond = self.R
+            self.Rprecond = self.R
+        self.precond = self.Rprecond
         self.a, self.b = Function(V), Function(V)
         self.ab = Function(VV)
         self.abv = self.ab.vector()
@@ -75,10 +76,7 @@ class Tikhonovab():
     def assemble_hessianab(self, a, b):
         if self.cgparam > 0.0:
             self.cg.assemble_hessianab(a, b)
-            if beta < 1e-10:
-                self.precond = gamma*K + 1e-10*M + self.cgparam*self.cg.H
-            else:
-                self.precond = self.R + self.cgparam*self.cg.H
+            self.precond = self.Rprecond + self.cgparam*self.cg.H
         else:
             pass
 
