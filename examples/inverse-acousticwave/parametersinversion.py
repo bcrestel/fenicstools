@@ -15,7 +15,7 @@ def parametersinversion():
     V = dl.FunctionSpace(mesh, 'Lagrange', r)
     Dt = 1.0e-3
     checkdt(Dt, 1./Nxy, r, np.sqrt(2.0), False)
-    t0, t1, t2, tf = 0.0, 0.5, 2.5, 3.00
+    t0, t1, t2, tf = 0.0, 0.5, 2.5, 3.0
 
     # source:
     Ricker = RickerWavelet(1.0, 1e-10)
