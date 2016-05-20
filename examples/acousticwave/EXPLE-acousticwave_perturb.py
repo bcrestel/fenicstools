@@ -1,5 +1,5 @@
 """
-Forward problem close to inverse problem sitation. Homogeneous medium with
+Forward problem close to inverse problem situation. Homogeneous medium with
 perturbation in the middle. Neumann boundary conditions all around.
 """
 
@@ -63,7 +63,7 @@ if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 Wave = AcousticWave({'V':V, 'Vm':Vl})
 #Wave.verbose = True
 Wave.timestepper = 'backward'
-Wave.lump = True
+#Wave.lump = True
 #Wave.set_abc(mesh, AllFour(), True)
 lambda_target = Expression('1.0 + 3.0*(' \
 '(x[0]>=0.3)*(x[0]<=0.7)*(x[1]>=0.3)*(x[1]<=0.7))') 
