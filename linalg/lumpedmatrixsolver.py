@@ -26,8 +26,8 @@ class LumpedMatrixSolver(dl.GenericLinearSolver):
 
     def solve(self, x, b):
         """ solve(self, x, b) solves Ax = b """
-        x[:] = 0.0
-        x.axpy(1.0, self.invMdiag * b)
+        x.zero()
+        x.axpy(1.0, self.invMdiag * b)  # entry-wise product
 
 
     def __mul__(self, bvector):
@@ -90,8 +90,8 @@ class LumpedMatrixSolverS(dl.GenericLinearSolver):
 
     def solve(self, x, b):
         """ solve(self, x, b) solves Ax = b """
-        x[:] = 0.0
-        x.axpy(1.0, self.invMdiag * b)
+        x.zero()
+        x.axpy(1.0, self.invMdiag * b)  # entry-wise product
 
 
     def __mul__(self, bvector):
