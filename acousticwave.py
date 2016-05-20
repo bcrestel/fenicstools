@@ -157,7 +157,6 @@ class AcousticWave():
                 else:
                     self.solverM = KrylovSolver('cg', 'amg')
                     self.solverM.parameters['report'] = False
-                self.M = Mfull
                 if not self.bc == None: self.bc.apply(Mfull)
                 self.solverM.set_operator(Mfull)
             if self.verbose: print ' -- M assembled'
@@ -183,6 +182,7 @@ class AcousticWave():
     #@profile
     def solve(self):
         """ General solver method """
+        # Set time-stepper:
         if self.timestepper == 'backward':
             def iterate(tt):  self.iteration_backward(tt)
         elif self.timestepper == 'centered':
@@ -190,6 +190,12 @@ class AcousticWave():
         else:
             print "Time stepper not implemented"
             sys.exit(1)
+
+        # Set boundary conditions:
+        if self.bc == None:
+            self.applybc = self.applybcNone
+        else:
+            self.applybc = self.applybcD
 
         if self.verbose:    print 'Compute solution'
         solout = [] # Store computed solution
@@ -205,7 +211,7 @@ class AcousticWave():
             setfct(self.rhs, self.ftime(tt))
             self.rhs.vector().axpy(-self.fwdadj, self.D*self.utinit.vector())
             self.rhs.vector().axpy(-1.0, self.K*self.u0.vector())
-            if not self.bc == None: self.bc.apply(self.rhs.vector())
+            self.applybc(self.rhs.vector())
             self.solverM.solve(self.sol.vector(), self.rhs.vector())
             setfct(self.u1, self.u0)
             self.u1.vector().axpy(self.fwdadj*self.Dt, self.utinit.vector())
@@ -214,16 +220,35 @@ class AcousticWave():
         if self.verbose:    print 'Compute solution -- time {}'.format(tt)
         solout.append([self.u1.vector().array(), tt])
         # Iteration
+        self.ptru0 = self.u0    # ptru* = 'pointers' to the u*'s
+        self.ptru1 = self.u1
+        self.ptru2 = self.u2
+        config = 1
         for nn in xrange(2, self.Nt+1):
             iterate(tt)
             # Advance to next time step
-            setfct(self.u0, self.u1)
-            setfct(self.u1, self.u2)
+            if config == 1:
+                self.ptru0 = self.u1
+                self.ptru1 = self.u2
+                self.ptru2 = self.u0
+                config = 2
+            elif config == 2:
+                self.ptru0 = self.u2
+                self.ptru1 = self.u0
+                self.ptru2 = self.u1
+                config = 3
+            else:
+                self.ptru0 = self.u0
+                self.ptru1 = self.u1
+                self.ptru2 = self.u2
+                config = 1
+            #setfct(self.u0, self.u1)
+            #setfct(self.u1, self.u2)
             tt = self.get_tt(nn)
             if self.verbose:    
                 print 'Compute solution -- time {}, rhs {}'.\
                 format(tt, np.max(np.abs(self.ftime(tt))))
-            solout.append([self.u1.vector().array(),tt])
+            solout.append([self.ptru1.vector().array(),tt])
         if self.fwdadj > 0.0:   
             assert isequal(tt, self.Tf, 1e-16), \
             'tt={}, Tf={}, reldiff={}'.format(tt, self.Tf, abs(tt-self.Tf)/self.Tf)
@@ -234,21 +259,31 @@ class AcousticWave():
 
     def iteration_centered(self, tt):
         setfct(self.rhs, (self.Dt**2)*self.ftime(tt))
-        self.rhs.vector().axpy(-1.0, self.MminD*self.u0.vector())
-        self.rhs.vector().axpy(2.0, self.M*self.u1.vector())
-        self.rhs.vector().axpy(-self.Dt**2, self.K*self.u1.vector())
-        if not self.bc == None: self.bc.apply(self.rhs.vector())
-        self.solverMplD.solve(self.u2.vector(), self.rhs.vector())
+        self.rhs.vector().axpy(-1.0, self.MminD*self.ptru0.vector())
+        self.rhs.vector().axpy(2.0, self.M*self.ptru1.vector())
+        self.rhs.vector().axpy(-self.Dt**2, self.K*self.ptru1.vector())
+        self.applybc(self.rhs.vector())
+        self.solverMplD.solve(self.ptru2.vector(), self.rhs.vector())
 
+    #@profile
     def iteration_backward(self, tt):
+        #TODO: reformulate sources to return vector (not np.array)
         setfct(self.rhs, self.Dt*self.ftime(tt))
-        self.rhs.vector().axpy(-self.Dt, self.K*self.u1.vector())
-        self.rhs.vector().axpy(-1.0, self.D*(self.u1.vector()-self.u0.vector()))
-        if not self.bc == None: self.bc.apply(self.rhs.vector())
+        self.rhs.vector().axpy(-self.Dt, self.K*self.ptru1.vector())
+        self.rhs.vector().axpy(-1.0, self.D*(self.ptru1.vector()-self.ptru0.vector()))
+        self.applybc(self.rhs.vector())
         self.solverM.solve(self.sol.vector(), self.rhs.vector())
-        setfct(self.u2, 2.0*self.u1.vector())
-        self.u2.vector().axpy(-1.0, self.u0.vector())
-        self.u2.vector().axpy(self.Dt, self.sol.vector())
+        self.ptru2.vector().zero()
+        self.ptru2.vector().axpy(2.0, self.ptru1.vector())
+        self.ptru2.vector().axpy(-1.0, self.ptru0.vector())
+        self.ptru2.vector().axpy(self.Dt, self.sol.vector())
+
+
+    def applybcNone(self, vect):
+        pass
+
+    def applybcD(self, vect):
+        self.bc.apply(vect)
 
 
     def computeerror(self): 
@@ -256,8 +291,7 @@ class AcousticWave():
 
     def computerelativeerror(self):
         if not self.exact == None:
-            #MM = assemble(inner(self.trial, self.test)*dx)
-            MM = self.M
+            MM = assemble(inner(self.trial, self.test)*dx)
             norm_ex = np.sqrt(\
             (MM*self.exact.vector()).inner(self.exact.vector()))
             diff = self.exact.vector() - self.u1.vector()
@@ -267,7 +301,7 @@ class AcousticWave():
 
     def computeabserror(self):
         if not self.exact == None:
-            MM = self.M
+            MM = assemble(inner(self.trial, self.test)*dx)
             diff = self.exact.vector() - self.u1.vector()
             return np.sqrt((MM*diff).inner(diff))
         else:   return []
