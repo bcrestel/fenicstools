@@ -9,15 +9,15 @@ TODO list
 
     - DENOISING:
 * Implement primal-dual solver for TV regularization => look at Noemi work;
-create separate class for primal-dual (cleaner)
+* create separate class for primal-dual (cleaner)
 
 
     - ACOUSTIC:
-* implement joint inversion
-* implement ABC in joint inversion
+* Convert source term to vectors (from np.array) and also observation operator
+* Check code run in parallel
+* Write test pb for high(er) frequency
+* implement ABC/PML in joint inversion (?)
 * implement misfit with blurring kernel
-* PML
-* profile + improve gradient and Hessian computation steps
 * GLL integration points in Fenics
 * Look at dolfin-adjoint
 * Code C++ version of fwd and adj pbs (?)
