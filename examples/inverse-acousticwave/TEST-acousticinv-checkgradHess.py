@@ -45,9 +45,16 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     # source:
     Ricker = RickerWavelet(fpeak, 1e-10)
     Pt = PointSources(V, [[0.5,0.5]])
-    mydelta = Pt[0].array()
+    mydelta = Pt[0]
+    src = dl.Function(V)
+    srcv = src.vector()
     def mysrc(tt):
-        return Ricker(tt)*mydelta
+        srcv.zero()
+        srcv.axpy(Ricker(tt), mydelta)
+        return srcv
+#    mydelta = Pt[0].array()
+#    def mysrc(tt):
+#        return Ricker(tt)*mydelta
     # target medium:
     lambda_target = dl.Expression(\
     'lmin + (lmax-lmin)*(x[0]<=0.7)*(x[0]>=0.3)*(x[1]<=0.7)*(x[1]>=0.3)', \
@@ -186,9 +193,16 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip, param):
     # source:
     Ricker = RickerWavelet(fpeak, 1e-10)
     Pt = PointSources(V, [[0.5,1.0]])
-    mydelta = Pt[0].array()
+    mydelta = Pt[0]
+    src = Function(V)
+    srcv = src.vector()
     def mysrc(tt):
-        return Ricker(tt)*mydelta
+        srcv.zero()
+        srcv.axpy(Ricker(tt), mydelta)
+        return srcv
+#%    mydelta = Pt[0].array()
+#%    def mysrc(tt):
+#%        return Ricker(tt)*mydelta
     # target medium:
     lambda_target = dl.Expression(\
     'lmin + (lmax-lmin)*(x[0]<=0.7)*(x[0]>=0.3)*(x[1]<=0.7)*(x[1]>=0.3)', \

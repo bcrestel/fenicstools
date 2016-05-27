@@ -269,7 +269,6 @@ class AcousticWave():
 
     #@profile
     def iteration_backward(self, tt):
-        #TODO: reformulate sources to return vector (not np.array)
         self.rhs.vector().zero()
         self.rhs.vector().axpy(self.Dt, self.ftime(tt))
         #setfct(self.rhs, self.Dt*self.ftime(tt))
