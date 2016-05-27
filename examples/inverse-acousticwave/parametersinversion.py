@@ -20,9 +20,13 @@ def parametersinversion():
     # source:
     Ricker = RickerWavelet(1.0, 1e-10)
     Pt = PointSources(V, [[0.5,1.0]])
-    mydelta = Pt[0].array()
+    mydelta = Pt[0]
+    src = dl.Function(V)
+    srcv = src.vector()
     def mysrc(tt):
-        return Ricker(tt)*mydelta
+        srcv.zero()
+        srcv.axpy(Ricker(tt), mydelta)
+        return srcv
 
     # target medium:
     b_target = dl.Expression(\

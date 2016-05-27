@@ -153,6 +153,7 @@ class ObjectiveAcoustic(LinearOperator):
 
 
     # FORWARD PROBLEM + COST:
+    #@profile
     def solvefwd(self, cost=False):
         self.PDE.set_fwd()
         self.PDE.ftime = self.fwdsource

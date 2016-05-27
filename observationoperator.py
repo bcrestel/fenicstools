@@ -314,7 +314,6 @@ class TimeObsPtwise():
 
     def obs(self, uin):
         """ return result from pointwise observation w/o time-filtering """
-        isFunction(uin)
         return  self.PtwiseObs.Bdot(uin)
 
     def costfct(self, uin, udin, times):
@@ -366,7 +365,6 @@ class TimeObsPtwise():
         self.PtwiseObs.BTdotvec(dd, self.outvec)
         if not self.bcadj == None:  self.bcadj.apply(self.outvec.vector())
         return self.outvec*(-1.0*self.st(tt))
-        #return -1.0*self.st(tt)*self.outvec.array()
 
     #@profile
     def incradj(self, uhat, tt):
