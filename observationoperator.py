@@ -365,7 +365,8 @@ class TimeObsPtwise():
         dd = self.diff[:, index]
         self.PtwiseObs.BTdotvec(dd, self.outvec)
         if not self.bcadj == None:  self.bcadj.apply(self.outvec.vector())
-        return -1.0*self.st(tt)*self.outvec.array()
+        return self.outvec*(-1.0*self.st(tt))
+        #return -1.0*self.st(tt)*self.outvec.array()
 
     #@profile
     def incradj(self, uhat, tt):

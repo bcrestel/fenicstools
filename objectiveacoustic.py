@@ -278,7 +278,8 @@ class ObjectiveAcoustic(LinearOperator):
 #                setfct(self.p, \
 #                self.solfwd[index+1][0] - self.solfwd[index-1][0])
 #                self.v.vector().axpy(.5*self.invDt, self.Dp*self.p.vector())
-        return -1.0*self.q.vector().array()
+        return -1.0*self.q.vector()
+        #return -1.0*self.q.vector().array()
 
     #@profile
     def ftimeincradj(self, tt):
@@ -311,7 +312,8 @@ class ObjectiveAcoustic(LinearOperator):
 #                setfct(self.v, \
 #                self.soladj[indexa-1][0] - self.soladj[indexa+1][0])
 #                self.vhat.vector().axpy(-.5*self.invDt, self.Dp*self.v.vector())
-        return -1.0*self.qhat.vector().array()
+        return -1.0*self.qhat.vector()
+        #return -1.0*self.qhat.vector().array()
         
     #@profile
     def mult(self, abhat, y):
