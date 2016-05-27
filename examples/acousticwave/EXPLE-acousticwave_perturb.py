@@ -55,9 +55,13 @@ Ricker = RickerWavelet(fpeak, 1e-10)
 
 V = FunctionSpace(mesh, 'Lagrange', r)
 Pt = PointSources(V, [[.5,1.]])
-mydelta = Pt[0].array()
+mydelta = Pt[0]
+src = Function(V)
+srcv = src.vector()
 def mysrc(tt):
-    return Ricker(tt)*mydelta
+    srcv.zero()
+    srcv.axpy(Ricker(tt), mydelta)
+    return srcv
 # Computation:
 if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 Wave = AcousticWave({'V':V, 'Vm':Vl})

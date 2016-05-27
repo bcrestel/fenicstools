@@ -220,35 +220,33 @@ class AcousticWave():
         if self.verbose:    print 'Compute solution -- time {}'.format(tt)
         solout.append([self.u1.vector().array(), tt])
         # Iteration
-        self.ptru0 = self.u0    # ptru* = 'pointers' to the u*'s
-        self.ptru1 = self.u1
-        self.ptru2 = self.u2
+        self.ptru0v = self.u0.vector()    # ptru* = 'pointers' to the u*'s
+        self.ptru1v = self.u1.vector()
+        self.ptru2v = self.u2.vector()
         config = 1
         for nn in xrange(2, self.Nt+1):
             iterate(tt)
             # Advance to next time step
             if config == 1:
-                self.ptru0 = self.u1
-                self.ptru1 = self.u2
-                self.ptru2 = self.u0
+                self.ptru0v = self.u1.vector()
+                self.ptru1v = self.u2.vector()
+                self.ptru2v = self.u0.vector()
                 config = 2
             elif config == 2:
-                self.ptru0 = self.u2
-                self.ptru1 = self.u0
-                self.ptru2 = self.u1
+                self.ptru0v = self.u2.vector()
+                self.ptru1v = self.u0.vector()
+                self.ptru2v = self.u1.vector()
                 config = 3
             else:
-                self.ptru0 = self.u0
-                self.ptru1 = self.u1
-                self.ptru2 = self.u2
+                self.ptru0v = self.u0.vector()
+                self.ptru1v = self.u1.vector()
+                self.ptru2v = self.u2.vector()
                 config = 1
-            #setfct(self.u0, self.u1)
-            #setfct(self.u1, self.u2)
             tt = self.get_tt(nn)
             if self.verbose:    
                 print 'Compute solution -- time {}, rhs {}'.\
                 format(tt, np.max(np.abs(self.ftime(tt))))
-            solout.append([self.ptru1.vector().array(),tt])
+            solout.append([self.ptru1v.array(),tt])
         if self.fwdadj > 0.0:   
             assert isequal(tt, self.Tf, 1e-16), \
             'tt={}, Tf={}, reldiff={}'.format(tt, self.Tf, abs(tt-self.Tf)/self.Tf)
@@ -257,26 +255,32 @@ class AcousticWave():
             'tt={}, t0={}, reldiff={}'.format(tt, self.t0, abs(tt-self.t0))
         return solout, self.computeerror()
 
+    #TODO: may need routine using array source for adjoint solve (can't save vector
+    #w/o killing performance)
     def iteration_centered(self, tt):
-        setfct(self.rhs, (self.Dt**2)*self.ftime(tt))
-        self.rhs.vector().axpy(-1.0, self.MminD*self.ptru0.vector())
-        self.rhs.vector().axpy(2.0, self.M*self.ptru1.vector())
-        self.rhs.vector().axpy(-self.Dt**2, self.K*self.ptru1.vector())
+        self.rhs.vector().zero()
+        self.rhs.vector().axpy(self.Dt*self.Dt, self.ftime(tt))
+        #setfct(self.rhs, (self.Dt**2)*self.ftime(tt))
+        self.rhs.vector().axpy(-1.0, self.MminD*self.ptru0v)
+        self.rhs.vector().axpy(2.0, self.M*self.ptru1v)
+        self.rhs.vector().axpy(-self.Dt**2, self.K*self.ptru1v)
         self.applybc(self.rhs.vector())
-        self.solverMplD.solve(self.ptru2.vector(), self.rhs.vector())
+        self.solverMplD.solve(self.ptru2v, self.rhs.vector())
 
     #@profile
     def iteration_backward(self, tt):
         #TODO: reformulate sources to return vector (not np.array)
-        setfct(self.rhs, self.Dt*self.ftime(tt))
-        self.rhs.vector().axpy(-self.Dt, self.K*self.ptru1.vector())
-        self.rhs.vector().axpy(-1.0, self.D*(self.ptru1.vector()-self.ptru0.vector()))
+        self.rhs.vector().zero()
+        self.rhs.vector().axpy(self.Dt, self.ftime(tt))
+        #setfct(self.rhs, self.Dt*self.ftime(tt))
+        self.rhs.vector().axpy(-self.Dt, self.K*self.ptru1v)
+        self.rhs.vector().axpy(-1.0, self.D*(self.ptru1v-self.ptru0v))
         self.applybc(self.rhs.vector())
         self.solverM.solve(self.sol.vector(), self.rhs.vector())
-        self.ptru2.vector().zero()
-        self.ptru2.vector().axpy(2.0, self.ptru1.vector())
-        self.ptru2.vector().axpy(-1.0, self.ptru0.vector())
-        self.ptru2.vector().axpy(self.Dt, self.sol.vector())
+        self.ptru2v.zero()
+        self.ptru2v.axpy(2.0, self.ptru1v)
+        self.ptru2v.axpy(-1.0, self.ptru0v)
+        self.ptru2v.axpy(self.Dt, self.sol.vector())
 
 
     def applybcNone(self, vect):
