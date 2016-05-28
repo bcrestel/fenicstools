@@ -58,7 +58,7 @@ class LumpedMatrixSolverS(dl.GenericLinearSolver):
         # Lump matrix:
         self.Mdiag[:] = get_diagonal(M)
         self.ratio = self.one.inner(M*self.one) / self.one.inner(self.Mdiag)
-        self.Mdiag = self.ratio * self.Mdiag
+        self.Mdiag = self.Mdiag * self.ratio
         if invMdiag:
             assert self.Mdiag.array().min() > 0., self.Mdiag.array().min()
         if not bc == None:
@@ -148,3 +148,15 @@ class LumpedMassMatrixPrime():
             outarr[ii] = self.ratioM*(u.inner(mp*v))
         self.gradMv[:] = outarr
         return self.gradMv
+
+
+class LumpedMassPreconditioner(dl.PETScUserPreconditioner):
+    """ Define matrix-free preconditioner for mass matrix inversion based on
+    lumped mass matrix """
+
+    def __init__(self, V, M, bc):
+        self.solverMlumped = LumpedMatrixSolver(V)
+        self.solveRMlumped.set_operator(M, bc)
+
+    def solve(self, x, b):
+        self.solverMlumped.solver(x, b)

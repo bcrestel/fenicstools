@@ -15,7 +15,7 @@ except:
     mpisize = 1
 
 from miscfenics import isFunction, isVector, setfct
-from linalg.lumpedmatrixsolver import LumpedMatrixSolverS
+from linalg.lumpedmatrixsolver import LumpedMatrixSolverS, LumpedMassPreconditioner
 
 
 class AcousticWave():
@@ -155,6 +155,11 @@ class AcousticWave():
                     self.solverM.parameters['symmetric'] = True
                     self.solverM.parameters['reuse_factorization'] = True
                 else:
+                    # matrix-free preconditioner
+                    #solverMl = LumpedMassPreconditioner(self.V, Mfull, self.bc)
+                    #self.solverM = PETScKrylovSolver('cg', solverMl)
+                    # petsc preconditioner
+                    #self.solverM = PETScKrylovSolver('cg', 'none')
                     self.solverM = PETScKrylovSolver('cg', 'hypre_amg')
                     self.solverM.parameters['report'] = False
                     self.solverM.parameters['nonzero_initial_guess'] = True
@@ -213,6 +218,7 @@ class AcousticWave():
             self.rhs.vector().axpy(-self.fwdadj, self.D*self.utinit.vector())
             self.rhs.vector().axpy(-1.0, self.K*self.u0.vector())
             self.applybc(self.rhs.vector())
+            self.sol.vector().zero()
             self.solverM.solve(self.sol.vector(), self.rhs.vector())
             setfct(self.u1, self.u0)
             self.u1.vector().axpy(self.fwdadj*self.Dt, self.utinit.vector())
