@@ -3,16 +3,15 @@ import numpy as np
 from miscfenics import isequal
 
 from dolfin import TestFunction, TrialFunction, Function, GenericVector, \
-assemble, inner, nabla_grad, dx, ds, LUSolver, KrylovSolver, sqrt, \
+assemble, inner, nabla_grad, dx, ds, sqrt, \
+PETScLUSolver, PETScKrylovSolver, \
 PointSource, Point, Constant, FacetFunction, Measure
 try:
     from dolfin import MPI, mpi_comm_world
     mycomm = mpi_comm_world()
-    myrank = MPI.rank(mycomm)
     mpisize = MPI.size(mycomm)
 except:
     mycomm = None
-    myrank = 0
     mpisize = 1
 
 from miscfenics import isFunction, isVector, setfct
@@ -150,13 +149,15 @@ class AcousticWave():
                 self.solverM.set_operator(Mfull, self.bc)
                 self.M = self.solverM
             else:
+                # LU Solver consumes much more memory but is faster (in serial)
                 if mpisize == 1:
-                    self.solverM = LUSolver("petsc")
-                    self.solverM.parameters['reuse_factorization'] = True
+                    self.solverM = PETScLUSolver("petsc")
                     self.solverM.parameters['symmetric'] = True
+                    self.solverM.parameters['reuse_factorization'] = True
                 else:
-                    self.solverM = KrylovSolver('cg', 'amg')
+                    self.solverM = PETScKrylovSolver('cg', 'hypre_amg')
                     self.solverM.parameters['report'] = False
+                    self.solverM.parameters['nonzero_initial_guess'] = True
                 if not self.bc == None: self.bc.apply(Mfull)
                 self.solverM.set_operator(Mfull)
             if self.verbose: print ' -- M assembled'
@@ -179,7 +180,7 @@ class AcousticWave():
         else:   self.D = 0.0
 
 
-    #@profile
+    @profile
     def solve(self):
         """ General solver method """
         # Set time-stepper:
