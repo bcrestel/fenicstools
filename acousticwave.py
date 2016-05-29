@@ -185,7 +185,7 @@ class AcousticWave():
         else:   self.D = 0.0
 
 
-    @profile
+    #@profile
     def solve(self):
         """ General solver method """
         # Set time-stepper:
@@ -262,8 +262,6 @@ class AcousticWave():
             'tt={}, t0={}, reldiff={}'.format(tt, self.t0, abs(tt-self.t0))
         return solout, self.computeerror()
 
-    #TODO: may need routine using array source for adjoint solve (can't save vector
-    #w/o killing performance)
     def iteration_centered(self, tt):
         self.rhs.vector().zero()
         self.rhs.vector().axpy(self.Dt*self.Dt, self.ftime(tt))

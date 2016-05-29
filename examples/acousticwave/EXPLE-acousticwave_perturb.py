@@ -29,8 +29,8 @@ else:
 fpeak = 4.0 # 4Hz => up to 10Hz in input signal
 Nxy = 100
 Dt = 5e-4   #Dt = h/(r*alpha*c_max)
-tf = 1.0
-mytf = TimeFilter([0.0,0.2,0.8,tf])
+tf = 2.0
+mytf = TimeFilter([0.0,0.2,tf-0.2,tf])
 
 #fpeak = .4 # 4Hz => up to 10Hz in input signal
 #Nxy = 10
@@ -65,7 +65,7 @@ if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 Wave = AcousticWave({'V':V, 'Vm':Vl})
 #Wave.verbose = True
 Wave.timestepper = 'backward'
-#Wave.lump = True
+Wave.lump = True
 #Wave.set_abc(mesh, AllFour(), True)
 lambda_target = Expression('1.0 + 3.0*(' \
 '(x[0]>=0.3)*(x[0]<=0.7)*(x[1]>=0.3)*(x[1]<=0.7))') 

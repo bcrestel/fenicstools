@@ -13,7 +13,7 @@ TODO list
 
 
     - ACOUSTIC:
-* Convert source term to vectors (from np.array) and also observation operator
+* Use lumped mass matrix for inversion
 * Check code run in parallel
 * Write test pb for high(er) frequency
 * implement ABC/PML in joint inversion (?)
