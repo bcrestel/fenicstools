@@ -4,6 +4,11 @@ import numpy as np
 from miscroutines import get_diagonal
 from fenicstools.miscfenics import setfct
 
+import petsc4py, sys
+petsc4py.init(sys.argv)
+from petsc4py import PETSc
+
+
 class LumpedMatrixSolver(dl.GenericLinearSolver):
     """ Lump matrix by row-sum technique """
 
@@ -16,6 +21,7 @@ class LumpedMatrixSolver(dl.GenericLinearSolver):
 
     def set_operator(self, M, bc=None):
         """ set_operator(self, M) sets M as the operator """
+
         self.Mdiag = M * self.one
         assert self.Mdiag.array().min() > 0., self.Mdiag.array().min()
         if not bc == None:
@@ -26,6 +32,7 @@ class LumpedMatrixSolver(dl.GenericLinearSolver):
 
     def solve(self, x, b):
         """ solve(self, x, b) solves Ax = b """
+
         x.zero()
         x.axpy(1.0, self.invMdiag * b)  # entry-wise product
 
@@ -34,6 +41,7 @@ class LumpedMatrixSolver(dl.GenericLinearSolver):
         """ overload * operator for MatVec product
         inputs:
             bvector must be a Fenics Vector """
+
         return self.Mdiag * bvector
 
 
@@ -42,8 +50,10 @@ class LumpedMatrixSolverS(dl.GenericLinearSolver):
     """ Lump matrix by special lumping technique, i.e.,
     scaling diagonal to preserve total mass """
 
+
     def __init__(self, V):
         """ V = FunctionSpace for the matrix """
+
         u = dl.Function(V)
         u.assign(dl.Constant('1.0'))
         self.one = u.vector()
@@ -55,8 +65,10 @@ class LumpedMatrixSolverS(dl.GenericLinearSolver):
     def set_operator(self, M, bc=None, invMdiag=True):
         """ set_operator(self, M, bc, invMdiag) sets M with boundary conditions
         bc as the operator """
+
         # Lump matrix:
-        self.Mdiag[:] = get_diagonal(M)
+        self.Mdiag.zero()
+        self.Mdiag.axpy(1.0, get_diagonal(M))
         self.ratio = self.one.inner(M*self.one) / self.one.inner(self.Mdiag)
         self.Mdiag = self.Mdiag * self.ratio
         if invMdiag:
@@ -70,8 +82,10 @@ class LumpedMatrixSolverS(dl.GenericLinearSolver):
     def set_operators(self, M, D, coeff, bc=None):
         """ set_operator(self, M, bc, D, coeff) sets M + coeff*D as the operator;
         bc only applies to M """
+
         # Lump matrix M:
-        self.Mdiag[:] = get_diagonal(M)
+        self.Mdiag.zero()
+        self.Mdiag.axpy(1.0, get_diagonal(M))
         self.ratio = self.one.inner(M*self.one) / self.one.inner(self.Mdiag)
         self.Mdiag = self.ratio * self.Mdiag
         assert self.Mdiag.array().min() > 0., self.Mdiag.array().min()
@@ -79,7 +93,8 @@ class LumpedMatrixSolverS(dl.GenericLinearSolver):
             indexbc = bc.get_boundary_values().keys()
             self.Mdiag[indexbc] = 1.0
         # Lump matrix D:
-        self.Mdiag2[:] = get_diagonal(D)
+        self.Mdiag2.zero()
+        self.Mdiag2.axpy(1.0, get_diagonal(D))
         self.ratio2 = self.one.inner(D*self.one) / self.one.inner(self.Mdiag2)
         self.Mdiag2 = self.ratio2 * self.Mdiag2
         # Assemble M+coeff*D:
@@ -90,6 +105,7 @@ class LumpedMatrixSolverS(dl.GenericLinearSolver):
 
     def solve(self, x, b):
         """ solve(self, x, b) solves Ax = b """
+
         x.zero()
         x.axpy(1.0, self.invMdiag * b)  # entry-wise product
 
@@ -98,7 +114,10 @@ class LumpedMatrixSolverS(dl.GenericLinearSolver):
         """ overload * operator for MatVec product
         inputs:
             bvector must be a Fenics Vector """
+
         return self.Mdiag * bvector
+
+
 
 class LumpedMassMatrixPrime():
     """ Assemble tensor for the derivative of a lumped weighted mass matrix wrt
@@ -107,47 +126,45 @@ class LumpedMassMatrixPrime():
     we consider a lumping by diagonal scaling, i.e., corresponding to Lumped MatrixSolverS
     we consider the derivative wrt parameter rho """
 
-    #@profile
     def __init__(self, Vr, Vphi, ratioM=None):
         """ Vr = FunctionSpace for weight-parameter in mass matrix
         Vphi = FunctionSpace for test and trial functions in mass matrix
         ratioM = ratio used for the lumping of mass matrix """
+
+        # prepare weak form
         test, trial = dl.TestFunction(Vphi), dl.TrialFunction(Vphi)
-        gradM = dl.Function(Vr)
-        self.gradMv = gradM.vector()
         rho = dl.Function(Vr)
         self.ratioM = ratioM
         wkform = dl.inner(rho*test, trial)*dl.dx
-        diagM = dl.Function(Vphi)
-        self.Mprime = []
         M = dl.assemble(wkform)
+        # assemble PETSc version of Mprime
+        MprimePETSc = PETSc.Mat()
+        MprimePETSc.create(PETSc.COMM_WORLD)
+        MprimePETSc.setSizes([Vr.dim(), Vphi.dim()])
+        MprimePETSc.setType('aij') # sparse
+        MprimePETSc.setPreallocationNNZ(30)
+        MprimePETSc.setUp()
         for ii in xrange(Vr.dim()):
             rho.vector().zero()
             rho.vector()[ii] = 1.0
             dl.assemble(wkform, tensor=M)
-            #M = dl.assemble(wkform)
-            #dM = get_diagonal(M)
-            #setfct(diagM, dM)
-            setfct(diagM, get_diagonal(M))
-            self.Mprime.append(diagM.vector().copy())
+            diagM = get_diagonal(M).array()
+            cols = np.where(diagM > 1e-20)[0]
+            for cc, val in zip(cols, diagM[cols]):  MprimePETSc[ii,cc] = val
+        MprimePETSc.assemblyBegin()
+        MprimePETSc.assemblyEnd()
+        self.Mprime = dl.PETScMatrix(MprimePETSc)
 
     def updater(self, ratioM):  self.ratioM = ratioM
 
-    #@profile
     def get_gradient(self, u, v):
         """ compute gradient of the expression u^T.M.v with respect to weight-parameter
         rho in weighted-mass matrix 
             u, v = Vectors """
-        self.gradMv.zero()
-        outarr = np.zeros(len(self.gradMv))
-        for ii, mp in enumerate(self.Mprime):
-#            mpv = mp*v
-#            umpv = u.inner(mpv)
-#            out = self.ratioM*umpv
-#            outarr[ii] = out
-            outarr[ii] = self.ratioM*(u.inner(mp*v))
-        self.gradMv[:] = outarr
-        return self.gradMv
+
+        uv = u*v
+        return (self.Mprime * uv) * self.ratioM
+
 
 
 class LumpedMassPreconditioner(dl.PETScUserPreconditioner):
