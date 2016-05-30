@@ -13,7 +13,7 @@ TODO list
 
 
     - ACOUSTIC:
-* Use lumped mass matrix for inversion
+* separate cases a, b, ab in inversion code (save memory)
 * Check code run in parallel
 * Write test pb for high(er) frequency
 * implement ABC/PML in joint inversion (?)

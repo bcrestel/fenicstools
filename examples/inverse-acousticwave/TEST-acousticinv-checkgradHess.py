@@ -88,7 +88,7 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     # define pde operator:
     wavepde = AcousticWave({'V':V, 'Vm':Vl})
     wavepde.timestepper = 'backward'
-    #wavepde.lump = True    # not checked
+    wavepde.lump = True
     #wavepde.set_abc(mesh, LeftRight(), True)   # not implemented
     wavepde.update({'b':lambda_target_fn, 'a':rho_target_fn, \
     't0':tfilterpts[0], 'tf':tfilterpts[-1], 'Dt':Dt, 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
@@ -157,7 +157,7 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     print 'check b-Hessian with FD'
     checkhessfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'b')
     """
-    print 'check gradient with FD'
+    #print 'check gradient with FD'
     Medium = np.zeros((5, 2*Vl.dim()))
     tmp = dl.Function(Vl*Vl)
     for ii in range(5):
@@ -166,7 +166,7 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
         dl.assign(tmp.sub(0), smoothperturb_fn)
         dl.assign(tmp.sub(1), smoothperturb_fn)
         Medium[ii,:] = tmp.vector().array()
-    checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
+    #checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
     print 'check Hessian with FD'
     checkhessabfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'all')
 
