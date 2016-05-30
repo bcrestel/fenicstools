@@ -71,33 +71,30 @@ class ObjectiveAcoustic(LinearOperator):
             self.regularization = ZeroRegularization()
         else:   self.regularization = regularization
         self.alpha_reg = 1.0
-        # gradient a
-        self.mtest, self.mtrial = TestFunction(self.PDE.Vm), TrialFunction(self.PDE.Vm)
+        # gradient and Hessian
         self.p, self.q = Function(self.PDE.V), Function(self.PDE.V)
+        self.phat, self.qhat = Function(self.PDE.V), Function(self.PDE.V)
+        self.ahat, self.bhat = Function(self.PDE.Vm), Function(self.PDE.Vm)
+        self.ptrial, self.ptest = TrialFunction(self.PDE.V), TestFunction(self.PDE.V)
+        self.mtest, self.mtrial = TestFunction(self.PDE.Vm), TrialFunction(self.PDE.Vm)
         self.ppprhs = Function(self.PDE.V)
         self.ptmp = Function(self.PDE.V)
         if self.PDE.lump:
             #TODO: complete Hessian + finish gradient for case a, b, and ab.
-            print 'should not use lumped mass matrix for now'
-            sys.exit(1)
             self.Mprime = LumpedMassMatrixPrime(self.PDE.Vm, self.PDE.V, self.PDE.M.ratio)
             self.get_gradienta = self.get_gradienta_lumped
+            self.get_hessiana = self.get_hessiana_lumped
+            self.get_incra = self.get_incra_lumped
         else:
             self.wkformgrada = inner(self.Ha*self.mtest*self.p, self.q)*dx
             self.get_gradienta = self.get_gradienta_full
-        # gradient b
+            self.wkformhessa = inner(self.phat*self.mtest, self.q)*dx \
+            + inner(self.p*self.mtest, self.qhat)*dx
+            self.get_hessiana = self.get_hessiana_full
+            self.wkformrhsincra = inner(self.Ha*self.ahat*self.ptrial, self.ptest)*dx
+            self.get_incra = self.get_incra_full
         self.wkformgradb = inner(self.Hb*self.mtest*nabla_grad(self.p), nabla_grad(self.q))*dx
-        # incremental rhs a
-        self.ahat, self.bhat = Function(self.PDE.Vm), Function(self.PDE.Vm)
-        self.ptrial, self.ptest = TrialFunction(self.PDE.V), TestFunction(self.PDE.V)
-        self.wkformrhsincra = inner(self.Ha*self.ahat*self.ptrial, self.ptest)*dx
-        # incremental rhs b
         self.wkformrhsincrb = inner(self.Hb*self.bhat*nabla_grad(self.ptrial), nabla_grad(self.ptest))*dx
-        # Hessian a
-        self.phat, self.qhat = Function(self.PDE.V), Function(self.PDE.V)
-        self.wkformhessa = inner(self.phat*self.mtest, self.q)*dx \
-        + inner(self.p*self.mtest, self.qhat)*dx
-        # Hessian b
         self.wkformhessb = inner(nabla_grad(self.phat)*self.mtest, nabla_grad(self.q))*dx \
         + inner(nabla_grad(self.p)*self.mtest, nabla_grad(self.qhat))*dx
         # Mass matrix:
@@ -273,14 +270,13 @@ class ObjectiveAcoustic(LinearOperator):
         self.p.vector().axpy(-0.5, self.ptmp.vector())
         setfct(self.ptmp, solfwdp[index][0])
         self.p.vector().axpy(-0.5, self.ptmp.vector())
-        self.q.vector().axpy(-2.0*self.invDt*self.invDt, self.E*self.p.vector())
+        self.q.vector().axpy(-2.0*self.invDt*self.invDt, self.get_incra(self.p.vector()))
         # D'.dot(p)
 #        if self.PDE.abc and index > 0:
 #                setfct(self.p, \
 #                self.solfwd[index+1][0] - self.solfwd[index-1][0])
 #                self.v.vector().axpy(.5*self.invDt, self.Dp*self.p.vector())
         return -1.0*self.q.vector()
-        #return -1.0*self.q.vector().array()
 
     #@profile
     def ftimeincradj(self, tt):
@@ -303,7 +299,7 @@ class ObjectiveAcoustic(LinearOperator):
         self.q.vector().axpy(-0.5, self.ptmp.vector())
         setfct(self.ptmp, soladjp[indexa][0])
         self.q.vector().axpy(-0.5, self.ptmp.vector())
-        self.qhat.vector().axpy(-2.0*self.invDt*self.invDt, self.E*self.q.vector())
+        self.qhat.vector().axpy(-2.0*self.invDt*self.invDt, self.get_incra(self.q.vector()))
         # B* B phat
         assert isequal(tt, self.solincrfwd[indexf][1], 1e-16)
         setfct(self.phat, self.solincrfwd[indexf][0])
@@ -314,7 +310,6 @@ class ObjectiveAcoustic(LinearOperator):
 #                self.soladj[indexa-1][0] - self.soladj[indexa+1][0])
 #                self.vhat.vector().axpy(-.5*self.invDt, self.Dp*self.v.vector())
         return -1.0*self.qhat.vector()
-        #return -1.0*self.qhat.vector().array()
         
     #@profile
     def mult(self, abhat, y):
@@ -336,7 +331,7 @@ class ObjectiveAcoustic(LinearOperator):
             self.ahat.vector().zero()
             setfct(self.bhat, abhat)
         self.C = assemble(self.wkformrhsincrb)
-        self.E = assemble(self.wkformrhsincra)
+        if not self.PDE.lump:   self.E = assemble(self.wkformrhsincra)
         #if self.PDE.abc:    self.Dp = assemble(self.wkformDprime)
         # solve for phat
         self.PDE.set_fwd()
@@ -386,7 +381,7 @@ class ObjectiveAcoustic(LinearOperator):
             scalingdiff = -2.0*self.invDt*self.invDt
             setfct(self.p, self.p.vector()*scalingdiff)
             setfct(self.phat, self.phat.vector()*scalingdiff)
-            ya.axpy(fact, assemble(self.wkformhessa))
+            ya.axpy(fact, self.get_hessiana())
 #            if self.PDE.abc:
 #                if index%2 == 0:
 #                    self.p2D.vector().axpy(1.0, self.p.vector())
@@ -422,6 +417,18 @@ class ObjectiveAcoustic(LinearOperator):
             y.axpy(1.0, yb)
             # add regularization term
             y.axpy(self.alpha_reg, self.regularization.hessian(abhat))
+
+    def get_hessiana_full(self):
+        return assemble(self.wkformhessa)
+    def get_hessiana_lumped(self):
+        return self.Mprime.get_gradient(self.phat.vector(), self.q.vector()) +\
+        self.Mprime.get_gradient(self.p.vector(), self.qhat.vector())
+
+    def get_incra_full(self, pvector):
+        return self.E*pvector
+    def get_incra_lumped(self, pvector):
+        return self.Mprime.get_incremental(self.ahat.vector(), pvector)
+
 
 
     # SETTERS + UPDATE:

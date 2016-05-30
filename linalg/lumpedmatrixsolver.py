@@ -122,31 +122,33 @@ class LumpedMatrixSolverS(dl.GenericLinearSolver):
 class LumpedMassMatrixPrime():
     """ Assemble tensor for the derivative of a lumped weighted mass matrix wrt
     to the weight parameter 
-    mass matrix is \int rho phi_i phi_j dx.
+    mass matrix is \int alpha phi_i phi_j dx.
     we consider a lumping by diagonal scaling, i.e., corresponding to Lumped MatrixSolverS
-    we consider the derivative wrt parameter rho """
+    we consider the derivative wrt parameter alpha """
 
-    def __init__(self, Vr, Vphi, ratioM=None):
-        """ Vr = FunctionSpace for weight-parameter in mass matrix
+    def __init__(self, Va, Vphi, ratioM=None):
+        """ Va = FunctionSpace for weight-parameter in mass matrix
         Vphi = FunctionSpace for test and trial functions in mass matrix
         ratioM = ratio used for the lumping of mass matrix """
 
+        u = dl.Function(Vphi)
+        self.uvector = u.vector()
         # prepare weak form
         test, trial = dl.TestFunction(Vphi), dl.TrialFunction(Vphi)
-        rho = dl.Function(Vr)
+        alpha = dl.Function(Va)
         self.ratioM = ratioM
-        wkform = dl.inner(rho*test, trial)*dl.dx
+        wkform = dl.inner(alpha*test, trial)*dl.dx
         M = dl.assemble(wkform)
         # assemble PETSc version of Mprime
         MprimePETSc = PETSc.Mat()
         MprimePETSc.create(PETSc.COMM_WORLD)
-        MprimePETSc.setSizes([Vr.dim(), Vphi.dim()])
+        MprimePETSc.setSizes([Va.dim(), Vphi.dim()])
         MprimePETSc.setType('aij') # sparse
         MprimePETSc.setPreallocationNNZ(30)
         MprimePETSc.setUp()
-        for ii in xrange(Vr.dim()):
-            rho.vector().zero()
-            rho.vector()[ii] = 1.0
+        for ii in xrange(Va.dim()):
+            alpha.vector().zero()
+            alpha.vector()[ii] = 1.0
             dl.assemble(wkform, tensor=M)
             diagM = get_diagonal(M).array()
             cols = np.where(diagM > 1e-20)[0]
@@ -159,11 +161,18 @@ class LumpedMassMatrixPrime():
 
     def get_gradient(self, u, v):
         """ compute gradient of the expression u^T.M.v with respect to weight-parameter
-        rho in weighted-mass matrix 
+        alpha in weighted-mass matrix 
             u, v = Vectors """
 
         uv = u*v
         return (self.Mprime * uv) * self.ratioM
+
+    def get_incremental(self, ahat, u):
+        """ Compute term on rhs of incremental equations
+        ahat and u are vectors """
+
+        self.Mprime.transpmult(ahat, self.uvector)
+        return (self.uvector * u) * self.ratioM
 
 
 
