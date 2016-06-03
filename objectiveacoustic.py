@@ -23,8 +23,6 @@ class ObjectiveAcoustic(LinearOperator):
         self.PDE.exact = None
         self.fwdsource = self.PDE.ftime
         # functions for gradient
-        self.MGab = Function(self.PDE.Vm*self.PDE.Vm)
-        self.MGabv = self.MGab.vector()
         self.ab = Function(self.PDE.Vm*self.PDE.Vm)
         self.obsop = None   # Observation operator
         self.dd = None  # observations
@@ -32,8 +30,8 @@ class ObjectiveAcoustic(LinearOperator):
         self.invparam = invparam
         if self.invparam == 'ab':
             self.Ha, self.Hb = Constant(1.0), Constant(1.0)
-            self.MG = self.MGab
-            self.MGv = self.MGabv
+            self.MG = Function(self.PDE.Vm*self.PDE.Vm)
+            self.MGv = self.MG.vector()
             self.Grad = Function(self.PDE.Vm*self.PDE.Vm)
             self.srchdir = Function(self.PDE.Vm*self.PDE.Vm)
             self.delta_m = Function(self.PDE.Vm*self.PDE.Vm)
@@ -80,20 +78,19 @@ class ObjectiveAcoustic(LinearOperator):
         self.ppprhs = Function(self.PDE.V)
         self.ptmp = Function(self.PDE.V)
         if self.PDE.lump:
-            #TODO: complete Hessian + finish gradient for case a, b, and ab.
             self.Mprime = LumpedMassMatrixPrime(self.PDE.Vm, self.PDE.V, self.PDE.M.ratio)
             self.get_gradienta = self.get_gradienta_lumped
             self.get_hessiana = self.get_hessiana_lumped
             self.get_incra = self.get_incra_lumped
         else:
-            self.wkformgrada = inner(self.Ha*self.mtest*self.p, self.q)*dx
+            self.wkformgrada = inner(self.mtest*self.p, self.q)*dx
             self.get_gradienta = self.get_gradienta_full
             self.wkformhessa = inner(self.phat*self.mtest, self.q)*dx \
             + inner(self.p*self.mtest, self.qhat)*dx
             self.get_hessiana = self.get_hessiana_full
             self.wkformrhsincra = inner(self.Ha*self.ahat*self.ptrial, self.ptest)*dx
             self.get_incra = self.get_incra_full
-        self.wkformgradb = inner(self.Hb*self.mtest*nabla_grad(self.p), nabla_grad(self.q))*dx
+        self.wkformgradb = inner(self.mtest*nabla_grad(self.p), nabla_grad(self.q))*dx
         self.wkformrhsincrb = inner(self.Hb*self.bhat*nabla_grad(self.ptrial), nabla_grad(self.ptest))*dx
         self.wkformhessb = inner(nabla_grad(self.phat)*self.mtest, nabla_grad(self.q))*dx \
         + inner(nabla_grad(self.p)*self.mtest, nabla_grad(self.qhat))*dx
@@ -116,7 +113,7 @@ class ObjectiveAcoustic(LinearOperator):
         self.factors *= self.PDE.Dt
         self.invDt = 1./self.PDE.Dt
         # Absorbing BCs
-        #TODO: not implemented yet
+        #TODO: ABCs not implemented yet for joint inversion
 #        if self.PDE.abc:
 #            if self.PDE.lumpD:
 #                print '*** Warning: Damping matrix D is lumped. ',\
@@ -181,35 +178,52 @@ class ObjectiveAcoustic(LinearOperator):
         self.PDE.ftime = self.obsop.ftimeadj
         self.soladj,_ = self.PDE.solve()
         if grad:
-            # split gradient parts a and b
-            self.MGabv.zero()
-            MGa, MGb = self.MGab.split(deepcopy=True)
-            MGav, MGbv = MGa.vector(), MGb.vector()
+            if self.invparam == 'ab':
+                # split gradient parts a and b
+                self.MGv.zero()
+                MGa, MGb = self.MG.split(deepcopy=True)
+                MGav, MGbv = MGa.vector(), MGb.vector()
+                # loop over time
+                for fwd, adj, fact, fwdm, fwdp in \
+                zip(self.solfwd, reversed(self.soladj), self.factors,\
+                [[np.zeros(self.PDE.V.dim()), -self.PDE.Dt]]+self.solfwd[:-1], \
+                self.solfwd[1:]+[[np.zeros(self.PDE.V.dim()), self.PDE.times[-1]+self.PDE.Dt]]):
+                    self.gradient_componentb(fact, fwd, adj, MGbv)
+                    self.gradient_componenta(fact, fwdm, fwdp, adj, MGav)
+                # add regularization
+                assign(self.MG.sub(0), MGa)
+                assign(self.MG.sub(1), MGb)
+                self.MGv.axpy(self.alpha_reg, \
+                self.regularization.gradab(self.PDE.a, self.PDE.b))
+            else:
+                if self.invparam == 'a':
+                    self.MGv.zero()
+                    MGav = self.MGv
+                    # loop over time
+                    for fwd, adj, fact, fwdm, fwdp in \
+                    zip(self.solfwd, reversed(self.soladj), self.factors,\
+                    [[np.zeros(self.PDE.V.dim()), -self.PDE.Dt]]+self.solfwd[:-1], \
+                    self.solfwd[1:]+[[np.zeros(self.PDE.V.dim()), self.PDE.times[-1]+self.PDE.Dt]]):
+                        setfct(self.p, fwd[0])
+                        setfct(self.q, adj[0])
+                        self.gradient_componenta(fact, fwdm, fwdp, adj, MGav)
+                    # add regularization
+                    MGav.axpy(self.alpha_reg, self.regularization.grad(self.PDE.a))
+                elif self.invparam == 'b':
+                    self.MGv.zero()
+                    MGbv = self.MGv
+                    # loop over time
+                    for fwd, adj, fact in \
+                    zip(self.solfwd, reversed(self.soladj), self.factors):
+                        self.gradient_componentb(fact, fwd, adj, MGbv)
+                    # add regularization
+                    MGbv.axpy(self.alpha_reg, self.regularization.grad(self.PDE.b))
+            # compute Grad
+            self.solverM.solve(self.Grad.vector(), self.MGv)
 #            if self.PDE.abc:
 #                self.vD.vector().zero(); self.pD.vector().zero();
 #                self.p1D.vector().zero(); self.p2D.vector().zero();
-            index = 0
-            for fwd, adj, fact, fwdm, fwdp in \
-            zip(self.solfwd, reversed(self.soladj), self.factors,\
-            #[[self.solfwd[1][0], -self.PDE.Dt]]+self.solfwd[:-1], \ #less accurate
-            [[np.zeros(self.PDE.V.dim()), -self.PDE.Dt]]+self.solfwd[:-1], \
-            self.solfwd[1:]+[[np.zeros(self.PDE.V.dim()), self.PDE.times[-1]+self.PDE.Dt]]):
-                ttf, tta = fwd[1], adj[1]
-                assert isequal(ttf, tta, 1e-16), \
-                'tfwd={}, tadj={}, reldiff={}'.format(ttf, tta, abs(ttf-tta)/ttf)
-                setfct(self.p, fwd[0])
-                setfct(self.q, adj[0])
-                MGbv.axpy(fact, assemble(self.wkformgradb))
-                ttfm, ttfp = fwdm[1], fwdp[1]
-                assert isequal(ttfm+self.PDE.Dt, tta, 1e-15), 'a={}, b={}, err={}'.\
-                format(ttfm+self.PDE.Dt, tta, np.abs(ttfm+self.PDE.Dt-tta)/tta)
-                assert isequal(ttfp-self.PDE.Dt, tta, 1e-15), 'a={}, b={}, err={}'.\
-                format(ttfp-self.PDE.Dt, tta, np.abs(ttfp-self.PDE.Dt-tta)/tta)
-                setfct(self.ptmp, fwdm[0])
-                self.p.vector().axpy(-0.5, self.ptmp.vector())
-                setfct(self.ptmp, fwdp[0])
-                self.p.vector().axpy(-0.5, self.ptmp.vector())
-                MGav.axpy(-2.0*self.invDt*self.invDt*fact, self.get_gradienta()) 
+#            index = 0
 #                if self.PDE.abc:
 #                    if index%2 == 0:
 #                        self.p2D.vector().axpy(1.0, self.p.vector())
@@ -223,26 +237,29 @@ class ObjectiveAcoustic(LinearOperator):
 #                        self.MGv.axpy(fact*0.5*self.invDt, assemble(self.wkformgradD))
 #                        setfct(self.p1D, -1.0*self.p.vector())
 #                        setfct(self.vD, self.v)
-                index += 1
-            if self.invparam == 'ab':
-                # add regularization
-                assign(self.MGab.sub(0), MGa)
-                assign(self.MGab.sub(1), MGb)
-                self.MGabv.axpy(self.alpha_reg, \
-                self.regularization.gradab(self.PDE.a, self.PDE.b))
-            else:
-                if self.invparam == 'a':
-                    # add regularization
-                    MGav.axpy(self.alpha_reg, self.regularization.grad(self.PDE.a))
-                    setfct(self.MG, MGav)
-                elif self.invparam == 'b':
-                    # add regularization
-                    MGbv.axpy(self.alpha_reg, self.regularization.grad(self.PDE.b))
-                    setfct(self.MG, MGbv)
-            # compute Grad
-            self.solverM.solve(self.Grad.vector(), self.MGv)
+#                index += 1
 
     def solveadj_constructgrad(self):   self.solveadj(True)
+
+    def gradient_componentb(self, fact, fwd, adj, MGbv):
+        ttf, tta = fwd[1], adj[1]
+        assert isequal(ttf, tta, 1e-16), \
+        'tfwd={}, tadj={}, reldiff={}'.format(ttf, tta, abs(ttf-tta)/ttf)
+        setfct(self.p, fwd[0])
+        setfct(self.q, adj[0])
+        MGbv.axpy(fact, assemble(self.wkformgradb))
+    def gradient_componenta(self, fact, fwdm, fwdp, adj, MGav):
+        tta = adj[1]
+        ttfm, ttfp = fwdm[1], fwdp[1]
+        assert isequal(ttfm+self.PDE.Dt, tta, 1e-15), 'a={}, b={}, err={}'.\
+        format(ttfm+self.PDE.Dt, tta, np.abs(ttfm+self.PDE.Dt-tta)/tta)
+        assert isequal(ttfp-self.PDE.Dt, tta, 1e-15), 'a={}, b={}, err={}'.\
+        format(ttfp-self.PDE.Dt, tta, np.abs(ttfp-self.PDE.Dt-tta)/tta)
+        setfct(self.ptmp, fwdm[0])
+        self.p.vector().axpy(-0.5, self.ptmp.vector())
+        setfct(self.ptmp, fwdp[0])
+        self.p.vector().axpy(-0.5, self.ptmp.vector())
+        MGav.axpy(-2.0*self.invDt*self.invDt*fact, self.get_gradienta()) 
 
     def get_gradienta_lumped(self):
         return self.Mprime.get_gradient(self.p.vector(), self.q.vector())
