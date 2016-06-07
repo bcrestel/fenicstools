@@ -75,11 +75,6 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     myplot.set_varname('lambdarho_init')
     myplot.plot_vtk(lambda_init_fn)
     # observation operator:
-    #obspts = [[0.2, 0.5], [0.5, 0.2], [0.5, 0.8], [0.8, 0.5]]
-#    obspts = [[0.2, ii/10.] for ii in range(2,9)] + \
-#    [[0.8, ii/10.] for ii in range(2,9)] + \
-#    [[ii/10., 0.2] for ii in range(3,8)] + \
-#    [[ii/10., 0.8] for ii in range(3,8)]
     obspts = [[0.0, ii/10.] for ii in range(1,10)] + \
     [[1.0, ii/10.] for ii in range(1,10)] + \
     [[ii/10., 0.0] for ii in range(1,10)] + \
@@ -125,15 +120,12 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     fig.savefig(filename + '/observations.eps')
     print 'compute gradient'
     waveobj.solveadj_constructgrad()
-    #waveobj.mult(waveobj.MGv, waveobj.delta_m.vector())  #TODO: for profiling purpose only
-    #sys.exit(0) #TODO: stop here for profiling
     myplot.plot_timeseries(waveobj.soladj, 'v', 0, skip, fctV)
     Grada,Gradb = waveobj.Grad.split(deepcopy=True)
     myplot.set_varname('grada')
     myplot.plot_vtk(Grada)
     myplot.set_varname('gradb')
     myplot.plot_vtk(Gradb)
-    """
     print 'check a-gradient with FD'
     Medium = np.zeros((5, 2*Vl.dim()))
     tmp = dl.Function(Vl*Vl)
@@ -144,7 +136,7 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
         Medium[ii,:] = tmp.vector().array()
     checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
     print 'check a-Hessian with FD'
-    checkhessfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'a')
+    checkhessabfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'a')
     print 'check b-gradient with FD'
     Medium = np.zeros((5, 2*Vl.dim()))
     tmp = dl.Function(Vl*Vl)
@@ -155,20 +147,21 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
         Medium[ii,:] = tmp.vector().array()
     checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
     print 'check b-Hessian with FD'
-    checkhessfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'b')
+    checkhessabfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'b')
     """
     #print 'check gradient with FD'
     Medium = np.zeros((5, 2*Vl.dim()))
     tmp = dl.Function(Vl*Vl)
-    for ii in range(5):
+    for ii in range(Medium.shape[0]):
         smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
         smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
         dl.assign(tmp.sub(0), smoothperturb_fn)
         dl.assign(tmp.sub(1), smoothperturb_fn)
         Medium[ii,:] = tmp.vector().array()
-    #checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
+    checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
     print 'check Hessian with FD'
     checkhessabfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'all')
+    """
 
 def run_testa(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip, 'a')
@@ -194,7 +187,7 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip, param):
     Ricker = RickerWavelet(fpeak, 1e-10)
     Pt = PointSources(V, [[0.5,1.0]])
     mydelta = Pt[0]
-    src = Function(V)
+    src = dl.Function(V)
     srcv = src.vector()
     def mysrc(tt):
         srcv.zero()
@@ -222,11 +215,6 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip, param):
     myplot.set_varname('lambdarho_init')
     myplot.plot_vtk(init_fn)
     # observation operator:
-    #obspts = [[0.2, 0.5], [0.5, 0.2], [0.5, 0.8], [0.8, 0.5]]
-#    obspts = [[0.2, ii/10.] for ii in range(2,9)] + \
-#    [[0.8, ii/10.] for ii in range(2,9)] + \
-#    [[ii/10., 0.2] for ii in range(3,8)] + \
-#    [[ii/10., 0.8] for ii in range(3,8)]
     obspts = [[0.0, ii/10.] for ii in range(1,10)] + \
     [[1.0, ii/10.] for ii in range(1,10)] + \
     [[ii/10., 0.0] for ii in range(1,10)] + \
@@ -235,7 +223,7 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip, param):
     # define pde operator:
     wavepde = AcousticWave({'V':V, 'Vm':Vl})
     wavepde.timestepper = 'backward'
-    #wavepde.lump = True    # not checked
+    wavepde.lump = True
     #wavepde.set_abc(mesh, LeftRight(), True)   # not implemented
     wavepde.update({'b':lambda_target_fn, 'a':rho_target_fn, \
     't0':tfilterpts[0], 'tf':tfilterpts[-1], 'Dt':Dt, 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
@@ -272,14 +260,12 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip, param):
     fig.savefig(filename + '/observations.eps')
     print 'compute gradient'
     waveobj.solveadj_constructgrad()
-    #waveobj.mult(waveobj.MGv, waveobj.delta_m.vector())  #TODO: for profiling purpose only
-    #sys.exit(0) #TODO: stop here for profiling
     myplot.plot_timeseries(waveobj.soladj, 'v', 0, skip, fctV)
     myplot.set_varname('grad')
     myplot.plot_vtk(waveobj.Grad)
     print 'check gradient with FD'
     Medium = np.zeros((5, Vl.dim()))
-    for ii in range(5):
+    for ii in range(Medium.shape[0]):
         smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
         smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
         Medium[ii,:] = smoothperturb_fn.vector().array()
