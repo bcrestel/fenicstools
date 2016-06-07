@@ -39,6 +39,7 @@ class ObjectiveAcoustic(LinearOperator):
             self.m_bkup = Function(self.PDE.Vm*self.PDE.Vm)
             self.backup_m = self.backup_ab
             self.restore_m = self.restore_ab
+            self.assemble_hessian = self.assemble_hessianab
             self.ftimeincrfwda = self.ftimeincrfwd_componenta
             self.ftimeincrfwdb = self.ftimeincrfwd_componentb
             self.ftimeincradja = self.ftimeincradj_componenta
@@ -57,6 +58,7 @@ class ObjectiveAcoustic(LinearOperator):
                 self.update_m = self.update_a
                 self.backup_m = self.backup_a
                 self.restore_m = self.restore_a
+                self.assemble_hessian = self.assemble_hessiana
                 self.ftimeincrfwda = self.ftimeincrfwd_componenta
                 self.ftimeincrfwdb = self.ftimepass
                 self.ftimeincradja = self.ftimeincradj_componenta
@@ -68,6 +70,7 @@ class ObjectiveAcoustic(LinearOperator):
                 self.update_m = self.update_b
                 self.backup_m = self.backup_b
                 self.restore_m = self.restore_b
+                self.assemble_hessian = self.assemble_hessianb
                 self.ftimeincrfwda = self.ftimeincrfwd_componentapass
                 self.ftimeincrfwdb = self.ftimeincrfwd_componentb
                 self.ftimeincradja = self.ftimeincradj_componentapass
@@ -526,6 +529,15 @@ class ObjectiveAcoustic(LinearOperator):
         self.update_PDE({'b':self.m_bkup})
 
     def setsrcterm(self, ftime):    self.PDE.ftime = ftime
+
+
+    def assemble_hessianab(self):
+        self.regularization.assemble_hessianab(self.PDE.a, self.PDE.b)
+    def assemble_hessiana(self): 
+        self.regularization.assemble_hessian(self.PDE.a)
+    def assemble_hessianb(self): 
+        self.regularization.assemble_hessian(self.PDE.b)
+
 
     # GETTERS:
     def getmcopyarray(self):    return self.m_bkup.vector().array()
