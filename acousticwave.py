@@ -11,10 +11,9 @@ try:
     mycomm = mpi_comm_world()
     mpisize = MPI.size(mycomm)
 except:
-    mycomm = None
     mpisize = 1
 
-from miscfenics import isFunction, isVector, setfct
+from miscfenics import setfct
 from linalg.lumpedmatrixsolver import LumpedMatrixSolverS, LumpedMassPreconditioner
 
 
@@ -265,7 +264,6 @@ class AcousticWave():
     def iteration_centered(self, tt):
         self.rhs.vector().zero()
         self.rhs.vector().axpy(self.Dt*self.Dt, self.ftime(tt))
-        #setfct(self.rhs, (self.Dt**2)*self.ftime(tt))
         self.rhs.vector().axpy(-1.0, self.MminD*self.ptru0v)
         self.rhs.vector().axpy(2.0, self.M*self.ptru1v)
         self.rhs.vector().axpy(-self.Dt**2, self.K*self.ptru1v)
@@ -276,7 +274,6 @@ class AcousticWave():
     def iteration_backward(self, tt):
         self.rhs.vector().zero()
         self.rhs.vector().axpy(self.Dt, self.ftime(tt))
-        #setfct(self.rhs, self.Dt*self.ftime(tt))
         self.rhs.vector().axpy(-self.Dt, self.K*self.ptru1v)
         self.rhs.vector().axpy(-1.0, self.D*(self.ptru1v-self.ptru0v))
         self.applybc(self.rhs.vector())

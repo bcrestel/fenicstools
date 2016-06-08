@@ -4,6 +4,15 @@ from os.path import isdir
 from dolfin import File
 from exceptionsfenics import *
 from miscfenics import setfct
+try:
+    from dolfin import MPI, mpi_comm_world
+    mycomm = mpi_comm_world()
+    myrank = MPI.rank(mycomm)
+    mpisize = MPI.size(mycomm)
+except:
+    myrank = 0
+    mpisize = 1
+
 
 class PlotFenics:
     """
@@ -13,8 +22,11 @@ class PlotFenics:
 
     # Instantiation
     def __init__(self, Outputfolder=None):
-        self.outdir = Outputfolder
-        self.set_outdir(self.outdir)
+        self.set_outdir(Outputfolder)
+        if mpisize == 1:
+            self.extensionvtu = 'vtu'
+        else:
+            self.extensionvtu = 'pvtu'
         self.indices = []
         self.varname = []
 
@@ -24,7 +36,8 @@ class PlotFenics:
         else:   new_dir = new_dir_in
         if not new_dir[-1] == '/':  new_dir += '/'
         self.outdir = new_dir
-        if not isdir(new_dir):  os.makedirs(new_dir)
+        if myrank == 0:
+            if not isdir(new_dir):  os.makedirs(new_dir)
 
     def reset_indices(self):
         self.indices = []
@@ -55,15 +68,16 @@ class PlotFenics:
         """Create pvd file to load all files in paraview"""
         self._check_outdir()
         self._check_indices()
-        with open(self.outdir+self.varname+'.pvd', 'w') as fout:
-            fout.write('<?xml version="1.0"?>\n<VTKFile type="Collection"' +\
-            ' version="0.1">\n\t<Collection>\n')
-            for step, ii in enumerate(self.indices):
-                myline = ('<DataSet timestep="{0}" part="0" ' +\
-                'file="{1}_{2}{3}.vtu" />\n').format(step, self.varname, ii,\
-                self.Fenics_vtu_correction)
-                fout.write(myline)
-            fout.write('\t</Collection>\n</VTKFile>')
+        if myrank == 0:
+            with open(self.outdir+self.varname+'.pvd', 'w') as fout:
+                fout.write('<?xml version="1.0"?>\n<VTKFile type="Collection"' +\
+                ' version="0.1">\n\t<Collection>\n')
+                for step, ii in enumerate(self.indices):
+                    myline = ('<DataSet timestep="{0}" part="0" ' +\
+                    'file="{1}_{2}{3}.{4}" />\n').format(step, self.varname, ii,\
+                    self.Fenics_vtu_correction, self.extensionvtu)
+                    fout.write(myline)
+                fout.write('\t</Collection>\n</VTKFile>')
 
     # Check methods
     def _check_outdir(self):
