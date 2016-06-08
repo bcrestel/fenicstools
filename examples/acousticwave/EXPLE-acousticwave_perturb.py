@@ -74,17 +74,16 @@ Wave.update({'b':lambda_target_fn, 'a':1.0, \
 't0':0.0, 'tf':tf, 'Dt':Dt, 'u0init':Function(V), 'utinit':Function(V)})
 Wave.ftime = mysrc
 sol, tmp = Wave.solve()
-if not PARALLEL:
-    # Observations
-    myObs = TimeObsPtwise({'V':V, 'Points':[[.5,.2], [.5,.8], [.2,.5], [.8,.5]]})
-    Bp = np.zeros((4, len(sol)))
-    mytimes = np.zeros(len(sol))
-    solp = Function(V)
-    for index, pp in enumerate(sol):
-        setfct(solp, pp[0])
-        Bp[:,index] = myObs.obs(solp)
-        mytimes[index] = pp[1]
-    Bpf = Bp*mytf.evaluate(mytimes)
+# Observations
+myObs = TimeObsPtwise({'V':V, 'Points':[[.5,.2], [.5,.8], [.2,.5], [.8,.5]]})
+Bp = np.zeros((4, len(sol)))
+mytimes = np.zeros(len(sol))
+solp = Function(V)
+for index, pp in enumerate(sol):
+    setfct(solp, pp[0])
+    Bp[:,index] = myObs.obs(solp)
+    mytimes[index] = pp[1]
+Bpf = Bp*mytf.evaluate(mytimes)
 
 
 # Plots:
@@ -94,28 +93,20 @@ except:
     boolplot = 20
 if boolplot > 0:
     filename, ext = splitext(sys.argv[0])
-    #filename = filename + '0'
     if myrank == 0: 
         if isdir(filename + '/'):   rmtree(filename + '/')
     if PARALLEL:    MPI.barrier(mycomm)
     myplot = PlotFenics(filename)
     plotp = Function(V)
     myplot.plot_timeseries(sol, 'p', 0, boolplot, plotp)
-#    myplot.set_varname('p')
-#    for index, pp in enumerate(sol):
-#        if index%boolplot == 0:
-#            setfct(plotp, pp[0])
-#            myplot.plot_vtk(plotp, index)
-#    myplot.gather_vtkplots()
     # Plot medium
     myplot.set_varname('lambda')
     myplot.plot_vtk(lambda_target_fn)
-    if not PARALLEL:
-        # Plot observations
-        fig = plt.figure()
-        for ii in range(Bp.shape[0]):
-            ax = fig.add_subplot(2,2,ii+1)
-            ax.plot(mytimes, Bp[ii,:], 'b')
-            ax.plot(mytimes, Bpf[ii,:], 'r--')
-            ax.set_title('Plot'+str(ii))
-        fig.savefig(filename + '/observations.eps')
+    # Plot observations
+    fig = plt.figure()
+    for ii in range(Bp.shape[0]):
+        ax = fig.add_subplot(2,2,ii+1)
+        ax.plot(mytimes, Bp[ii,:], 'b')
+        ax.plot(mytimes, Bpf[ii,:], 'r--')
+        ax.set_title('Plot'+str(ii))
+    fig.savefig(filename + '/observations_p' + str(myrank) + '.eps')

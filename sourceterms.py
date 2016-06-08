@@ -30,7 +30,7 @@ class PointSources():
         """ Fix dolfin's PointSource in parallel """
         # TODO: TO BE TESTED!!
         scale = b.array().sum()
-        if abs(scale) > 1e-12:  
+        if abs(scale) > 1e-10:  
             return b.array()/scale
         else:   return b.array()
         
