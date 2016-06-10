@@ -71,7 +71,7 @@ class Tikhonovab():
         grad = self.R * self.abv
         if self.cgparam > 0.0:
             grad.axpy(self.cgparam, self.cg.gradab(ma_in, mb_in))
-        return grad
+        return grad # this is local
 
     def assemble_hessianab(self, a, b):
         if self.cgparam > 0.0:
@@ -160,7 +160,7 @@ class crossgradient():
         """ ma_in, mb_in = Function(V) """
         setfct(self.a, ma_in)
         setfct(self.b, mb_in)
-        return assemble(self.cost)
+        return assemble(self.cost)  # this is global (in parallel)
 
     def gradab(self, ma_in, mb_in):
         """ ma_in, mb_in = Function(V) """

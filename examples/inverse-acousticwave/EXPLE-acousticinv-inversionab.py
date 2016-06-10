@@ -1,7 +1,7 @@
 """
-Acoustic inverse problem for parameter b,
-with parameter a known exaclty
+Acoustic inverse problem for parameter a and b
 """
+PARALLEL = True
 
 import sys
 from os.path import splitext, isdir
@@ -19,6 +19,12 @@ from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
 from fenicstools.jointregularization import Tikhonovab
 from parametersinversion import parametersinversion
+if PARALLEL:
+    from dolfin import MPI, mpi_comm_world
+    mycomm = mpi_comm_world()
+    myrank = MPI.rank(mycomm)
+else:
+    myrank = 0
 
 # parameters
 a_target_fn, a_initial_fn, b_target_fn, b_initial_fn, wavepde, obsop = parametersinversion()
@@ -28,7 +34,8 @@ lenobspts = obsop.PtwiseObs.nbPts
 
 # set up plots:
 filename, ext = splitext(sys.argv[0])
-if isdir(filename + '/'):   rmtree(filename + '/')
+if myrank == 0 and isdir(filename + '/'):   rmtree(filename + '/')
+if PARALLEL:    MPI.barrier(mycomm)
 myplot = PlotFenics(filename)
 myplot.set_varname('b_target')
 myplot.plot_vtk(b_target_fn)
@@ -42,7 +49,7 @@ waveobj = ObjectiveAcoustic(wavepde, 'ab', regul)
 waveobj.obsop = obsop
 
 # noisy data
-print 'generate noisy data'
+if myrank == 0: print 'generate noisy data'
 waveobj.solvefwd()
 skip = 20
 myplot.plot_timeseries(waveobj.solfwd, 'pd', 0, skip, dl.Function(V))
@@ -54,8 +61,9 @@ np.random.seed(11)
 rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
 waveobj.dd = dd + sigmas.reshape((len(sigmas),1))*rndnoise
 waveobj.solvefwd_cost()
-print 'noise misfit={}, regul cost={}, ratio={}'.format(waveobj.cost_misfit, \
-waveobj.cost_reg, waveobj.cost_misfit/waveobj.cost_reg)
+if myrank == 0:
+    print 'noise misfit={}, regul cost={}, ratio={}'.format(\
+    waveobj.cost_misfit, waveobj.cost_reg, waveobj.cost_misfit/waveobj.cost_reg)
 
 ######### Media for gradient and Hessian checks
 Medium = np.zeros((5, Vm.dim()))
@@ -64,8 +72,9 @@ for ii in range(5):
     smoothperturb_fn = dl.interpolate(smoothperturb, Vm)
     Medium[ii,:] = smoothperturb_fn.vector().array()
 
-print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t{:10s} {:12s} {:12s}'.format(\
-'iter', 'cost', 'misfit', 'reg', '|G|', 'medmisf', 'a_ls', 'tol_cg', 'n_cg')
+if myrank == 0:
+    print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t{:10s} {:12s} {:12s}'.format(\
+    'iter', 'cost', 'misfit', 'reg', '|G|', 'medmisf', 'a_ls', 'tol_cg', 'n_cg')
 ab_target_fn = dl.Function(Vm*Vm)
 dl.assign(ab_target_fn.sub(0), a_target_fn)
 dl.assign(ab_target_fn.sub(1), b_target_fn)
@@ -92,8 +101,9 @@ for iter in xrange(50):
     if check and iter % 5 == 1:
         checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
         checkhessfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
-    print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.2f})'.\
-    format(iter, waveobj.cost, waveobj.cost_misfit, waveobj.cost_reg, \
+    if myrank == 0:
+        print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.2f})'.\
+        format(iter, waveobj.cost, waveobj.cost_misfit, waveobj.cost_reg, \
     gradnorm, medmisfit, medmisfit/dtruenorm),
     # plots
     #myplot.plot_timeseries(waveobj.solfwd, 'p'+str(iter), 0, skip, dl.Function(V))
@@ -101,20 +111,24 @@ for iter in xrange(50):
     myplot.plot_vtk(waveobj.PDE.a)
     myplot.set_varname('b'+str(iter))
     myplot.plot_vtk(waveobj.PDE.b)
-    myplot.set_varname('grad'+str(iter))
-    myplot.plot_vtk(waveobj.Grad)
-    fig = plt.figure()
-    fig.set_size_inches(20., 15.)
-    for ii in range(lenobspts):
-        ax = fig.add_subplot(6,6,ii+1)
-        ax.plot(waveobj.PDE.times, waveobj.dd[ii,:], 'k--')
-        ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
-        ax.set_title('obs'+str(ii))
-    fig.savefig(filename + '/observations' + str(iter) + '.eps')
-    plt.close(fig)
+    Ga, Gb = waveobj.Grad.split(deepcopy=True)
+    myplot.set_varname('grada'+str(iter))
+    myplot.plot_vtk(waveobj.Ga)
+    myplot.set_varname('gradb'+str(iter))
+    myplot.plot_vtk(waveobj.Gb)
+#    fig = plt.figure()
+#    fig.set_size_inches(20., 15.)
+#    for ii in range(lenobspts):
+#        ax = fig.add_subplot(6,6,ii+1)
+#        ax.plot(waveobj.PDE.times, waveobj.dd[ii,:], 'k--')
+#        ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
+#        ax.set_title('obs'+str(ii))
+#    fig.savefig(filename + '/observations' + str(iter) + '.eps')
+#    plt.close(fig)
     # stopping criterion (gradient)
     if gradnorm < gradnorm0 * tolgrad:
-        print '\nGradient sufficiently reduced -- optimization stopped'
+        if myrank == 0:
+            print '\nGradient sufficiently reduced -- optimization stopped'
         break
     # search direction
     tolcg = min(0.5, np.sqrt(gradnorm/gradnorm0))
@@ -125,9 +139,8 @@ for iter in xrange(50):
     cost_old = waveobj.cost
     statusLS, LScount, alpha = bcktrcklinesearch(waveobj, 12)
     cost = waveobj.cost
-    print '{:11.3f} {:12.2e} {:10d}'.\
-    format(alpha, tolcg, cgiter)
+    if myrank == 0: print '{:11.3f} {:12.2e} {:10d}'.format(alpha, tolcg, cgiter)
     # stopping criterion (cost)
     if np.abs(cost-cost_old)/np.abs(cost_old) < tolcost:
-        print 'Cost function stagnates -- optimization stopped'
+        if myrank == 0: print 'Cost function stagnates -- optimization stopped'
         break

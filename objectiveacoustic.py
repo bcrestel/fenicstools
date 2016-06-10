@@ -118,9 +118,12 @@ class ObjectiveAcoustic(LinearOperator):
             self.mmtest, self.mmtrial = self.mtest, self.mtrial
         weak_m =  inner(self.mmtrial, self.mmtest)*dx
         self.Mass = assemble(weak_m)
-        self.solverM = LUSolver("petsc")
-        self.solverM.parameters['reuse_factorization'] = True
-        self.solverM.parameters['symmetric'] = True
+        #self.solverM = LUSolver("petsc")
+        #self.solverM.parameters['reuse_factorization'] = True
+        #self.solverM.parameters['symmetric'] = True
+        self.solverM = PETScKrylovSolver("cg", "amg")
+        self.solverM.parameters['report'] = False
+        self.solverM.parameters['nonzero_initial_guess'] = True
         self.solverM.set_operator(self.Mass)
         # Time-integration factors
         self.factors = np.ones(self.PDE.times.size)
