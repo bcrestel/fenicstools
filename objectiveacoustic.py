@@ -204,8 +204,8 @@ class ObjectiveAcoustic(LinearOperator):
                 # loop over time
                 for fwd, adj, fact, fwdm, fwdp in \
                 zip(self.solfwd, reversed(self.soladj), self.factors,\
-                [[np.zeros(self.PDE.V.dim()), -self.PDE.Dt]]+self.solfwd[:-1], \
-                self.solfwd[1:]+[[np.zeros(self.PDE.V.dim()), self.PDE.times[-1]+self.PDE.Dt]]):
+                [[self.solfwd[0][0], -self.PDE.Dt]]+self.solfwd[:-1], \
+                self.solfwd[1:]+[[self.solfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]]):
                     self.gradient_componentb(fact, fwd, adj, MGbv)
                     self.gradient_componenta(fact, fwdm, fwdp, adj, MGav)
                 # add regularization
@@ -220,8 +220,8 @@ class ObjectiveAcoustic(LinearOperator):
                     # loop over time
                     for fwd, adj, fact, fwdm, fwdp in \
                     zip(self.solfwd, reversed(self.soladj), self.factors,\
-                    [[np.zeros(self.PDE.V.dim()), -self.PDE.Dt]]+self.solfwd[:-1], \
-                    self.solfwd[1:]+[[np.zeros(self.PDE.V.dim()), self.PDE.times[-1]+self.PDE.Dt]]):
+                    [[self.solfwd[0][0], -self.PDE.Dt]]+self.solfwd[:-1], \
+                    self.solfwd[1:]+[[self.solfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]]):
                         setfct(self.p, fwd[0])
                         setfct(self.q, adj[0])
                         self.gradient_componenta(fact, fwdm, fwdp, adj, MGav)
@@ -314,8 +314,8 @@ class ObjectiveAcoustic(LinearOperator):
     def ftimeincrfwd_componentb(self):
         setfct(self.q, self.C*self.p.vector())
     def ftimeincrfwd_componenta(self, index):
-        solfwdm = [[np.zeros(self.PDE.V.dim()), -self.PDE.Dt]]+self.solfwd[:-1]
-        solfwdp = self.solfwd[1:]+[[np.zeros(self.PDE.V.dim()), self.PDE.times[-1]+self.PDE.Dt]]
+        solfwdm = [[self.solfwd[0][0], -self.PDE.Dt]]+self.solfwd[:-1]
+        solfwdp = self.solfwd[1:]+[[self.solfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]]
         setfct(self.ptmp, solfwdm[index][0])
         self.p.vector().axpy(-0.5, self.ptmp.vector())
         setfct(self.ptmp, solfwdp[index][0])
@@ -355,8 +355,8 @@ class ObjectiveAcoustic(LinearOperator):
     def ftimeincradj_componentb(self):
         setfct(self.qhat, self.C*self.q.vector())
     def ftimeincradj_componenta(self, indexa):
-        soladjm = [[np.zeros(self.PDE.V.dim()), -self.PDE.Dt]]+self.soladj[:-1]
-        soladjp = self.soladj[1:]+[[np.zeros(self.PDE.V.dim()), self.PDE.times[-1]+self.PDE.Dt]]
+        soladjm = [[self.soladj[0][0], -self.PDE.Dt]]+self.soladj[:-1]
+        soladjp = self.soladj[1:]+[[self.soladj[0][0], self.PDE.times[-1]+self.PDE.Dt]]
         setfct(self.ptmp, soladjm[indexa][0])
         self.q.vector().axpy(-0.5, self.ptmp.vector())
         setfct(self.ptmp, soladjp[indexa][0])
@@ -407,10 +407,10 @@ class ObjectiveAcoustic(LinearOperator):
         for fwd, adj, incrfwd, incradj, fwdm, fwdp, incrfwdm, incrfwdp, fact in \
         zip(self.solfwd, reversed(self.soladj), \
         self.solincrfwd, reversed(self.solincradj), \
-        [[np.zeros(self.PDE.V.dim()), -self.PDE.Dt]]+self.solfwd[:-1], \
-        self.solfwd[1:]+[[np.zeros(self.PDE.V.dim()), self.PDE.times[-1]+self.PDE.Dt]], \
-        [[np.zeros(self.PDE.V.dim()), -self.PDE.Dt]]+self.solincrfwd[:-1], \
-        self.solincrfwd[1:]+[[np.zeros(self.PDE.V.dim()), self.PDE.times[-1]+self.PDE.Dt]], \
+        [[self.solfwd[0][0], -self.PDE.Dt]]+self.solfwd[:-1], \
+        self.solfwd[1:]+[[self.solfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]], \
+        [[self.solincrfwd[0][0], -self.PDE.Dt]]+self.solincrfwd[:-1], \
+        self.solincrfwd[1:]+[[self.solincrfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]], \
         self.factors):
             ttf, tta, ttf2 = incrfwd[1], incradj[1], fwd[1]
             assert isequal(ttf, tta, 1e-16), 'tfwd={}, tadj={}, reldiff={}'.\

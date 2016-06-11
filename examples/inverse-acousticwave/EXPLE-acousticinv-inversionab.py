@@ -66,11 +66,11 @@ if myrank == 0:
     waveobj.cost_misfit, waveobj.cost_reg, waveobj.cost_misfit/waveobj.cost_reg)
 
 ######### Media for gradient and Hessian checks
-Medium = np.zeros((5, Vm.dim()))
-for ii in range(5):
-    smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
-    smoothperturb_fn = dl.interpolate(smoothperturb, Vm)
-    Medium[ii,:] = smoothperturb_fn.vector().array()
+#Medium = np.zeros((5, Vm.dim()))
+#for ii in range(5):
+#    smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
+#    smoothperturb_fn = dl.interpolate(smoothperturb, Vm)
+#    Medium[ii,:] = smoothperturb_fn.vector().array()
 
 if myrank == 0:
     print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t{:10s} {:12s} {:12s}'.format(\
@@ -113,9 +113,9 @@ for iter in xrange(50):
     myplot.plot_vtk(waveobj.PDE.b)
     Ga, Gb = waveobj.Grad.split(deepcopy=True)
     myplot.set_varname('grada'+str(iter))
-    myplot.plot_vtk(waveobj.Ga)
+    myplot.plot_vtk(Ga)
     myplot.set_varname('gradb'+str(iter))
-    myplot.plot_vtk(waveobj.Gb)
+    myplot.plot_vtk(Gb)
 #    fig = plt.figure()
 #    fig.set_size_inches(20., 15.)
 #    for ii in range(lenobspts):
