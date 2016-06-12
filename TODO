@@ -13,7 +13,6 @@ TODO list
 
 
     - ACOUSTIC:
-* Check code run in parallel
 * multiple rhs
 * Write test pb for high(er) frequency
 * implement ABC/PML in joint inversion (?)
