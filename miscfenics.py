@@ -73,6 +73,7 @@ def setfct(fct, value):
 
 
 def checkdt(Dt, h, r, c_max, Mlump):
+    #TODO: To think about: make it a warning and check at every iteration of inversion?
     """ Checks if Dt is sufficiently small based on some numerical tests 
         Dt = time step size
         h = grid size

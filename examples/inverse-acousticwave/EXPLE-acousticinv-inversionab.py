@@ -1,7 +1,6 @@
 """
 Acoustic inverse problem for parameter a and b
 """
-PARALLEL = True
 
 import sys
 from os.path import splitext, isdir
@@ -19,11 +18,12 @@ from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
 from fenicstools.jointregularization import Tikhonovab
 from parametersinversion import parametersinversion
-if PARALLEL:
+try:
     from dolfin import MPI, mpi_comm_world
     mycomm = mpi_comm_world()
     myrank = MPI.rank(mycomm)
-else:
+    PARALLEL = True
+except:
     myrank = 0
 
 # parameters
