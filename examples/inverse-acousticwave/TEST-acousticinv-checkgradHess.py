@@ -89,7 +89,7 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     't0':tfilterpts[0], 'tf':tfilterpts[-1], 'Dt':Dt, 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
     wavepde.ftime = mysrc
     # define objective function:
-    waveobj = ObjectiveAcoustic(wavepde)
+    waveobj = ObjectiveAcoustic(wavepde, 'ab')
     waveobj.obsop = obsop
     # data
     print 'generate noisy data'

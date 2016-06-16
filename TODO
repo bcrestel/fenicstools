@@ -13,8 +13,8 @@ TODO list
 
 
     - ACOUSTIC:
-* multiple rhs
 * Write test pb for high(er) frequency
+* multiple rhs
 * implement ABC/PML in joint inversion (?)
 * implement misfit with blurring kernel
 * GLL integration points in Fenics
