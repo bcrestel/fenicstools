@@ -25,6 +25,7 @@ try:
     PARALLEL = True
 except:
     myrank = 0
+    PARALLEL = False
 
 # parameters
 a_target_fn, a_initial_fn, b_target_fn, b_initial_fn, wavepde, obsop = parametersinversion()
@@ -37,6 +38,7 @@ filename, ext = splitext(sys.argv[0])
 if myrank == 0 and isdir(filename + '/'):   rmtree(filename + '/')
 if PARALLEL:    MPI.barrier(mycomm)
 myplot = PlotFenics(filename)
+if PARALLEL:    MPI.barrier(mycomm)
 myplot.set_varname('b_target')
 myplot.plot_vtk(b_target_fn)
 myplot.set_varname('a_target')
