@@ -19,6 +19,10 @@ from fenicstools.plotfenics import PlotFenics
 from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
 from fenicstools.prior import LaplacianPrior
+from fenicstools.miscfenics import checkdt, setfct
+from fenicstools.acousticwave import AcousticWave
+from fenicstools.sourceterms import PointSources, RickerWavelet
+from fenicstools.observationoperator import TimeObsPtwise
 
 NNxy = [20, 40, 60, 80]
 
