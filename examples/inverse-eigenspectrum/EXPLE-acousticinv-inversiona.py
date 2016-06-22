@@ -174,7 +174,7 @@ for Nxy in NNxy:
     waveobj.alpha_reg = 0.0 # no regularization
     Omega = np.random.randn(Vm.dim()*60).reshape((Vm.dim(),60))
     #TODO: need to left-multiply Omega by R^{-1/2}.M (to be checked)
-    d, U = doublePassG(waveobj, regul.precond, regul.get_precond(), Omega, 40)
+    d, U = doublePassG(waveobj, regul.precond, regul.getprecond(), Omega, 40)
     np.savetext(filename+str(Nxy)+'/eigenvalues.txt', d)
     myplot.set_varname('eigenvectors')
     for ii in range(U.shape[1]):
