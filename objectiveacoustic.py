@@ -14,14 +14,14 @@ class ObjectiveAcoustic(LinearOperator):
     #TODO: add support for multiple sources
 
     # CONSTRUCTORS:
-    def __init__(self, acousticwavePDE, invparam='ab', regularization=None):
+    def __init__(self, acousticwavePDE, sources, invparam='ab', regularization=None):
         """ 
         Input:
             acousticwavePDE should be an instantiation from class AcousticWave
         """
         self.PDE = acousticwavePDE
         self.PDE.exact = None
-        self.fwdsource = self.PDE.ftime
+        self.fwdsource = sources
         # functions for gradient
         self.ab = Function(self.PDE.Vm*self.PDE.Vm)
         self.obsop = None   # Observation operator
@@ -168,16 +168,32 @@ class ObjectiveAcoustic(LinearOperator):
     #@profile
     def solvefwd(self, cost=False):
         self.PDE.set_fwd()
-        self.PDE.ftime = self.fwdsource
-        self.solfwd,_ = self.PDE.solve()
-        # observations:
-        self.Bp = np.zeros((len(self.obsop.PtwiseObs.Points),len(self.solfwd)))
-        for index, sol in enumerate(self.solfwd):
-            setfct(self.p, sol[0])
-            self.Bp[:,index] = self.obsop.obs(self.p)
+        Ricker = self.fwdsource[0]
+        srcv = self.fwdsource[2]
+        #TODO: modify to make fwdsource an iterable object that returns a source term
+        # there should not be any source construction inside the solvefwd
+        # function
+        self.solfwd, self.Bp = [], []
+        for ptsrc in self.fwdsource[1]:
+            def srcterm(tt):
+                srcv.zero()
+                srcv.axpy(Ricker(tt), ptsrc)
+                return srcv
+            self.PDE.ftime = srcterm
+            solfwd,_ = self.PDE.solve()
+            self.solfwd.append(solfwd)
+            # observations:
+            Bp = np.zeros((len(self.obsop.PtwiseObs.Points),len(solfwd)))
+            for index, sol in enumerate(solfwd):
+                setfct(self.p, sol[0])
+                Bp[:,index] = self.obsop.obs(self.p)
+            self.Bp.append(Bp)
         if cost:
             assert not self.dd == None, "Provide data observations to compute cost"
-            self.cost_misfit = self.obsop.costfct(self.Bp, self.dd, self.PDE.times)
+            self.cost_misfit = 0.0
+            for Bp, dd in zip(self.Bp, self.dd):
+                self.cost_misfit += self.obsop.costfct(Bp, dd, self.PDE.times)
+            self.cost_misfit /= len(self.Bp)
             self.cost_reg = self.get_costreg()
             self.cost = self.cost_misfit + self.alpha_reg*self.cost_reg
 
@@ -192,9 +208,12 @@ class ObjectiveAcoustic(LinearOperator):
     #@profile
     def solveadj(self, grad=False):
         self.PDE.set_adj()
-        self.obsop.assemble_rhsadj(self.Bp, self.dd, self.PDE.times, self.PDE.bc)
-        self.PDE.ftime = self.obsop.ftimeadj
-        self.soladj,_ = self.PDE.solve()
+        self.soladj = []
+        for Bp, dd in zip(self.Bp, self.dd):
+            self.obsop.assemble_rhsadj(Bp, dd, self.PDE.times, self.PDE.bc)
+            self.PDE.ftime = self.obsop.ftimeadj
+            soladj,_ = self.PDE.solve()
+            self.soladj.append(soladj)
         if grad:
             if self.invparam == 'ab':
                 # split gradient parts a and b
@@ -202,12 +221,15 @@ class ObjectiveAcoustic(LinearOperator):
                 MGa, MGb = self.MG.split(deepcopy=True)
                 MGav, MGbv = MGa.vector(), MGb.vector()
                 # loop over time
-                for fwd, adj, fact, fwdm, fwdp in \
-                zip(self.solfwd, reversed(self.soladj), self.factors,\
-                [[self.solfwd[0][0], -self.PDE.Dt]]+self.solfwd[:-1], \
-                self.solfwd[1:]+[[self.solfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]]):
-                    self.gradient_componentb(fact, fwd, adj, MGbv)
-                    self.gradient_componenta(fact, fwdm, fwdp, adj, MGav)
+                for solfwd, soladj in zip(self.solfwd, self.soladj):
+                    for fwd, adj, fact, fwdm, fwdp in \
+                    zip(solfwd, reversed(soladj), self.factors,\
+                    [[solfwd[0][0], -self.PDE.Dt]]+solfwd[:-1], \
+                    solfwd[1:]+[[solfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]]):
+                        self.gradient_componentb(fact, fwd, adj, MGbv)
+                        self.gradient_componenta(fact, fwdm, fwdp, adj, MGav)
+                setfct(MGa, MGav/len(self.Bp))
+                setfct(MGb, MGbv/len(self.Bp))
                 # add regularization
                 assign(self.MG.sub(0), MGa)
                 assign(self.MG.sub(1), MGb)
@@ -218,24 +240,28 @@ class ObjectiveAcoustic(LinearOperator):
                     self.MGv.zero()
                     MGav = self.MGv
                     # loop over time
-                    for fwd, adj, fact, fwdm, fwdp in \
-                    zip(self.solfwd, reversed(self.soladj), self.factors,\
-                    [[self.solfwd[0][0], -self.PDE.Dt]]+self.solfwd[:-1], \
-                    self.solfwd[1:]+[[self.solfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]]):
-                        setfct(self.p, fwd[0])
-                        setfct(self.q, adj[0])
-                        self.gradient_componenta(fact, fwdm, fwdp, adj, MGav)
+                    for solfwd, soladj in zip(self.solfwd, self.soladj):
+                        for fwd, adj, fact, fwdm, fwdp in \
+                        zip(solfwd, reversed(soladj), self.factors,\
+                        [[solfwd[0][0], -self.PDE.Dt]]+solfwd[:-1], \
+                        solfwd[1:]+[[solfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]]):
+                            setfct(self.p, fwd[0])
+                            setfct(self.q, adj[0])
+                            self.gradient_componenta(fact, fwdm, fwdp, adj, MGav)
+                    setfct(self.MG, MGav/len(self.Bp))
                     # add regularization
-                    MGav.axpy(self.alpha_reg, self.regularization.grad(self.PDE.a))
+                    self.MGv.axpy(self.alpha_reg, self.regularization.grad(self.PDE.a))
                 elif self.invparam == 'b':
                     self.MGv.zero()
                     MGbv = self.MGv
                     # loop over time
-                    for fwd, adj, fact in \
-                    zip(self.solfwd, reversed(self.soladj), self.factors):
-                        self.gradient_componentb(fact, fwd, adj, MGbv)
+                    for solfwd, soladj in zip(self.solfwd, self.soladj):
+                        for fwd, adj, fact in \
+                        zip(solfwd, reversed(soladj), self.factors):
+                            self.gradient_componentb(fact, fwd, adj, MGbv)
+                    setfct(self.MG, MGbv/len(self.Bp))
                     # add regularization
-                    MGbv.axpy(self.alpha_reg, self.regularization.grad(self.PDE.b))
+                    self.MGv.axpy(self.alpha_reg, self.regularization.grad(self.PDE.b))
             # compute Grad
             self.solverM.solve(self.Grad.vector(), self.MGv)
 #            if self.PDE.abc:
@@ -284,6 +310,7 @@ class ObjectiveAcoustic(LinearOperator):
     def get_gradienta_full(self):
         return assemble(self.wkformgrada)
 
+    #TODO: continue here
     # HESSIAN:
     def ftimepass(self):
         pass
