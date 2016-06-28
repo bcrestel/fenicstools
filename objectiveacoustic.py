@@ -310,7 +310,6 @@ class ObjectiveAcoustic(LinearOperator):
     def get_gradienta_full(self):
         return assemble(self.wkformgrada)
 
-    #TODO: continue here
     # HESSIAN:
     def ftimepass(self):
         pass
@@ -325,8 +324,8 @@ class ObjectiveAcoustic(LinearOperator):
             print np.min(np.abs(self.PDE.times-tt))
             sys.exit(0)
         # bhat: bhat*grad(p).grad(qtilde)
-        assert isequal(tt, self.solfwd[index][1], 1e-16)
-        setfct(self.p, self.solfwd[index][0])
+        assert isequal(tt, self.solfwdi[index][1], 1e-16)
+        setfct(self.p, self.solfwdi[index][0])
         self.q.vector().zero()
         self.ftimeincrfwdb()
         # ahat: ahat*p''*qtilde:
@@ -334,15 +333,15 @@ class ObjectiveAcoustic(LinearOperator):
         # D'.dot(p)
 #        if self.PDE.abc and index > 0:
 #                setfct(self.p, \
-#                self.solfwd[index+1][0] - self.solfwd[index-1][0])
+#                self.solfwdi[index+1][0] - self.solfwdi[index-1][0])
 #                self.v.vector().axpy(.5*self.invDt, self.Dp*self.p.vector())
         return -1.0*self.q.vector()
 
     def ftimeincrfwd_componentb(self):
         setfct(self.q, self.C*self.p.vector())
     def ftimeincrfwd_componenta(self, index):
-        solfwdm = [[self.solfwd[0][0], -self.PDE.Dt]]+self.solfwd[:-1]
-        solfwdp = self.solfwd[1:]+[[self.solfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]]
+        solfwdm = [[self.solfwdi[0][0], -self.PDE.Dt]]+self.solfwdi[:-1]
+        solfwdp = self.solfwdi[1:]+[[self.solfwdi[0][0], self.PDE.times[-1]+self.PDE.Dt]]
         setfct(self.ptmp, solfwdm[index][0])
         self.p.vector().axpy(-0.5, self.ptmp.vector())
         setfct(self.ptmp, solfwdp[index][0])
@@ -362,8 +361,8 @@ class ObjectiveAcoustic(LinearOperator):
             print np.min(np.abs(self.PDE.times-tt))
             sys.exit(0)
         # bhat: bhat*grad(ptilde).grad(v)
-        assert isequal(tt, self.soladj[indexa][1], 1e-16)
-        setfct(self.q, self.soladj[indexa][0])
+        assert isequal(tt, self.soladji[indexa][1], 1e-16)
+        setfct(self.q, self.soladji[indexa][0])
         self.qhat.vector().zero()
         self.ftimeincradjb()
         # ahat: ahat*ptilde*q'':
@@ -375,15 +374,15 @@ class ObjectiveAcoustic(LinearOperator):
         # D'.dot(v)
 #        if self.PDE.abc and indexa > 0:
 #                setfct(self.v, \
-#                self.soladj[indexa-1][0] - self.soladj[indexa+1][0])
+#                self.soladji[indexa-1][0] - self.soladji[indexa+1][0])
 #                self.vhat.vector().axpy(-.5*self.invDt, self.Dp*self.v.vector())
         return -1.0*self.qhat.vector()
 
     def ftimeincradj_componentb(self):
         setfct(self.qhat, self.C*self.q.vector())
     def ftimeincradj_componenta(self, indexa):
-        soladjm = [[self.soladj[0][0], -self.PDE.Dt]]+self.soladj[:-1]
-        soladjp = self.soladj[1:]+[[self.soladj[0][0], self.PDE.times[-1]+self.PDE.Dt]]
+        soladjm = [[self.soladji[0][0], -self.PDE.Dt]]+self.soladji[:-1]
+        soladjp = self.soladji[1:]+[[self.soladji[0][0], self.PDE.times[-1]+self.PDE.Dt]]
         setfct(self.ptmp, soladjm[indexa][0])
         self.q.vector().axpy(-0.5, self.ptmp.vector())
         setfct(self.ptmp, soladjp[indexa][0])
@@ -414,77 +413,78 @@ class ObjectiveAcoustic(LinearOperator):
         self.C = assemble(self.wkformrhsincrb)
         if not self.PDE.lump:   self.E = assemble(self.wkformrhsincra)
         #if self.PDE.abc:    self.Dp = assemble(self.wkformDprime)
-        # solve for phat
-        self.PDE.set_fwd()
-        self.PDE.ftime = self.ftimeincrfwd
-        self.solincrfwd,_ = self.PDE.solve()
-        # solve for vhat
-        self.PDE.set_adj()
-        self.PDE.ftime = self.ftimeincradj
-        self.solincradj,_ = self.PDE.solve()
         # Compute Hessian*abhat
         self.ab.vector().zero()
         yaF, ybF = self.ab.split(deepcopy=True)
         ya, yb = yaF.vector(), ybF.vector()
-#        index = 0
-#        if self.PDE.abc:
-#            self.vD.vector().zero(); self.vhatD.vector().zero(); 
-#            self.p1D.vector().zero(); self.p2D.vector().zero();
-#            self.p1hatD.vector().zero(); self.p2hatD.vector().zero();
-        for fwd, adj, incrfwd, incradj, fwdm, fwdp, incrfwdm, incrfwdp, fact in \
-        zip(self.solfwd, reversed(self.soladj), \
-        self.solincrfwd, reversed(self.solincradj), \
-        [[self.solfwd[0][0], -self.PDE.Dt]]+self.solfwd[:-1], \
-        self.solfwd[1:]+[[self.solfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]], \
-        [[self.solincrfwd[0][0], -self.PDE.Dt]]+self.solincrfwd[:-1], \
-        self.solincrfwd[1:]+[[self.solincrfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]], \
-        self.factors):
-            ttf, tta, ttf2 = incrfwd[1], incradj[1], fwd[1]
-            assert isequal(ttf, tta, 1e-16), 'tfwd={}, tadj={}, reldiff={}'.\
-            format(ttf, tta, abs(ttf-tta)/ttf)
-            assert isequal(ttf, ttf2, 1e-16), 'tfwd={}, tadj={}, reldiff={}'.\
-            format(ttf, ttf2, abs(ttf-ttf2)/ttf)
-            # Hessian b
-            setfct(self.p, fwd[0])
-            setfct(self.q, adj[0])
-            setfct(self.phat, incrfwd[0])
-            setfct(self.qhat, incradj[0])
-            self.hessianb(yb, fact)
-            # Hessian a
-            self.hessiana(ya, fact, fwdm, fwdp, incrfwdm, incrfwdp)
-#            if self.PDE.abc:
-#                if index%2 == 0:
-#                    self.p2D.vector().axpy(1.0, self.p.vector())
-#                    self.p2hatD.vector().axpy(1.0, self.phat.vector())
-#                    setfct(self.dp, self.p2D)
-#                    setfct(self.dph, self.p2hatD)
-#                    y.axpy(1.0*0.5*self.invDt, assemble(self.wkformhessD))
-#                    setfct(self.p2D, -1.0*self.p.vector())
-#                    setfct(self.p2hatD, -1.0*self.phat.vector())
-#                else:
-#                    self.p1D.vector().axpy(1.0, self.p.vector())
-#                    self.p1hatD.vector().axpy(1.0, self.phat.vector())
-#                    setfct(self.dp, self.p1D)
-#                    setfct(self.dph, self.p1hatD)
-#                    y.axpy(1.0*0.5*self.invDt, assemble(self.wkformhessD))
-#                    setfct(self.p1D, -1.0*self.p.vector())
-#                    setfct(self.p1hatD, -1.0*self.phat.vector())
-#                setfct(self.vD, self.v)
-#                setfct(self.vhatD, self.vhat)
-#            index += 1
+        for self.solfwdi, self.soladji in zip(self.solfwd, self.soladj):
+            # solve for phat
+            self.PDE.set_fwd()
+            self.PDE.ftime = self.ftimeincrfwd
+            self.solincrfwd,_ = self.PDE.solve()
+            # solve for vhat
+            self.PDE.set_adj()
+            self.PDE.ftime = self.ftimeincradj
+            self.solincradj,_ = self.PDE.solve()
+    #        index = 0
+    #        if self.PDE.abc:
+    #            self.vD.vector().zero(); self.vhatD.vector().zero(); 
+    #            self.p1D.vector().zero(); self.p2D.vector().zero();
+    #            self.p1hatD.vector().zero(); self.p2hatD.vector().zero();
+            for fwd, adj, incrfwd, incradj, fwdm, fwdp, incrfwdm, incrfwdp, fact in \
+            zip(self.solfwdi, reversed(self.soladji), \
+            self.solincrfwd, reversed(self.solincradj), \
+            [[self.solfwdi[0][0], -self.PDE.Dt]]+self.solfwdi[:-1], \
+            self.solfwdi[1:]+[[self.solfwdi[0][0], self.PDE.times[-1]+self.PDE.Dt]], \
+            [[self.solincrfwd[0][0], -self.PDE.Dt]]+self.solincrfwd[:-1], \
+            self.solincrfwd[1:]+[[self.solincrfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]], \
+            self.factors):
+                ttf, tta, ttf2 = incrfwd[1], incradj[1], fwd[1]
+                assert isequal(ttf, tta, 1e-16), 'tfwd={}, tadj={}, reldiff={}'.\
+                format(ttf, tta, abs(ttf-tta)/ttf)
+                assert isequal(ttf, ttf2, 1e-16), 'tfwd={}, tadj={}, reldiff={}'.\
+                format(ttf, ttf2, abs(ttf-ttf2)/ttf)
+                # Hessian b
+                setfct(self.p, fwd[0])
+                setfct(self.q, adj[0])
+                setfct(self.phat, incrfwd[0])
+                setfct(self.qhat, incradj[0])
+                self.hessianb(yb, fact)
+                # Hessian a
+                self.hessiana(ya, fact, fwdm, fwdp, incrfwdm, incrfwdp)
+    #            if self.PDE.abc:
+    #                if index%2 == 0:
+    #                    self.p2D.vector().axpy(1.0, self.p.vector())
+    #                    self.p2hatD.vector().axpy(1.0, self.phat.vector())
+    #                    setfct(self.dp, self.p2D)
+    #                    setfct(self.dph, self.p2hatD)
+    #                    y.axpy(1.0*0.5*self.invDt, assemble(self.wkformhessD))
+    #                    setfct(self.p2D, -1.0*self.p.vector())
+    #                    setfct(self.p2hatD, -1.0*self.phat.vector())
+    #                else:
+    #                    self.p1D.vector().axpy(1.0, self.p.vector())
+    #                    self.p1hatD.vector().axpy(1.0, self.phat.vector())
+    #                    setfct(self.dp, self.p1D)
+    #                    setfct(self.dph, self.p1hatD)
+    #                    y.axpy(1.0*0.5*self.invDt, assemble(self.wkformhessD))
+    #                    setfct(self.p1D, -1.0*self.p.vector())
+    #                    setfct(self.p1hatD, -1.0*self.phat.vector())
+    #                setfct(self.vD, self.v)
+    #                setfct(self.vhatD, self.vhat)
+    #            index += 1
         y.zero()
         if self.invparam == 'ab':
             assign(self.ab.sub(0), yaF)
             assign(self.ab.sub(1), ybF)
-            y.axpy(1.0, self.ab.vector())
+            y.axpy(1.0/len(self.Bp), self.ab.vector())
             # add regularization term
             y.axpy(self.alpha_reg, self.regularization.hessianab(self.ahat, self.bhat))
         elif self.invparam == 'a':
-            y.axpy(1.0, ya)
+            y.axpy(1.0/len(self.Bp), ya)
             # add regularization term
             y.axpy(self.alpha_reg, self.regularization.hessian(abhat))
         elif self.invparam == 'b':
-            y.axpy(1.0, yb)
+            y.axpy(1.0/len(self.Bp), yb)
             # add regularization term
             y.axpy(self.alpha_reg, self.regularization.hessian(abhat))
 
