@@ -175,8 +175,8 @@ for Nxy in NNxy:
     Omega = np.random.randn(Vm.dim()*60).reshape((Vm.dim(),60))
     #TODO: need to left-multiply Omega by R^{-1/2}.M (to be checked)
     d, U = doublePassG(waveobj, regul.precond, regul.getprecond(), Omega, 40)
-    np.savetext(filename+str(Nxy)+'/eigenvalues.txt', d)
-    myplot.set_varname('eigenvectors')
-    for ii in range(U.shape[1]):
-        setfct(waveobj.PDE.a, U[:,ii])
-        myplot.plot_vtk(waveobj.PDE.a, ii)
+    np.savetxt(filename+str(Nxy)+'/eigenvalues.txt', d)
+#    myplot.set_varname('eigenvectors')
+#    for ii in range(U.shape[1]):
+#        setfct(waveobj.PDE.a, U[:,ii])
+#        myplot.plot_vtk(waveobj.PDE.a, ii)
