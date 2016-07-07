@@ -24,7 +24,7 @@ from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
 from fenicstools.observationoperator import TimeObsPtwise
 
-NNxy = [20, 40, 60, 80]
+NNxy = [20, 60]
 
 for Nxy in NNxy:
     mesh = dl.UnitSquareMesh(Nxy, Nxy)
@@ -36,14 +36,12 @@ for Nxy in NNxy:
 
     # source:
     Ricker = RickerWavelet(0.5, 1e-10)
-    Pt = PointSources(V, [[0.5,1.0]])
-    mydelta = Pt[0]
+    #srcloc = [[0.5,1.0]]
+    srcloc = [[ii/10., 1.0] for ii in range(1,10)] + [[ii/10., 0.0] for ii in range(1,10)]
+    Pt = PointSources(V, srcloc)
     src = dl.Function(V)
     srcv = src.vector()
-    def mysrc(tt):
-        srcv.zero()
-        srcv.axpy(Ricker(tt), mydelta)
-        return srcv
+    mysrc = [Ricker, Pt, srcv]
 
     # target medium:
     b_target = dl.Expression(\
@@ -68,7 +66,6 @@ for Nxy in NNxy:
     wavepde.lump = True
     wavepde.update({'a':a_target_fn, 'b':b_target_fn, \
     't0':t0, 'tf':tf, 'Dt':Dt, 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
-    wavepde.ftime = mysrc
 
     # parameters
     Vm = wavepde.Vm
@@ -84,21 +81,23 @@ for Nxy in NNxy:
 
     # define objective function:
     regul = LaplacianPrior({'Vm':Vm,'gamma':5e-4,'beta':5e-4, 'm0':a_target_fn})
-    waveobj = ObjectiveAcoustic(wavepde, 'a', regul)
+    waveobj = ObjectiveAcoustic(wavepde, mysrc, 'a', regul)
     waveobj.obsop = obsop
 
     # noisy data
     print 'generate noisy data'
     waveobj.solvefwd()
     skip = 20
-    myplot.plot_timeseries(waveobj.solfwd, 'pd', 0, skip, dl.Function(V))
-    dd = waveobj.Bp.copy()
-    nbobspt, dimsol = dd.shape
+    myplot.plot_timeseries(waveobj.solfwd[0], 'pd', 0, skip, dl.Function(V))
+    DD = waveobj.Bp[:]
     noiselevel = 0.1   # = 10%
-    sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*noiselevel
-    np.random.seed(11)
-    rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
-    waveobj.dd = dd + sigmas.reshape((len(sigmas),1))*rndnoise
+    for ii, dd in enumerate(DD):
+        np.random.seed(11)
+        nbobspt, dimsol = dd.shape
+        sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*noiselevel
+        rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
+        DD[ii] = dd + sigmas.reshape((len(sigmas),1))*rndnoise
+    waveobj.dd = DD
     waveobj.solvefwd_cost()
     print 'noise misfit={}, regul cost={}, ratio={}'.format(waveobj.cost_misfit, \
     waveobj.cost_reg, waveobj.cost_misfit/waveobj.cost_reg)
