@@ -44,17 +44,11 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     myplot = PlotFenics(filename)
     # source:
     Ricker = RickerWavelet(fpeak, 1e-10)
-    Pt = PointSources(V, [[0.5,0.5]])
-    mydelta = Pt[0]
+    Pt = PointSources(V, [[0.5,1.0], [0.5,0.0]])
+    #Pt = PointSources(V, [[0.5,0.0]])
     src = dl.Function(V)
     srcv = src.vector()
-    def mysrc(tt):
-        srcv.zero()
-        srcv.axpy(Ricker(tt), mydelta)
-        return srcv
-#    mydelta = Pt[0].array()
-#    def mysrc(tt):
-#        return Ricker(tt)*mydelta
+    mysrc = [Ricker, Pt, srcv]
     # target medium:
     lambda_target = dl.Expression(\
     'lmin + (lmax-lmin)*(x[0]<=0.7)*(x[0]>=0.3)*(x[1]<=0.7)*(x[1]>=0.3)', \
@@ -87,21 +81,22 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     #wavepde.set_abc(mesh, LeftRight(), True)   # not implemented
     wavepde.update({'b':lambda_target_fn, 'a':rho_target_fn, \
     't0':tfilterpts[0], 'tf':tfilterpts[-1], 'Dt':Dt, 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
-    wavepde.ftime = mysrc
     # define objective function:
-    waveobj = ObjectiveAcoustic(wavepde, 'ab')
+    waveobj = ObjectiveAcoustic(wavepde, mysrc, 'ab')
     waveobj.obsop = obsop
     # data
     print 'generate noisy data'
     waveobj.solvefwd()
     myplot.plot_timeseries(waveobj.solfwd, 'pd', 0, skip, fctV)
-    dd = waveobj.Bp.copy()
-    nbobspt, dimsol = dd.shape
+    DD = waveobj.Bp[:]
     noiselevel = 0.1   # = 10%
-    sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*noiselevel
-    np.random.seed(11)
-    rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
-    waveobj.dd = dd + sigmas.reshape((len(sigmas),1))*rndnoise
+    for ii, dd in enumerate(DD):
+        np.random.seed(11)
+        nbobspt, dimsol = dd.shape
+        sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*noiselevel
+        rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
+        DD[ii] = dd + sigmas.reshape((len(sigmas),1))*rndnoise
+    waveobj.dd = DD
     # gradient
     print 'generate observations'
     waveobj.update_PDE({'a':rho_init_fn, 'b':lambda_init_fn})
@@ -109,15 +104,15 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     cost1 = waveobj.cost_misfit
     print 'misfit = {}'.format(waveobj.cost_misfit)
     myplot.plot_timeseries(waveobj.solfwd, 'p', 0, skip, fctV)
-    # Plot data and observations
-    fig = plt.figure()
-    fig.set_size_inches(20., 15.)
-    for ii in range(len(obspts)):
-        ax = fig.add_subplot(6,6,ii+1)
-        ax.plot(waveobj.PDE.times, waveobj.dd[ii,:], 'k--')
-        ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
-        ax.set_title('Plot'+str(ii))
-    fig.savefig(filename + '/observations.eps')
+#    # Plot data and observations
+#    fig = plt.figure()
+#    fig.set_size_inches(20., 15.)
+#    for ii in range(len(obspts)):
+#        ax = fig.add_subplot(6,6,ii+1)
+#        ax.plot(waveobj.PDE.times, waveobj.dd[ii,:], 'k--')
+#        ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
+#        ax.set_title('Plot'+str(ii))
+#    fig.savefig(filename + '/observations.eps')
     print 'compute gradient'
     waveobj.solveadj_constructgrad()
     myplot.plot_timeseries(waveobj.soladj, 'v', 0, skip, fctV)
@@ -185,14 +180,10 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip, param):
     myplot = PlotFenics(filename)
     # source:
     Ricker = RickerWavelet(fpeak, 1e-10)
-    Pt = PointSources(V, [[0.5,1.0]])
-    mydelta = Pt[0]
+    Pt = PointSources(V, [[0.5,1.0], [0.5,0.0]])
     src = dl.Function(V)
     srcv = src.vector()
-    def mysrc(tt):
-        srcv.zero()
-        srcv.axpy(Ricker(tt), mydelta)
-        return srcv
+    mysrc = [Ricker, Pt, srcv]
 #%    mydelta = Pt[0].array()
 #%    def mysrc(tt):
 #%        return Ricker(tt)*mydelta
@@ -227,21 +218,22 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip, param):
     #wavepde.set_abc(mesh, LeftRight(), True)   # not implemented
     wavepde.update({'b':lambda_target_fn, 'a':rho_target_fn, \
     't0':tfilterpts[0], 'tf':tfilterpts[-1], 'Dt':Dt, 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
-    wavepde.ftime = mysrc
     # define objective function:
-    waveobj = ObjectiveAcoustic(wavepde, param)
+    waveobj = ObjectiveAcoustic(wavepde, mysrc, param)
     waveobj.obsop = obsop
     # data
     print 'generate noisy data'
     waveobj.solvefwd()
     myplot.plot_timeseries(waveobj.solfwd, 'pd', 0, skip, fctV)
-    dd = waveobj.Bp.copy()
-    nbobspt, dimsol = dd.shape
-    noiselevel = 0.1   # = 10%
-    sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*noiselevel
+    DD = waveobj.Bp[:]
     np.random.seed(11)
-    rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
-    waveobj.dd = dd + sigmas.reshape((len(sigmas),1))*rndnoise
+    noiselevel = 0.1   # = 10%
+    for ii, dd in enumerate(DD):
+        nbobspt, dimsol = dd.shape
+        sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*noiselevel
+        rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
+        DD[ii] = dd + sigmas.reshape((len(sigmas),1))*rndnoise
+    waveobj.dd = DD
     # gradient
     print 'generate observations'
     waveobj.update_PDE({param:init_fn})
@@ -249,15 +241,15 @@ def run_test(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip, param):
     cost1 = waveobj.cost_misfit
     print 'misfit = {}'.format(waveobj.cost_misfit)
     myplot.plot_timeseries(waveobj.solfwd, 'p', 0, skip, fctV)
-    # Plot data and observations
-    fig = plt.figure()
-    fig.set_size_inches(20., 15.)
-    for ii in range(len(obspts)):
-        ax = fig.add_subplot(6,6,ii+1)
-        ax.plot(waveobj.PDE.times, waveobj.dd[ii,:], 'k--')
-        ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
-        ax.set_title('Plot'+str(ii))
-    fig.savefig(filename + '/observations.eps')
+#    # Plot data and observations
+#    fig = plt.figure()
+#    fig.set_size_inches(20., 15.)
+#    for ii in range(len(obspts)):
+#        ax = fig.add_subplot(6,6,ii+1)
+#        ax.plot(waveobj.PDE.times, waveobj.dd[ii,:], 'k--')
+#        ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
+#        ax.set_title('Plot'+str(ii))
+#    fig.savefig(filename + '/observations.eps')
     print 'compute gradient'
     waveobj.solveadj_constructgrad()
     myplot.plot_timeseries(waveobj.soladj, 'v', 0, skip, fctV)
