@@ -13,7 +13,7 @@ TODO list
 
 
     - ACOUSTIC:
-* compute spectrum Hessian (running on castor)
+* compute spectrum Hessian with mrhs to compare with single src (running on moench)
 * multiple rhs
 * fix parallel version of derivative of mass matrix
 * implement ABC/PML in joint inversion (?)
