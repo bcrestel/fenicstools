@@ -21,7 +21,8 @@ from fenicstools.prior import LaplacianPrior
 from parametersinversion import parametersinversion
 
 # parameters
-a_target_fn, a_initial_fn, b_target_fn, b_initial_fn, wavepde, obsop = parametersinversion()
+a_target_fn, a_initial_fn, b_target_fn, b_initial_fn, \
+wavepde, mysrc, obsop = parametersinversion()
 Vm = wavepde.Vm
 V = wavepde.V
 lenobspts = obsop.PtwiseObs.nbPts
@@ -37,7 +38,7 @@ myplot.plot_vtk(a_target_fn)
 
 # define objective function:
 regul = LaplacianPrior({'Vm':Vm,'gamma':5e-4,'beta':1e-8, 'm0':1.0})
-waveobj = ObjectiveAcoustic(wavepde, 'a', regul)
+waveobj = ObjectiveAcoustic(wavepde, mysrc, 'a', regul)
 waveobj.obsop = obsop
 
 # noisy data
@@ -45,13 +46,15 @@ print 'generate noisy data'
 waveobj.solvefwd()
 skip = 20
 myplot.plot_timeseries(waveobj.solfwd, 'pd', 0, skip, dl.Function(V))
-dd = waveobj.Bp.copy()
-nbobspt, dimsol = dd.shape
+DD = waveobj.Bp[:]
 noiselevel = 0.1   # = 10%
-sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*noiselevel
-np.random.seed(11)
-rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
-waveobj.dd = dd + sigmas.reshape((len(sigmas),1))*rndnoise
+for ii, dd in enumerate(DD):
+    np.random.seed(11)
+    nbobspt, dimsol = dd.shape
+    sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*noiselevel
+    rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
+    DD[ii] = dd + sigmas.reshape((len(sigmas),1))*rndnoise
+waveobj.dd = DD
 waveobj.solvefwd_cost()
 print 'noise misfit={}, regul cost={}, ratio={}'.format(waveobj.cost_misfit, \
 waveobj.cost_reg, waveobj.cost_misfit/waveobj.cost_reg)
@@ -97,15 +100,15 @@ for iter in xrange(50):
     myplot.plot_vtk(waveobj.PDE.b)
     myplot.set_varname('grad'+str(iter))
     myplot.plot_vtk(waveobj.Grad)
-    fig = plt.figure()
-    fig.set_size_inches(20., 15.)
-    for ii in range(lenobspts):
-        ax = fig.add_subplot(6,6,ii+1)
-        ax.plot(waveobj.PDE.times, waveobj.dd[ii,:], 'k--')
-        ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
-        ax.set_title('obs'+str(ii))
-    fig.savefig(filename + '/observations' + str(iter) + '.eps')
-    plt.close(fig)
+#    fig = plt.figure()
+#    fig.set_size_inches(20., 15.)
+#    for ii in range(lenobspts):
+#        ax = fig.add_subplot(6,6,ii+1)
+#        ax.plot(waveobj.PDE.times, waveobj.dd[ii,:], 'k--')
+#        ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
+#        ax.set_title('obs'+str(ii))
+#    fig.savefig(filename + '/observations' + str(iter) + '.eps')
+#    plt.close(fig)
     # stopping criterion (gradient)
     if gradnorm < gradnorm0 * tolgrad:
         print '\nGradient sufficiently reduced -- optimization stopped'

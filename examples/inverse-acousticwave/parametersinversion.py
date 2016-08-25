@@ -106,9 +106,10 @@ def parametersinversion():
     wavepde.lump = True
     wavepde.update({'a':a_target_fn, 'b':b_target_fn, \
     't0':t0, 'tf':tf, 'Dt':Dt, 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
-    wavepde.ftime = mysrc
+    #wavepde.ftime = mysrc
 
-    return a_target_fn, a_initial_fn, b_target_fn, b_initial_fn, wavepde, obsop
+    return a_target_fn, a_initial_fn, b_target_fn, b_initial_fn, \
+    wavepde, mysrc, obsop
 
 
 
@@ -157,6 +158,7 @@ def parametersinversionhighfreq():
     wavepde.lump = True
     wavepde.update({'a':a_target_fn, 'b':b_target_fn, \
     't0':t0, 'tf':tf, 'Dt':Dt, 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
-    wavepde.ftime = mysrc
+    #wavepde.ftime = mysrc
 
-    return a_target_fn, a_initial_fn, b_target_fn, b_initial_fn, wavepde, obsop
+    return a_target_fn, a_initial_fn, b_target_fn, b_initial_fn, \
+    wavepde, mysrc, obsop
