@@ -137,7 +137,6 @@ class LumpedMassMatrixPrime():
         # prepare weak form
         test, trial = dl.TestFunction(Vphi), dl.TrialFunction(Vphi)
         alpha = dl.Function(Va)
-        print 'len(alpha)={}'.format(len(alpha.vector().array()))
         self.ratioM = ratioM
         wkform = dl.inner(alpha*test, trial)*dl.dx
         M = dl.assemble(wkform)
@@ -146,20 +145,17 @@ class LumpedMassMatrixPrime():
         MprimePETSc.create(PETSc.COMM_WORLD)
         MprimePETSc.setSizes([Va.dim(), Vphi.dim()])
         MprimePETSc.setType('aij') # sparse
-        MprimePETSc.setPreallocationNNZ(30)
+#        MprimePETSc.setPreallocationNNZ(30)
         MprimePETSc.setUp()
-        print 'Va.dim()={}, Vphi.dim()={}'.format(Va.dim(), Vphi.dim())
         Istart, Iend = MprimePETSc.getOwnershipRange()
-        print 'Istart={}, Iend={}'.format(Istart, Iend)
-        #for ii in xrange(Istart, Iend) :
         for ii in xrange(Va.dim()):
             setglobalvalue(alpha, ii, 1.0)
             dl.assemble(wkform, tensor=M)
-            #TODO: continue here
             diagM = get_diagonal(M).array()
             cols = np.where(diagM > 1e-20)[0]
+            #TODO: needs to be fixed -- setvalue uses global indexes
             for cc, val in zip(cols, diagM[cols]):  MprimePETSc[ii,cc] = val
-            setglobalvalue(alpha, ii, 0.0)
+            setglobalvalue(alpha, ii, 0.0)  # globalvalue + vector()l.zero() fails
         MprimePETSc.assemblyBegin()
         MprimePETSc.assemblyEnd()
         self.Mprime = dl.PETScMatrix(MprimePETSc)
