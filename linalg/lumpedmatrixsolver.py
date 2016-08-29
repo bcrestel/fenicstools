@@ -155,7 +155,7 @@ class LumpedMassMatrixPrime():
             cols = np.where(diagM > 1e-20)[0]
             #TODO: needs to be fixed -- setvalue uses global indexes
             for cc, val in zip(cols, diagM[cols]):  MprimePETSc[ii,cc] = val
-            setglobalvalue(alpha, ii, 0.0)  # globalvalue + vector()l.zero() fails
+            setglobalvalue(alpha, ii, 0.0)  # b/c globalvalue + vector()l.zero() fails
         MprimePETSc.assemblyBegin()
         MprimePETSc.assemblyEnd()
         self.Mprime = dl.PETScMatrix(MprimePETSc)

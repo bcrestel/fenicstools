@@ -40,8 +40,6 @@ def run():
     testr = dl.TestFunction(Vr)
     B = dl.assemble(testr*trial*dl.dx)
 
-    #TODO: build simpler example where you assemble a PETScMatrix from a
-    #PETSc.Mat() pointer
     MP = dl.as_backend_type(B)
     if mpirank == 0:    print Ml.__class__, M.__class__,\
     Mprime.Mprime.__class__, MP.__class__
@@ -54,10 +52,11 @@ def run():
     if mpirank == 0:    print 'MP'
     MP * u.vector()
     if mpirank == 0:    print 'Mprime'
+    # This does not work in parallel as petsc4py and dolfin partitions do not
+    # match -- this is being investigated
     Mprime.Mprime * u.vector()
 #    Mprime.Mprime.mult(u.vector(), v.vector())
 
-    """
     RHO = \
     [dl.interpolate(dl.Expression('2.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=1.0), Vr), \
     dl.interpolate(dl.Expression('2.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=8.0), Vr), \
@@ -96,7 +95,6 @@ def run():
                 if err < 1e-6:  print '\t =>> OK!!'
                 else:   print ''
             if PARALLEL: MPI.barrier(mycomm)
-    """
 
 
 if __name__ == "__main__":
