@@ -140,35 +140,48 @@ class LumpedMassMatrixPrime():
         self.ratioM = ratioM
         wkform = dl.inner(alpha*test, trial)*dl.dx
         M = dl.assemble(wkform)
+        # extract local to global map for each fct space
+        VaDM, VphiDM = Va.dofmap(), Vphi.dofmap()
+        a_map = PETSc.LGMap().create(VaDM.dofs(), PETSc.COMM_WORLD)
+        phi_map = PETSc.LGMap().create(VphiDM.dofs(), PETSc.COMM_WORLD)
         # assemble PETSc version of Mprime
         MprimePETSc = PETSc.Mat()
         MprimePETSc.create(PETSc.COMM_WORLD)
-        MprimePETSc.setSizes([Va.dim(), Vphi.dim()])
+        MprimePETSc.setSizes([ [VaDM.local_dimension("owned"), Va.dim()], \
+        [VphiDM.local_dimension("owned"), Vphi.dim()] ])
         MprimePETSc.setType('aij') # sparse
 #        MprimePETSc.setPreallocationNNZ(30)
         MprimePETSc.setUp()
+        MprimePETSc.setLGMap(a_map, phi_map)
+        # populate the PETSc matrix
         Istart, Iend = MprimePETSc.getOwnershipRange()
         for ii in xrange(Va.dim()):
             setglobalvalue(alpha, ii, 1.0)
             dl.assemble(wkform, tensor=M)
             diagM = get_diagonal(M).array()
             cols = np.where(diagM > 1e-20)[0]
-            #TODO: needs to be fixed -- setvalue uses global indexes
-            for cc, val in zip(cols, diagM[cols]):  MprimePETSc[ii,cc] = val
-            setglobalvalue(alpha, ii, 0.0)  # b/c globalvalue + vector()l.zero() fails
+            #TODO: continue checking if this is right
+            for cc, val in zip(cols, diagM[cols]):  
+                global_cc = VphiDM.dofs()[cc]
+                MprimePETSc[ii, global_cc] = val
+            setglobalvalue(alpha, ii, 0.0)  # b/c globalvalue + zero fails
         MprimePETSc.assemblyBegin()
         MprimePETSc.assemblyEnd()
+        # convert PETSc matrix to PETSc-wrapper in Fenics
         self.Mprime = dl.PETScMatrix(MprimePETSc)
+
 
     def updater(self, ratioM):  self.ratioM = ratioM
 
+
     def get_gradient(self, u, v):
-        """ compute gradient of the expression u^T.M.v with respect to weight-parameter
-        alpha in weighted-mass matrix 
+        """ compute gradient of the expression u^T.M.v 
+        with respect to weight-parameter alpha in weighted-mass matrix 
             u, v = Vectors """
 
         uv = u*v
         return (self.Mprime * uv) * self.ratioM
+
 
     def get_incremental(self, ahat, u):
         """ Compute term on rhs of incremental equations
