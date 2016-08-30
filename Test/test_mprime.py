@@ -16,10 +16,12 @@ except:
     PARALLEL = False
 
 
+#TODO: not checking in parallel -- continue debugging
+# pb may come from Mprime OR from lumped mass matrix in parallel
 #@profile
 def run():
     #mesh = dl.UnitSquareMesh(50,50)
-    mesh = dl.UnitSquareMesh(10,10)
+    mesh = dl.UnitSquareMesh(2,2)
     Vr = dl.FunctionSpace(mesh, 'Lagrange', 1)
     Vphi = dl.FunctionSpace(mesh, 'Lagrange', 2)
     test, trial = dl.TestFunction(Vphi), dl.TrialFunction(Vphi)
@@ -27,35 +29,9 @@ def run():
     rho = dl.Function(Vr)
     Mweak = dl.inner(rho*test, trial)*dl.dx
     Mprime = LumpedMassMatrixPrime(Vr, Vphi)
+    print 'rank={}'.format(mpirank), Mprime.Mprime.array()
     h = 1e-5
     fact = [1.0, -1.0]
-    print 'rank={}'.format(mpirank), Mprime.Mprime.array().shape
-    print 'rank={}'.format(mpirank), len(u.vector().array())
-    
-    setfct(rho, 1.0)
-    M = dl.assemble(Mweak)
-    Ml = LumpedMatrixSolverS(Vphi)
-    Ml.set_operator(M)
-
-    testr = dl.TestFunction(Vr)
-    B = dl.assemble(testr*trial*dl.dx)
-
-    MP = dl.as_backend_type(B)
-    if mpirank == 0:    print Ml.__class__, M.__class__,\
-    Mprime.Mprime.__class__, MP.__class__
-    if mpirank == 0:    print M.size(0), Mprime.Mprime.size(0), MP.size(0)
-    if mpirank == 0:    print M.size(1), Mprime.Mprime.size(1), MP.size(1)
-    if mpirank == 0:    print 'Ml'
-    Ml * u.vector()
-    if mpirank == 0:    print 'M'
-    M * u.vector()
-    if mpirank == 0:    print 'MP'
-    MP * u.vector()
-    if mpirank == 0:    print 'Mprime'
-    # This does not work in parallel as petsc4py and dolfin partitions do not
-    # match -- this is being investigated
-    Mprime.Mprime * u.vector()
-#    Mprime.Mprime.mult(u.vector(), v.vector())
 
     RHO = \
     [dl.interpolate(dl.Expression('2.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=1.0), Vr), \
