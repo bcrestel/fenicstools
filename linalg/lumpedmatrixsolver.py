@@ -1,4 +1,5 @@
 import dolfin as dl
+from dolfin import MPI
 import numpy as np
 
 from miscroutines import get_diagonal
@@ -127,7 +128,7 @@ class LumpedMassMatrixPrime():
     we consider a lumping by diagonal scaling, i.e., corresponding to Lumped MatrixSolverS
     we consider the derivative wrt parameter alpha """
 
-    def __init__(self, Va, Vphi, ratioM=None):
+    def __init__(self, Va, Vphi, ratioM=None, mpicomm=PETSc.COMM_WORLD):
         """ Va = FunctionSpace for weight-parameter in mass matrix
         Vphi = FunctionSpace for test and trial functions in mass matrix
         ratioM = ratio used for the lumping of mass matrix """
@@ -142,29 +143,39 @@ class LumpedMassMatrixPrime():
         M = dl.assemble(wkform)
         # extract local to global map for each fct space
         VaDM, VphiDM = Va.dofmap(), Vphi.dofmap()
-        a_map = PETSc.LGMap().create(VaDM.dofs(), PETSc.COMM_WORLD)
-        phi_map = PETSc.LGMap().create(VphiDM.dofs(), PETSc.COMM_WORLD)
+        a_map = PETSc.LGMap().create(VaDM.dofs(), mpicomm)
+        phi_map = PETSc.LGMap().create(VphiDM.dofs(), mpicomm)
         # assemble PETSc version of Mprime
         MprimePETSc = PETSc.Mat()
-        MprimePETSc.create(PETSc.COMM_WORLD)
+        MprimePETSc.create(mpicomm)
         MprimePETSc.setSizes([ [VaDM.local_dimension("owned"), Va.dim()], \
         [VphiDM.local_dimension("owned"), Vphi.dim()] ])
         MprimePETSc.setType('aij') # sparse
 #        MprimePETSc.setPreallocationNNZ(30)
         MprimePETSc.setUp()
         MprimePETSc.setLGMap(a_map, phi_map)
-        # populate the PETSc matrix
+        # Check:
         Istart, Iend = MprimePETSc.getOwnershipRange()
+        assert list(VaDM.dofs()) == range(Istart, Iend)
+        # populate the PETSc matrix
+        mpirank = MPI.rank(mpicomm) #TODO: remove
         for ii in xrange(Va.dim()):
             setglobalvalue(alpha, ii, 1.0)
             dl.assemble(wkform, tensor=M)
             diagM = get_diagonal(M).array()
+            #dl.as_backend_type(alpha.vector()).vec().view()
+            #dl.as_backend_type(M).mat().view()
+            #print M.array()
+            #print 'ii={}, rank={}'.format(ii, mpirank), diagM
+            #print 'ii={}, rank={}'.format(ii, mpirank), alpha.vector().array()
             cols = np.where(diagM > 1e-20)[0]
-            #TODO: continue checking if this is right
             for cc, val in zip(cols, diagM[cols]):  
                 global_cc = VphiDM.dofs()[cc]
+                #print 'rank={}, cc={}, val={}, global_cc={}'.format(\
+                #mpirank, cc, val, global_cc)
                 MprimePETSc[ii, global_cc] = val
             setglobalvalue(alpha, ii, 0.0)  # b/c globalvalue + zero fails
+            MPI.barrier(mpicomm)    #TODO: remove
         MprimePETSc.assemblyBegin()
         MprimePETSc.assemblyEnd()
         # convert PETSc matrix to PETSc-wrapper in Fenics

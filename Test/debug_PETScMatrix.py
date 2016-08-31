@@ -1,5 +1,10 @@
-""" Script to investigate behaviour of PETScMatrix in parallel (MPI) """
+""" 
+Script to investigate behaviour of PETScMatrix in parallel (MPI) 
+Partitioning of PETSc and Fenics (mesh) are both monotonic, but they
+don't split in the same chunk sizes.
+"""
 import dolfin as dl
+import numpy as np
 import petsc4py, sys
 petsc4py.init(sys.argv)
 from petsc4py import PETSc
@@ -10,14 +15,27 @@ mycomm = PETSc.COMM_WORLD
 mpisize = MPI.size(mycomm)
 mpirank = MPI.rank(mycomm)
 
-mesh = dl.UnitSquareMesh(2,2)
+mesh = dl.UnitSquareMesh(100,100)
 Vr = dl.FunctionSpace(mesh, 'Lagrange', 1)
-Vc = dl.FunctionSpace(mesh, 'Lagrange', 2)
+Vc = dl.FunctionSpace(mesh, 'Lagrange', 1)
 #
-print 'rank={}, dofmap:'.format(mpirank), Vr.dofmap().dofs()
 Vrdofmap, Vcdofmap = Vr.dofmap(), Vc.dofmap()
+#print 'rank={}, Vr dofmap:'.format(mpirank), Vr.dofmap().dofs()
+#print 'rank={}, Vc dofmap:'.format(mpirank), Vc.dofmap().dofs()
 rmap = PETSc.LGMap().create(Vrdofmap.dofs(), mycomm)
 cmap = PETSc.LGMap().create(Vcdofmap.dofs(), mycomm)
+"""
+if mpirank == 0:
+    gindices = PETSc.IS().createGeneral([6,7,8])
+    #gindices = [6,7,8]
+else:
+    gindices = PETSc.IS().createGeneral([0,1,2,3,4,5])
+    #gindices = [0,1,2,3,4,5]
+rmap = PETSc.LGMap().create(gindices, mycomm)
+cmap = PETSc.LGMap().create(gindices, mycomm)
+print 'rank={}, rmap indices:'.format(mpirank), rmap.getIndices()
+print 'rank={}, cmap indices:'.format(mpirank), cmap.getIndices()
+"""
 #
 MPETSc = PETSc.Mat()
 MPETSc.create(PETSc.COMM_WORLD)
@@ -37,11 +55,20 @@ for I in xrange(Istart, Iend) :
     if I+2 < Vc.dim():  MPETSc[I,I+2] = -1.0
 MPETSc.assemblyBegin()
 MPETSc.assemblyEnd()
+#MPETSc.getDiagonal().view()
 
-print 'rank={}, MPETSc shape:'.format(mpirank), MPETSc.getLocalSize()
+#print 'rank={}, MPETSc shape:'.format(mpirank), MPETSc.getLocalSize()
 Mdolfin = dl.PETScMatrix(MPETSc)
-print 'rank={}, Mdolfin:'.format(mpirank), Mdolfin.array()
+#print 'rank={}, Mdolfin:'.format(mpirank), Mdolfin.array()
 
+
+# Compare petsc and fenics dofs
+if not list(Vrdofmap.dofs()) == range(Istart, Iend):
+    print 'rank={}'.format(mpirank), list(Vrdofmap.dofs), range(Istart, Iend)
+
+
+
+"""
 MPI.barrier(mycomm)
 if mpirank == 0:    print 'Do matvec in PETSc'
 x, y = MPETSc.getVecs()
@@ -53,7 +80,6 @@ print 'rank={}, y:'.format(mpirank), y[...]
 MPI.barrier(mycomm)
 if mpirank == 0:    print 'Do the matvec with fenics'
 x2 = dl.interpolate(dl.Constant(1.0), Vc)
-print 'rank={}, len(x2):'.format(mpirank), len(x2.vector().array())
 y2 = Mdolfin * x2.vector()
 
 MPI.barrier(mycomm)
@@ -62,9 +88,11 @@ x2P = dl.as_backend_type(x2.vector()).vec()
 y2P = MPETSc * x2P  
 y2 = dl.PETScVector(y2P)
 print 'rank={}'.format(mpirank), y2.array()
+yy = dl.Vector()
+y2.gather(yy, np.array(range(Vr.dim()), "intc"))
+print yy.array()
 
-
-"""
+"" "
 std::shared_ptr<const GenericDofMap> dofmap = Vh.dofmap();
 PetscInt global_dof_dimension = dofmap->global_dimension();
 PetscInt local_dof_dimension = dofmap->local_dimension("owned");

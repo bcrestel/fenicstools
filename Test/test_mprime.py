@@ -21,17 +21,24 @@ except:
 #@profile
 def run():
     #mesh = dl.UnitSquareMesh(50,50)
-    mesh = dl.UnitSquareMesh(2,2)
+    mesh = dl.UnitSquareMesh(1,1)
     Vr = dl.FunctionSpace(mesh, 'Lagrange', 1)
-    Vphi = dl.FunctionSpace(mesh, 'Lagrange', 2)
+    Vphi = dl.FunctionSpace(mesh, 'Lagrange', 1)
+    Vphidofmap = Vphi.dofmap().dofs()
+    #print 'rank={}, Vphidofmap={}, Vrdofmap={}'.format(\
+    #mpirank, Vphidofmap,Vr.dofmap().dofs())
+    #print 'rank={}, Vphi coord='.format(mpirank), \
+    #Vphi.dofmap().tabulate_all_coordinates(mesh).reshape((-1,2))
     test, trial = dl.TestFunction(Vphi), dl.TrialFunction(Vphi)
     u, v = dl.Function(Vphi), dl.Function(Vphi)
     rho = dl.Function(Vr)
     Mweak = dl.inner(rho*test, trial)*dl.dx
-    Mprime = LumpedMassMatrixPrime(Vr, Vphi)
-    print 'rank={}'.format(mpirank), Mprime.Mprime.array()
+    Mprime = LumpedMassMatrixPrime(Vr, Vphi, None, mycomm)
+    #print 'rank={}'.format(mpirank), Mprime.Mprime.array()
     h = 1e-5
     fact = [1.0, -1.0]
+
+    #sys.exit(0) # TMP
 
     RHO = \
     [dl.interpolate(dl.Expression('2.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=1.0), Vr), \
@@ -39,7 +46,7 @@ def run():
     dl.interpolate(dl.Expression('2.0 + sin(2*pi*x[0])*sin(1*pi*x[1])*(x[0]<0.5)'), Vr), \
     dl.interpolate(dl.Expression('2.0 + 2.0*(x[0]<0.5)*(x[1]<0.5) - 1.8*(x[0]>=0.5)*(x[1]<0.5)'), Vr)]
 
-    np.random.seed((mpirank+1)*100)
+    np.random.seed(11)
     locsize = len(u.vector().array())
     for jj, rho1 in enumerate(RHO):
         if mpirank == 0:    print '\nmedium {}'.format(jj)
@@ -49,12 +56,12 @@ def run():
         Ml.set_operator(M)
         Mprime.updater(Ml.ratio)
         for ii in range(5):
+            rndvecu = np.random.randn(Vphi.dim())
+            rndvecv = np.random.randn(Vphi.dim())
             if mpirank == 0:    print 'test {}'.format(ii)
             rnddir = dl.interpolate(dl.Expression('2.0+sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1), Vr)
-            #setfct(u, np.random.randn(Vphi.dim()))
-            #setfct(v, np.random.randn(Vphi.dim()))
-            setfct(u, np.random.randn(locsize))
-            setfct(v, np.random.randn(locsize))
+            setfct(u, rndvecu[Vphidofmap])
+            setfct(v, rndvecv[Vphidofmap])
             analytical = rnddir.vector().inner(Mprime.get_gradient(u.vector(), v.vector()))
             uMv = []
             for ff in fact:
