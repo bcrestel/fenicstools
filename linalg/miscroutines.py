@@ -22,4 +22,5 @@ def setglobalvalue(fct, globalindex, value):
         localindex = np.array(np.where(dof2globindex == globalindex)[0], \
         dtype=np.intc)
         vec.set_local(value*np.ones(localindex.shape), localindex)
+    vec.apply('insert')
 
