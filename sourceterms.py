@@ -22,17 +22,16 @@ class PointSources():
             delta = PointSource(self.V, self.list2point(pts))
             bs = self.b.copy()
             delta.apply(bs)
-            bs[:] = self.PointSourcecorrection(bs)
-            self.PtSrc.append(bs)
+            self.PtSrc.append(self._PointSourcecorrection(bs))
 
 
-    def PointSourcecorrection(self, b):
+    def _PointSourcecorrection(self, b):
         """ Fix dolfin's PointSource in parallel """
-        # TODO: TO BE TESTED!!
-        scale = b.array().sum()
-        if abs(scale) > 1e-10:  
-            return b.array()/scale
-        else:   return b.array()
+        scale = b.sum()
+        if abs(scale - 1.0) > 1e-6:
+            return b/scale
+        else:
+            return b
         
 
     def list2point(self, list_in):
@@ -50,8 +49,7 @@ class PointSources():
             delta = PointSource(self.V, self.list2point(pts))
             bs = self.b.copy()
             delta.apply(bs)
-            bs[:] = self.PointSourcecorrection(bs)
-            self.PtSrc.append(bs)
+            self.PtSrc.append(self._PointSourcecorrection(bs))
 
 
     def __getitem__(self, index):

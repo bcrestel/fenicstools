@@ -3,6 +3,8 @@ Constant, Expression, assemble, dx, Point, PointSource, plot, interactive,\
 inner, nabla_grad, Function, solve, MPI, mpi_comm_world
 import numpy as np
 
+from fenicstools.sourceterms import PointSources
+
 mycomm = mpi_comm_world()
 myrank = MPI.rank(mycomm)
 
@@ -17,4 +19,7 @@ P = Point(0.5,0.5)
 delta = PointSource(V, P, 1.0)
 delta.apply(b)
 
-print 'p{0}: max(|b|)={1},\n b={2}'.format(myrank, max(abs(b.array())), b.array())
+myown = PointSources(V, [[0.5,0.5], [0.0,0.0]])
+
+print 'p{}: max(PointSource)={}, max(PointSources[0])={}, max(PointSources[1])={}'.format(\
+myrank, max(abs(b.array())), max(abs(myown[0].array())), max(abs(myown[1].array())))
