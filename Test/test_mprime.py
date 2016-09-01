@@ -16,29 +16,19 @@ except:
     PARALLEL = False
 
 
-#TODO: not checking in parallel -- continue debugging
-# pb may come from Mprime OR from lumped mass matrix in parallel
 #@profile
 def run():
-    #mesh = dl.UnitSquareMesh(50,50)
-    mesh = dl.UnitSquareMesh(1,1)
+    mesh = dl.UnitSquareMesh(50,50)
     Vr = dl.FunctionSpace(mesh, 'Lagrange', 1)
-    Vphi = dl.FunctionSpace(mesh, 'Lagrange', 1)
+    Vphi = dl.FunctionSpace(mesh, 'Lagrange', 2)
     Vphidofmap = Vphi.dofmap().dofs()
-    #print 'rank={}, Vphidofmap={}, Vrdofmap={}'.format(\
-    #mpirank, Vphidofmap,Vr.dofmap().dofs())
-    #print 'rank={}, Vphi coord='.format(mpirank), \
-    #Vphi.dofmap().tabulate_all_coordinates(mesh).reshape((-1,2))
     test, trial = dl.TestFunction(Vphi), dl.TrialFunction(Vphi)
     u, v = dl.Function(Vphi), dl.Function(Vphi)
     rho = dl.Function(Vr)
     Mweak = dl.inner(rho*test, trial)*dl.dx
     Mprime = LumpedMassMatrixPrime(Vr, Vphi, None, mycomm)
-    #print 'rank={}'.format(mpirank), Mprime.Mprime.array()
     h = 1e-5
     fact = [1.0, -1.0]
-
-    #sys.exit(0) # TMP
 
     RHO = \
     [dl.interpolate(dl.Expression('2.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=1.0), Vr), \

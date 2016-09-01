@@ -158,24 +158,15 @@ class LumpedMassMatrixPrime():
         Istart, Iend = MprimePETSc.getOwnershipRange()
         assert list(VaDM.dofs()) == range(Istart, Iend)
         # populate the PETSc matrix
-        mpirank = MPI.rank(mpicomm) #TODO: remove
         for ii in xrange(Va.dim()):
             setglobalvalue(alpha, ii, 1.0)
             dl.assemble(wkform, tensor=M)
             diagM = get_diagonal(M).array()
-            #dl.as_backend_type(alpha.vector()).vec().view()
-            #dl.as_backend_type(M).mat().view()
-            #print M.array()
-            #print 'ii={}, rank={}'.format(ii, mpirank), diagM
-            #print 'ii={}, rank={}'.format(ii, mpirank), alpha.vector().array()
             cols = np.where(diagM > 1e-20)[0]
             for cc, val in zip(cols, diagM[cols]):  
                 global_cc = VphiDM.dofs()[cc]
-                #print 'rank={}, cc={}, val={}, global_cc={}'.format(\
-                #mpirank, cc, val, global_cc)
                 MprimePETSc[ii, global_cc] = val
             setglobalvalue(alpha, ii, 0.0)  # b/c globalvalue + zero fails
-            MPI.barrier(mpicomm)    #TODO: remove
         MprimePETSc.assemblyBegin()
         MprimePETSc.assemblyEnd()
         # convert PETSc matrix to PETSc-wrapper in Fenics
