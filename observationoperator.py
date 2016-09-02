@@ -10,14 +10,13 @@ from numpy.linalg import norm
 from numpy.random import randn
 import matplotlib.pyplot as plt
 
+from dolfin import Function, TrialFunction, TestFunction, \
+Constant, Point, as_backend_type, assemble, inner, dx
 try:
-    from dolfin import Function, TrialFunction, TestFunction, \
-    Constant, Point, as_backend_type, \
-    assemble, inner, dx, MPI 
+    from dolfin import MPI, mpi_comm_world
+    PARALLEL=True
 except:
-    from dolfin import Function, TrialFunction, TestFunction, \
-    Constant, Point, as_backend_type, \
-    assemble, inner, dx
+    PARALLEL=False
 from exceptionsfenics import WrongInstanceError
 from miscfenics import isFunction, isVector, isarray, arearrays, isequal, setfct
 from sourceterms import PointSources
@@ -121,15 +120,15 @@ class ObservationOperator():
         || u - ud || / || ud || = || noise || / || ud || = 0.02"""
         isarray(uin)
         noisevect = randn(len(uin))
-        # Get norm of entire random vector:
-        if self.mycomm == None: normrand = norm(noisevect)
-        else:
-            normrand = sqrt(MPI.sum(self.mycomm, norm(noisevect)**2))
-        noisevect /= normrand
+        # Get norm of entire random vector and
         # Get norm of entire vector ud (not just local part):
-        if self.mycomm == None: normud = norm(uin)
-        else:
+        if PARALLEL:
+            normrand = sqrt(MPI.sum(self.mycomm, norm(noisevect)**2))
             normud = sqrt(MPI.sum(self.mycomm, norm(uin)**2))
+        else:
+            normrand = norm(noisevect)
+            normud = norm(uin)
+        noisevect /= normrand
         noisevect *= self.noisepercent * normud
         objnoise_glob = (self.noisepercent * normud)**2
         UDnoise = uin + noisevect
@@ -306,7 +305,7 @@ class TimeObsPtwise():
         mycomm = MPI communicator
     """
 
-    def __init__(self, paramObsPtwise, timefilter=None, mycomm=None):
+    def __init__(self, paramObsPtwise, timefilter=None, mycomm=mpi_comm_world()):
         self.PtwiseObs = ObsPointwise(paramObsPtwise, mycomm)
         u = Function(self.PtwiseObs.V)
         self.outvec = u.vector()

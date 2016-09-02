@@ -6,6 +6,12 @@ import sys
 import numpy as np
 
 import dolfin as dl
+try:
+    from dolfin import MPI, mpi_comm_world
+    PARALLEL = True
+except:
+    mpirank = 0
+    PARALLEL = False
 from linalg.cgsolverSteihaug import CGSolverSteihaug
 from miscfenics import setfct
 
@@ -52,7 +58,8 @@ def checkgradfd(ObjFctal, nbgradcheck=10, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4
     ObjFctal.solveadj_constructgrad()
 
 
-def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doublesided=True):
+def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], \
+doublesided=True, mpicomm=mpi_comm_world()):
     """
     Finite-difference check for the gradient of an ObjectiveFunctional object
         ObjFctal = object describing objective functional; must have methods:
@@ -64,15 +71,19 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doub
     and member:
             - cost: value of cost function
     """
+    if PARALLEL:    mpirank = MPI.rank(mpicomm)
     lenm = len(ObjFctal.getmcopyarray())
     ObjFctal.backup_m()
     if doublesided: factor = [1.0, -1.0]
     else:   factor = [1.0]
     costref = ObjFctal.cost
-    MGdir = Medium.dot(ObjFctal.getMGarray())
-    for textnb, dirct, mgdir in zip(range(lenm), Medium, MGdir):
-        print 'Gradient check -- direction {0}: MGdir={1:.5e}'\
-        .format(textnb+1, mgdir)
+    MGdirloc = Medium.dot(ObjFctal.getMGarray())
+    for textnb, dirct, mgdirloc in zip(range(lenm), Medium, MGdirloc):
+        if PARALLEL:    mgdir = MPI.sum(mpicomm, mgdirloc)
+        else:   mgdir = mgdirloc
+        if mpirank == 0:  
+            print 'Gradient check -- direction {0}: MGdir={1:.5e}'\
+            .format(textnb+1, mgdir)
         for hh in H:
             cost = []
             for fact in factor:
@@ -83,10 +94,11 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doub
             else:   FDgrad = (cost[0] - costref)/hh
             err = abs(mgdir - FDgrad) / abs(FDgrad)
             if err < tolgradchk:   
-                print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e} -> OK!'\
-                .format(hh, FDgrad, err)
+                if mpirank == 0:
+                    print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e} -> OK!'\
+                    .format(hh, FDgrad, err)
                 break
-            else:
+            elif mpirank == 0:
                 print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e}'\
                 .format(hh, FDgrad, err)
     # Restore initial value of m:
@@ -137,9 +149,10 @@ def checkhessfd(ObjFctal, nbhesscheck=10, tolgradchk=1e-6, H = [1e-5, 1e-6, 1e-4
 
 
 def checkhessfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
-H = [1e-5, 1e-6, 1e-4], doublesided=True):
+H = [1e-5, 1e-6, 1e-4], doublesided=True, mpicomm=mpi_comm_world()):
     """Finite-difference check for the Hessian of an ObjectiveFunctional
     object"""
+    if PARALLEL:    mpirank = MPI.rank(mpicomm)
     lenm = len(ObjFctal.getmcopyarray())
     ObjFctal.backup_m()
     MGref = ObjFctal.getMGarray()
@@ -151,9 +164,10 @@ H = [1e-5, 1e-6, 1e-4], doublesided=True):
         # Do computations for analytical Hessian:
         setfct(dirfct, dirct)
         ObjFctal.mult(dirfct.vector(), hessxdir.vector())
-        normhess = np.linalg.norm(hessxdir.vector().array())
-        print 'Hessian check -- direction {}: |H.x|={:.5e}'\
-        .format(textnb+1, normhess)
+        normhess = np.sqrt( MPI.sum(mpicomm, np.linalg.norm(hessxdir.vector().array())**2) )
+        if mpirank == 0:
+            print 'Hessian check -- direction {}: |H.x|={:.5e}'\
+            .format(textnb+1, normhess)
         # Do computations for FD Hessian:
         for hh in H:
             MG = []
@@ -166,13 +180,15 @@ H = [1e-5, 1e-6, 1e-4], doublesided=True):
             else:   FDHessx = (MG[0] - MGref)/hh
             # Compute errors:
             setfct(dirfct, FDHessx)
-            err = np.linalg.norm(hessxdir.vector().array()-FDHessx)/normhess
-            print '\t\th={:.1e}: |FDH.x|={:.5e}, err={:.2e}'\
-            .format(hh, np.linalg.norm(FDHessx), err),
+            err = np.sqrt( MPI.sum(mpicomm, \
+            np.linalg.norm(hessxdir.vector().array()-FDHessx)**2) )/normhess
+            if mpirank == 0:
+                print '\t\th={:.1e}: |FDH.x|={:.5e}, err={:.2e}'\
+                .format(hh, np.linalg.norm(FDHessx), err),
             if err < tolgradchk:
-                print '\t =>> OK!'
+                if mpirank == 0:    print '\t =>> OK!'
                 break
-            else:   print ''
+            elif mpirank == 0:  print ''
     # Restore initial value of m:
     ObjFctal.restore_m()
     ObjFctal.solvefwd_cost()
@@ -180,9 +196,11 @@ H = [1e-5, 1e-6, 1e-4], doublesided=True):
 
 
 def checkhessabfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
-H = [1e-5, 1e-6, 1e-4], doublesided=True, direction='b'):
+H = [1e-5, 1e-6, 1e-4], doublesided=True, direction='b', \
+mpicomm=mpi_comm_world()):
     """Finite-difference check for the Hessian of an ObjectiveFunctional
     object"""
+    if PARALLEL:    mpirank = MPI.rank(mpicomm)
     lenm = len(ObjFctal.getmcopyarray())
     ObjFctal.backup_m()
     MGref = ObjFctal.getMGarray()
@@ -195,11 +213,12 @@ H = [1e-5, 1e-6, 1e-4], doublesided=True, direction='b'):
         setfct(dirfct, dirct)
         ObjFctal.mult(dirfct.vector(), hessxdir.vector())
         ah1, bh1 = hessxdir.split(deepcopy=True)
-        normhessa = np.linalg.norm(ah1.vector().array())
-        normhessb = np.linalg.norm(bh1.vector().array())
-        normhess = np.linalg.norm(hessxdir.vector().array())
-        print 'Hessian check -- direction {}: |H.x|a={:.5e}, |H.x|b={:.5e}, |H.x|={:.5e}'\
-        .format(textnb+1, normhessa, normhessb, normhess)
+        normhessa = np.sqrt( MPI.sum(mpicomm, np.linalg.norm(ah1.vector().array())**2) )
+        normhessb = np.sqrt( MPI.sum(mpicomm, np.linalg.norm(bh1.vector().array())**2) )
+        normhess = np.sqrt( MPI.sum(mpicomm, np.linalg.norm(hessxdir.vector().array())**2) )
+        if mpirank == 0:
+            print 'Hessian check -- direction {}: |H.x|a={:.5e}, |H.x|b={:.5e}, |H.x|={:.5e}'\
+            .format(textnb+1, normhessa, normhessb, normhess)
         # Do computations for FD Hessian:
         for hh in H:
             MG = []
@@ -213,28 +232,36 @@ H = [1e-5, 1e-6, 1e-4], doublesided=True, direction='b'):
             # Compute errors:
             setfct(dirfct, FDHessx)
             ah2, bh2 = dirfct.split(deepcopy=True)
-            erra = np.linalg.norm(ah1.vector().array()-ah2.vector().array())/normhessa
-            errb = np.linalg.norm(bh1.vector().array()-bh2.vector().array())/normhessb
-            err = np.linalg.norm(hessxdir.vector().array()-FDHessx)/normhess
-            print '\t\th={:.1e}: |FDH.x|a={:.5e}, |FDH.x|b={:.5e}, |FDH.x|={:.5e}'\
-            .format(hh, np.linalg.norm(ah2.vector().array()), \
-            np.linalg.norm(bh2.vector().array()), np.linalg.norm(FDHessx))
-            print '\t\t\t\terra={:.2e}, errb={:.2e}, err={:.2e}'.format(erra, errb, err),
+            erra = np.sqrt( MPI.sum(mpicomm, \
+            np.linalg.norm(ah1.vector().array()-ah2.vector().array())**2) )\
+            /normhessa
+            errb = np.sqrt( MPI.sum(mpicomm, \
+            np.linalg.norm(bh1.vector().array()-bh2.vector().array())**2) )\
+            /normhessb
+            err = np.sqrt( MPI.sum(mpicomm, \
+            np.linalg.norm(hessxdir.vector().array()-FDHessx)**2) )/normhess
+            FDHxa = np.sqrt(MPI.sum(mpicomm, np.linalg.norm(ah2.vector().array())**2))
+            FDHxb = np.sqrt(MPI.sum(mpicomm, np.linalg.norm(bh2.vector().array())**2))
+            FDHx = np.sqrt(MPI.sum(mpicomm, np.linalg.norm(FDHessx)**2))
+            if mpirank == 0:
+                print '\t\th={:.1e}: |FDH.x|a={:.5e}, |FDH.x|b={:.5e}, |FDH.x|={:.5e}'\
+                .format( hh, FDHxa, FDHxb, FDHx)
+                print '\t\t\t\terra={:.2e}, errb={:.2e}, err={:.2e}'.format(erra, errb, err),
             if direction == 'a':
                 if erra < tolgradchk:
-                    print '\t =>> OK!'
+                    if mpirank == 0:    print '\t =>> OK!'
                     break
-                else:   print ''
+                elif mpirank == 0:   print ''
             elif direction == 'b':
                 if errb < tolgradchk:
-                    print '\t =>> OK!'
+                    if mpirank == 0:    print '\t =>> OK!'
                     break
-                else:   print ''
+                elif  mpirank == 0:   print ''
             else:
                 if err < tolgradchk:
-                    print '\t =>> OK!'
+                    if mpirank == 0:    print '\t =>> OK!'
                     break
-                else:   print ''
+                elif mpirank == 0:   print ''
     # Restore initial value of m:
     ObjFctal.restore_m()
     ObjFctal.solvefwd_cost()

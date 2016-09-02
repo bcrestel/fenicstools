@@ -20,6 +20,14 @@ from fenicstools.miscfenics import checkdt, setfct
 from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.optimsolver import checkgradfd_med, checkhessabfd_med, checkhessfd_med
 
+try:
+    from dolfin import MPI, mpi_comm_world
+    mpicomm = mpi_comm_world()
+    mpirank = MPI.rank(mpicomm)
+    PARALLEL = True
+except:
+    mpirank = 0
+    PARALLEL = False
 
 
 # ABC:
@@ -30,6 +38,7 @@ from fenicstools.optimsolver import checkgradfd_med, checkhessabfd_med, checkhes
 
 #@profile
 def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
+    print 'mpirank={}, PARALLEL={}'.format(mpirank, PARALLEL)
     lambdamin, lambdamax = lambdaa
     rhomin, rhomax = rho
     h = 1./Nxy
@@ -40,12 +49,12 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     fctV = dl.Function(V)
     # set up plots:
     filename, ext = splitext(sys.argv[0])
-    if isdir(filename + '/'):   rmtree(filename + '/')
+    if mpirank == 0 and isdir(filename + '/'):   rmtree(filename + '/')
+    if PARALLEL:    MPI.barrier(mpicomm)
     myplot = PlotFenics(filename)
     # source:
     Ricker = RickerWavelet(fpeak, 1e-10)
-    Pt = PointSources(V, [[0.5,1.0], [0.5,0.0]])
-    #Pt = PointSources(V, [[0.5,0.0]])
+    Pt = PointSources(V, [[0.5,1.0], [0.5,0.0], [0.5,0.5]])
     src = dl.Function(V)
     srcv = src.vector()
     mysrc = [Ricker, Pt, srcv]
@@ -85,7 +94,7 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     waveobj = ObjectiveAcoustic(wavepde, mysrc, 'ab')
     waveobj.obsop = obsop
     # data
-    print 'generate noisy data'
+    if mpirank == 0:    print 'generate noisy data'
     waveobj.solvefwd()
     myplot.plot_timeseries(waveobj.solfwd, 'pd', 0, skip, fctV)
     DD = waveobj.Bp[:]
@@ -98,11 +107,10 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
         DD[ii] = dd + sigmas.reshape((len(sigmas),1))*rndnoise
     waveobj.dd = DD
     # gradient
-    print 'generate observations'
+    if mpirank == 0:    print 'generate observations'
     waveobj.update_PDE({'a':rho_init_fn, 'b':lambda_init_fn})
     waveobj.solvefwd_cost()
-    cost1 = waveobj.cost_misfit
-    print 'misfit = {}'.format(waveobj.cost_misfit)
+    if mpirank == 0:    print 'misfit = {}'.format(waveobj.cost_misfit)
     myplot.plot_timeseries(waveobj.solfwd, 'p', 0, skip, fctV)
 #    # Plot data and observations
 #    fig = plt.figure()
@@ -113,7 +121,7 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
 #        ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
 #        ax.set_title('Plot'+str(ii))
 #    fig.savefig(filename + '/observations.eps')
-    print 'compute gradient'
+    if mpirank == 0:    print 'compute gradient'
     waveobj.solveadj_constructgrad()
     myplot.plot_timeseries(waveobj.soladj, 'v', 0, skip, fctV)
     Grada,Gradb = waveobj.Grad.split(deepcopy=True)
@@ -121,28 +129,29 @@ def run_testab(fpeak, lambdaa, rho, Nxy, tfilterpts, r, Dt, skip):
     myplot.plot_vtk(Grada)
     myplot.set_varname('gradb')
     myplot.plot_vtk(Gradb)
-    print 'check a-gradient with FD'
-    Medium = np.zeros((5, 2*Vl.dim()))
+    if mpirank == 0:    print 'check a-gradient with FD'
+    Medium = np.zeros((5, wavepde.a.vector().local_size() + wavepde.b.vector().local_size()))
     tmp = dl.Function(Vl*Vl)
     for ii in range(5):
         smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
         smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
         dl.assign(tmp.sub(0), smoothperturb_fn)
         Medium[ii,:] = tmp.vector().array()
-    checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
-    print 'check a-Hessian with FD'
+    checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6], True, mpicomm)
+    if mpirank == 0:    print 'check a-Hessian with FD'
     checkhessabfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'a')
-    print 'check b-gradient with FD'
-    Medium = np.zeros((5, 2*Vl.dim()))
+
+    if mpirank == 0:    print 'check b-gradient with FD'
+    Medium = np.zeros((5, wavepde.a.vector().local_size() + wavepde.b.vector().local_size()))
     tmp = dl.Function(Vl*Vl)
     for ii in range(5):
         smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
         smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
         dl.assign(tmp.sub(1), smoothperturb_fn)
         Medium[ii,:] = tmp.vector().array()
-    checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
-    print 'check b-Hessian with FD'
-    checkhessabfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'b')
+    checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6], True, mpicomm)
+    if mpirank == 0:    print 'check b-Hessian with FD'
+    checkhessabfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'b', mpicomm)
     """
     #print 'check gradient with FD'
     Medium = np.zeros((5, 2*Vl.dim()))
