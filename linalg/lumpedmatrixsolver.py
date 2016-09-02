@@ -154,11 +154,12 @@ class LumpedMassMatrixPrime():
 #        MprimePETSc.setPreallocationNNZ(30)
         MprimePETSc.setUp()
         MprimePETSc.setLGMap(a_map, phi_map)
-        # Check:
+        # compare PETSc and Fenics local partitions:
         Istart, Iend = MprimePETSc.getOwnershipRange()
         assert list(VaDM.dofs()) == range(Istart, Iend)
         # populate the PETSc matrix
         for ii in xrange(Va.dim()):
+            alpha.vector().zero()
             setglobalvalue(alpha, ii, 1.0)
             dl.assemble(wkform, tensor=M)
             diagM = get_diagonal(M).array()
@@ -166,7 +167,6 @@ class LumpedMassMatrixPrime():
             for cc, val in zip(cols, diagM[cols]):  
                 global_cc = VphiDM.dofs()[cc]
                 MprimePETSc[ii, global_cc] = val
-            setglobalvalue(alpha, ii, 0.0)  # b/c globalvalue + zero fails
         MprimePETSc.assemblyBegin()
         MprimePETSc.assemblyEnd()
         # convert PETSc matrix to PETSc-wrapper in Fenics
