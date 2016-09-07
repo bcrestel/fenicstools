@@ -285,6 +285,7 @@ class ObjectiveAcoustic(LinearOperator):
 
     def solveadj_constructgrad(self):   self.solveadj(True)
 
+    #TODO: gradient b 5 times more expensive that a with lumped mass matrix
     def gradient_componentb(self, fact, fwd, adj, MGbv):
         ttf, tta = fwd[1], adj[1]
         assert isequal(ttf, tta, 1e-16), \

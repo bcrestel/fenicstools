@@ -268,6 +268,7 @@ mpicomm=mpi_comm_world()):
     ObjFctal.solveadj_constructgrad()
 
 
+#@profile
 def compute_searchdirection(objfctal, keyword, tolcg = 1e-8):
     """Compute search direction for Line Search based on keyword.
     keyword can be 'sd' (steepest descent) or 'Newt' (Newton's method).
@@ -295,7 +296,7 @@ def compute_searchdirection(objfctal, keyword, tolcg = 1e-8):
         solver.parameters["rel_tolerance"] = tolcg
         solver.parameters["zero_initial_guess"] = True
         solver.parameters["print_level"] = -1
-        solver.solve(objfctal.srchdir.vector(), -objfctal.MGv)
+        solver.solve(objfctal.srchdir.vector(), -objfctal.MGv)  # all cpu time spent here
     else:
         raise ValueError("Wrong keyword")
     # check it is a descent direction

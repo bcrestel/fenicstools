@@ -1,25 +1,14 @@
 TODO list
 
-    - CHECKS:
-* Build unit test for: prior, observation operator,... (serial and parallel)
-* Parallel computations (what solver?), scaling, ...
-* Compare Python vs C++ implementations for speed of assembly
-* Automatic Differentiation / dolfin-adjoint
-
-
     - DENOISING:
-* Implement primal-dual solver for TV regularization => look at Noemi work;
 * create separate class for primal-dual (cleaner)
 
 
     - ACOUSTIC:
 * compute spectrum Hessian with mrhs to compare with single src (running on moench)
-* multiple rhs
-* fix parallel version of derivative of mass matrix
-* implement ABC/PML in joint inversion (?)
+* Boundary conditions: implement ABC/PML in joint inversion
 * implement misfit with blurring kernel
 * GLL integration points in Fenics
-* Look at dolfin-adjoint
 * Code C++ version of fwd and adj pbs (?)
 
 
