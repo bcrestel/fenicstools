@@ -12,6 +12,7 @@ matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 plt.ioff()
 import dolfin as dl
+from dolfin import MPI, mpi_comm_world
 dl.set_log_active(False)
 from hippylib.randomizedEigensolver import doublePassG
 
@@ -23,6 +24,9 @@ from fenicstools.miscfenics import checkdt, setfct
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
 from fenicstools.observationoperator import TimeObsPtwise
+
+mpicomm = mpi_comm_world
+mpirank = MPI.rank(mpicomm)
 
 NNxy = [100]
 
@@ -84,7 +88,7 @@ for Nxy in NNxy:
     waveobj.obsop = obsop
 
     # noisy data
-    print 'generate noisy data'
+    if mpirank == 0:    print 'generate noisy data'
     waveobj.solvefwd()
     skip = 20
     myplot.plot_timeseries(waveobj.solfwd[0], 'pd', 0, skip, dl.Function(V))
@@ -98,8 +102,9 @@ for Nxy in NNxy:
         DD[ii] = dd + sigmas.reshape((len(sigmas),1))*rndnoise
     waveobj.dd = DD
     waveobj.solvefwd_cost()
-    print 'noise misfit={}, regul cost={}, ratio={}'.format(waveobj.cost_misfit, \
-    waveobj.cost_reg, waveobj.cost_misfit/waveobj.cost_reg)
+    if mpirank == 0:
+        print 'noise misfit={}, regul cost={}, ratio={}'.format(waveobj.cost_misfit, \
+        waveobj.cost_reg, waveobj.cost_misfit/waveobj.cost_reg)
 
     ######### Media for gradient and Hessian checks
     #Medium = np.zeros((5, Vm.dim()))
@@ -108,8 +113,9 @@ for Nxy in NNxy:
     #    smoothperturb_fn = dl.interpolate(smoothperturb, Vm)
     #    Medium[ii,:] = smoothperturb_fn.vector().array()
 
-    print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t{:10s} {:12s} {:12s}'.format(\
-    'iter', 'cost', 'misfit', 'reg', '|G|', 'medmisf', 'a_ls', 'tol_cg', 'n_cg')
+    if mpirank == 0:
+        print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t{:10s} {:12s} {:12s}'.format(\
+        'iter', 'cost', 'misfit', 'reg', '|G|', 'medmisf', 'a_ls', 'tol_cg', 'n_cg')
     dtruenorm = a_target_fn.vector().inner(waveobj.Mass*a_target_fn.vector())
     ######### Inverse problem
     #waveobj.update_PDE({'a':a_initial_fn})
@@ -118,7 +124,6 @@ for Nxy in NNxy:
     myplot.plot_vtk(waveobj.PDE.b)
     tolgrad = 1e-10
     tolcost = 1e-14
-    check = False
     for iter in xrange(50):
         # gradient
         waveobj.solveadj_constructgrad()
@@ -126,12 +131,10 @@ for Nxy in NNxy:
         if iter == 0:   gradnorm0 = gradnorm
         diff = waveobj.PDE.a.vector() - a_target_fn.vector()
         medmisfit = diff.inner(waveobj.Mass*diff)
-        if check and iter % 5 == 1:
-            checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
-            checkhessfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
-        print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.2f})'.\
-        format(iter, waveobj.cost, waveobj.cost_misfit, waveobj.cost_reg, \
-        gradnorm, medmisfit, medmisfit/dtruenorm),
+        if mpirank == 0:
+            print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.2f})'.\
+            format(iter, waveobj.cost, waveobj.cost_misfit, waveobj.cost_reg, \
+            gradnorm, medmisfit, medmisfit/dtruenorm),
         # plots
         #myplot.plot_timeseries(waveobj.solfwd, 'p'+str(iter), 0, skip, dl.Function(V))
         myplot.set_varname('b'+str(iter))
@@ -149,7 +152,8 @@ for Nxy in NNxy:
     #    plt.close(fig)
         # stopping criterion (gradient)
         if gradnorm < gradnorm0 * tolgrad or gradnorm < 1e-12:
-            print '\nGradient sufficiently reduced -- optimization stopped'
+            if mpirank == 0:
+                print '\nGradient sufficiently reduced -- optimization stopped'
             break
         # search direction
         tolcg = min(0.5, np.sqrt(gradnorm/gradnorm0))
@@ -160,8 +164,8 @@ for Nxy in NNxy:
         cost_old = waveobj.cost
         statusLS, LScount, alpha = bcktrcklinesearch(waveobj, 12)
         cost = waveobj.cost
-        print '{:11.3f} {:12.2e} {:10d}'.\
-        format(alpha, tolcg, cgiter)
+        if mpirank == 0:
+            print '{:11.3f} {:12.2e} {:10d}'.format(alpha, tolcg, cgiter)
         # stopping criterion (cost)
         if np.abs(cost-cost_old)/np.abs(cost_old) < tolcost:
             print 'Cost function stagnates -- optimization stopped'
@@ -173,7 +177,8 @@ for Nxy in NNxy:
     Omega = np.random.randn(Vm.dim()*140).reshape((Vm.dim(),140))
     #TODO: need to left-multiply Omega by R^{-1/2}.M (to be checked)
     d, U = doublePassG(waveobj, regul.precond, regul.getprecond(), Omega, 100)
-    np.savetxt(filename+str(Nxy)+'/eigenvalues.txt', d)
+    if mpirank == 0:
+        np.savetxt(filename+str(Nxy)+'/eigenvalues.txt', d)
 #    myplot.set_varname('eigenvectors')
 #    for ii in range(U.shape[1]):
 #        setfct(waveobj.PDE.a, U[:,ii])
