@@ -162,8 +162,10 @@ class LumpedMassMatrixPrime():
             alpha.vector().zero()
             setglobalvalue(alpha, ii, 1.0)
             dl.assemble(wkform, tensor=M)
-            diagM = get_diagonal(M).array()
-            cols = np.where(diagM > 1e-20)[0]
+            diagM = get_diagonal(M)
+            normdiagM = diagM.norm('l2')
+            diagM = diagM.array()
+            cols = np.where(np.abs(diagM) > 1e-16*normdiagM)[0]
             for cc, val in zip(cols, diagM[cols]):  
                 global_cc = VphiDM.dofs()[cc]
                 MprimePETSc[ii, global_cc] = val
