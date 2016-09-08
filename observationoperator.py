@@ -52,9 +52,11 @@ class TimeFilter():
         if tt <= self.t0 + 1e-16: return 0.0
         if tt >= self.T - 1e-16:    return 0.0
         if tt <= self.t1:   
-            return np.exp(-1./((tt-self.t0)*(self.t1b-tt)))/np.exp(-1./(self.t1-self.t0)**2)
+            return np.exp( ((tt-self.t0)*(self.t1b-tt)-(self.t1-self.t0)*(self.t1-self.t0)) \
+            / ((self.t1-self.t0)*(self.t1-self.t0)*(tt-self.t0)*(self.t1b-tt)) )
         if tt >= self.t2:   
-            return np.exp(-1./((tt-self.t2b)*(self.T-tt)))/np.exp(-1./(self.T-self.t2)**2)
+            return np.exp( ((tt-self.t2b)*(self.T-tt)-(self.T-self.t2)*(self.T-self.t2))\
+            / ((self.T-self.t2)*(self.T-self.t2)*(tt-self.t2b)*(self.T-tt)) )
         return 1.0
 
 
