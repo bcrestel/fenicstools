@@ -143,8 +143,8 @@ class LumpedMassMatrixPrime():
         M = dl.assemble(wkform)
         # extract local to global map for each fct space
         VaDM, VphiDM = Va.dofmap(), Vphi.dofmap()
-        a_map = PETSc.LGMap().create(VaDM.dofs(), mpicomm)
-        phi_map = PETSc.LGMap().create(VphiDM.dofs(), mpicomm)
+        a_map = PETSc.LGMap().create(VaDM.dofs(), comm=mpicomm)
+        phi_map = PETSc.LGMap().create(VphiDM.dofs(), comm=mpicomm)
         # assemble PETSc version of Mprime
         MprimePETSc = PETSc.Mat()
         MprimePETSc.create(mpicomm)
