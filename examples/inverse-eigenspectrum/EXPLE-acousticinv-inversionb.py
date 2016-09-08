@@ -25,12 +25,13 @@ from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
 from fenicstools.observationoperator import TimeObsPtwise
 
-mpicomm = mpi_comm_world
+mpicomm = mpi_comm_world()
 mpirank = MPI.rank(mpicomm)
 
 NNxy = [100]
 
 for Nxy in NNxy:
+    if mpirank == 0:    print 'meshing'
     mesh = dl.UnitSquareMesh(Nxy, Nxy)
     Vm = dl.FunctionSpace(mesh, 'Lagrange', 1)
     r = 2
@@ -39,9 +40,11 @@ for Nxy in NNxy:
     t0, t1, t2, tf = 0.0, 0.02, 0.98, 1.0
 
     # source:
+    if mpirank == 0:    print 'sources'
     Ricker = RickerWavelet(6.0, 1e-10)
     #srcloc = [[0.5,1.0]]
-    srcloc = [[ii/10., 1.0] for ii in range(1,10)] #+ [[ii/10., 0.0] for ii in range(1,10)]
+    #srcloc = [[ii/10., 1.0] for ii in range(1,10)] + [[ii/10., 0.0] for ii in range(1,10)]
+    srcloc = [[ii/10., 1.0] for ii in range(3,8,2)]
     Pt = PointSources(V, srcloc)
     src = dl.Function(V)
     srcv = src.vector()
@@ -64,6 +67,7 @@ for Nxy in NNxy:
     obsop = TimeObsPtwise({'V':V, 'Points':obspts}, [t0, t1, t2, tf])
 
     # define pde operator:
+    if mpirank == 0:    print 'define wave pde'
     wavepde = AcousticWave({'V':V, 'Vm':Vm})
     wavepde.timestepper = 'backward'
     wavepde.lump = True
@@ -77,7 +81,8 @@ for Nxy in NNxy:
 
     # set up plots:
     filename, ext = splitext(sys.argv[0])
-    if isdir(filename + '/'):   rmtree(filename + '/')
+    #if mpirank == 0 and isdir(filename + '/'):   rmtree(filename + '/')
+    #MPI.barrier(mpicomm)
     myplot = PlotFenics(filename+str(Nxy))
     myplot.set_varname('b_target')
     myplot.plot_vtk(b_target_fn)
@@ -88,6 +93,7 @@ for Nxy in NNxy:
     waveobj.obsop = obsop
 
     # noisy data
+    #TODO: to be fixed for parallel computation
     if mpirank == 0:    print 'generate noisy data'
     waveobj.solvefwd()
     skip = 20
@@ -137,10 +143,10 @@ for Nxy in NNxy:
             gradnorm, medmisfit, medmisfit/dtruenorm),
         # plots
         #myplot.plot_timeseries(waveobj.solfwd, 'p'+str(iter), 0, skip, dl.Function(V))
-        myplot.set_varname('b'+str(iter))
-        myplot.plot_vtk(waveobj.PDE.b)
-        myplot.set_varname('grad'+str(iter))
-        myplot.plot_vtk(waveobj.Grad)
+#        myplot.set_varname('b'+str(iter))
+#        myplot.plot_vtk(waveobj.PDE.b)
+#        myplot.set_varname('grad'+str(iter))
+#        myplot.plot_vtk(waveobj.Grad)
     #    fig = plt.figure()
     #    fig.set_size_inches(20., 15.)
     #    for ii in range(lenobspts):
@@ -172,7 +178,8 @@ for Nxy in NNxy:
             break
 
 
-    # Compute eigenspectrum
+    """
+    # Compute eigenspectrum -- does not work in parallel at the moment
     waveobj.alpha_reg = 0.0 # no regularization
     Omega = np.random.randn(Vm.dim()*140).reshape((Vm.dim(),140))
     #TODO: need to left-multiply Omega by R^{-1/2}.M (to be checked)
@@ -183,3 +190,4 @@ for Nxy in NNxy:
 #    for ii in range(U.shape[1]):
 #        setfct(waveobj.PDE.a, U[:,ii])
 #        myplot.plot_vtk(waveobj.PDE.a, ii)
+    """
