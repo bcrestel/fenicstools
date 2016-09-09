@@ -158,7 +158,7 @@ class LumpedMassMatrixPrime():
 #        # compare PETSc and Fenics local partitions:
 #        Istart, Iend = MprimePETSc.getOwnershipRange()
 #        assert list(VaDM.dofs()) == range(Istart, Iend)
-        MprimePETSc, VaDM, VphiDM = setupPETScmatrix(Va, Vphi, mpicomm)
+        MprimePETSc, VaDM, VphiDM = setupPETScmatrix(Va, Vphi, 'aij', mpicomm)
         # populate the PETSc matrix
         for ii in xrange(Va.dim()):
             alpha.vector().zero()

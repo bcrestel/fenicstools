@@ -2,7 +2,8 @@
 the linear algebra backend """
 
 import numpy as np
-from dolfin import as_backend_type, PETScVector
+import matplotlib.pyplot as plt
+from dolfin import as_backend_type, PETScVector, PETScMatrix
 
 import petsc4py, sys
 petsc4py.init(sys.argv)
@@ -31,7 +32,7 @@ def setglobalvalue(fct, globalindex, value):
 
 
 
-def setupPETScmatrix(Vr, Vc, mpicomm):
+def setupPETScmatrix(Vr, Vc, mattype, mpicomm):
     """ 
     Set up a PETSc matrix partitioned consistently with Fenics mesh
     Vr, Vc = function spaces for the rows and columns
@@ -46,10 +47,37 @@ def setupPETScmatrix(Vr, Vc, mpicomm):
     PETScMatrix.create(mpicomm)
     PETScMatrix.setSizes([ [VrDM.local_dimension("owned"), Vr.dim()], \
     [VcDM.local_dimension("owned"), Vc.dim()] ])
-    PETScMatrix.setType('aij') # sparse
+    PETScMatrix.setType(mattype) # sparse
     PETScMatrix.setUp()
     PETScMatrix.setLGMap(r_map, c_map)
     # compare PETSc and Fenics local partitions:
     Istart, Iend = PETScMatrix.getOwnershipRange()
     assert list(VrDM.dofs()) == range(Istart, Iend)
     return PETScMatrix, VrDM, VcDM
+
+
+
+def plotmatrixfromfile(filename, log=0):
+
+    # Load matrix
+    viewer = PETSc.Viewer().createBinary(filename, 'r')
+    Matrix = PETSc.Mat().load(viewer)
+    # Convert to numpy array
+    Array = PETScMatrix(Matrix).array()
+    if log != 0:
+        # take log of absolute value
+        Arraylog = np.log(np.abs(Array))
+        Arrayplot = Arraylog
+        mycmap = plt.cm.Greys
+        myvmin, myvmax = min(0.0, np.min(Arraylog)), max(0.0, np.max(Arraylog))
+    else:   
+        Arrayplot = Array
+        mycmap = plt.cm.seismic
+        absmax = np.max(np.abs(Array))
+        myvmin, myvmax = -absmax, absmax
+    # Plot
+    plt.imshow(Arrayplot, cmap=mycmap, aspect='equal', \
+    interpolation='nearest', norm=None, vmin=myvmin, vmax=myvmax)
+    plt.colorbar()
+    plt.show()
+    return Array
