@@ -1,17 +1,9 @@
 import os
 from os.path import isdir
 
-from dolfin import File
+from dolfin import File, MPI, mpi_comm_world
 from exceptionsfenics import *
 from miscfenics import setfct
-try:
-    from dolfin import MPI, mpi_comm_world
-    mycomm = mpi_comm_world()
-    myrank = MPI.rank(mycomm)
-    mpisize = MPI.size(mycomm)
-except:
-    myrank = 0
-    mpisize = 1
 
 
 class PlotFenics:
@@ -21,23 +13,21 @@ class PlotFenics:
     Fenics_vtu_correction = '000000'
 
     # Instantiation
-    def __init__(self, Outputfolder=None):
-        self.set_outdir(Outputfolder)
-        if mpisize == 1:
-            self.extensionvtu = 'vtu'
-        else:
-            self.extensionvtu = 'pvtu'
+    def __init__(self, Outputfolder=None, comm=mpi_comm_world()):
+        mpisize = MPI.size(comm)
+        if Outputfolder == None:    self.set_outdir('Output/', comm)
+        else:   self.set_outdir(Outputfolder, comm)
+        if mpisize == 1:    self.extensionvtu = 'vtu'
+        else:   self.extensionvtu = 'pvtu'
         self.indices = []
         self.varname = []
 
-    def set_outdir(self, new_dir_in):
+    def set_outdir(self, new_dir, comm):
         """set output directory and creates it if needed"""
-        if new_dir_in == None:  new_dir = 'Outputs/Plots/'
-        else:   new_dir = new_dir_in
         if not new_dir[-1] == '/':  new_dir += '/'
         self.outdir = new_dir
-        if myrank == 0:
-            if not isdir(new_dir):  os.makedirs(new_dir)
+        if myrank == 0 and not isdir(new_dir):  os.makedirs(new_dir)
+        MPI.barrier(comm)
 
     def reset_indices(self):
         self.indices = []

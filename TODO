@@ -5,6 +5,9 @@ TODO list
 
 
     - ACOUSTIC:
+* define 'solver' fct in objectiveacoustic (or elsewhere) to simplify misc codes
+* investigate how to export a matrix from fenics
+* Assemble Hessian for different frequencies to compare how it looks like
 * compute spectrum Hessian with mrhs to compare with single src (running on moench)
 * Boundary conditions: implement ABC/PML in joint inversion
 * implement misfit with blurring kernel

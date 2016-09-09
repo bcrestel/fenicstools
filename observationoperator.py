@@ -21,7 +21,7 @@ from exceptionsfenics import WrongInstanceError
 from miscfenics import isFunction, isVector, isarray, arearrays, isequal, setfct
 from sourceterms import PointSources
 
-#TODO: Fix it! not correct
+#TODO: Fix it, not correct. It doesn't create a smooth transition at the 1.0 level
 class TimeFilter():
     """ Create time filter to fade out data misfit (hence src term in adj eqn) """
 
