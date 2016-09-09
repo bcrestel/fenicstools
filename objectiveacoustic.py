@@ -119,9 +119,11 @@ class ObjectiveAcoustic(LinearOperator):
             self.mmtest, self.mmtrial = self.mtest, self.mtrial
         weak_m =  inner(self.mmtrial, self.mmtest)*dx
         self.Mass = assemble(weak_m)
+        # For serial only,
         #self.solverM = LUSolver("petsc")
         #self.solverM.parameters['reuse_factorization'] = True
         #self.solverM.parameters['symmetric'] = True
+        # In parallel,
         self.solverM = PETScKrylovSolver("cg", "amg")
         self.solverM.parameters['report'] = False
         self.solverM.parameters['nonzero_initial_guess'] = True
@@ -608,8 +610,8 @@ class ObjectiveAcoustic(LinearOperator):
             elif self.invparam == 'b':
                 diff = self.PDE.b.vector() - target_medium.vector()
             elif self.invparam == 'ab':
-                dl.assign(waveobj.ab.sub(0), self.PDE.a)
-                dl.assign(waveobj.ab.sub(1), self.PDE.b)
+                assign(self.ab.sub(0), self.PDE.a)
+                assign(self.ab.sub(1), self.PDE.b)
                 diff = self.ab.vector() - target_medium.vector()
             medmisfit = diff.inner(self.Mass*diff)
             if mpirank == 0:
@@ -627,7 +629,7 @@ class ObjectiveAcoustic(LinearOperator):
             # compute search direction and plot
             tolcg = min(0.5, np.sqrt(gradnorm/gradnorm0))
             cgiter, cgres, cgid, tolcg = compute_searchdirection(self, 'Newt', tolcg)
-            self._plotsrchdir(myplot, index)
+            self._plotsrchdir(myplot, str(it))
             # perform line search
             cost_old = self.cost
             statusLS, LScount, alpha = bcktrcklinesearch(self, 12)
@@ -660,7 +662,7 @@ class ObjectiveAcoustic(LinearOperator):
             elif self.invparam == 'b':
                 myplot.set_varname('Grad_b'+index)
                 myplot.plot_vtk(self.Grad)
-            elif self.invparam = 'ab':
+            elif self.invparam == 'ab':
                 Ga, Gb = self.Grad.split(deepcopy=True)
                 myplot.set_varname('Grad_a'+index)
                 myplot.plot_vtk(Ga)
@@ -676,7 +678,7 @@ class ObjectiveAcoustic(LinearOperator):
             elif self.invparam == 'b':
                 myplot.set_varname('srchdir_b'+index)
                 myplot.plot_vtk(self.srchdir)
-            elif self.invparam = 'ab':
+            elif self.invparam == 'ab':
                 Ga, Gb = self.srchdir.split(deepcopy=True)
                 myplot.set_varname('srchdir_a'+index)
                 myplot.plot_vtk(Ga)

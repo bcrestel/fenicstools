@@ -14,6 +14,7 @@ class PlotFenics:
 
     # Instantiation
     def __init__(self, Outputfolder=None, comm=mpi_comm_world()):
+        self.mpirank = MPI.rank(comm)
         mpisize = MPI.size(comm)
         if Outputfolder == None:    self.set_outdir('Output/', comm)
         else:   self.set_outdir(Outputfolder, comm)
@@ -26,7 +27,7 @@ class PlotFenics:
         """set output directory and creates it if needed"""
         if not new_dir[-1] == '/':  new_dir += '/'
         self.outdir = new_dir
-        if myrank == 0 and not isdir(new_dir):  os.makedirs(new_dir)
+        if self.mpirank == 0 and not isdir(new_dir):  os.makedirs(new_dir)
         MPI.barrier(comm)
 
     def reset_indices(self):
@@ -58,7 +59,7 @@ class PlotFenics:
         """Create pvd file to load all files in paraview"""
         self._check_outdir()
         self._check_indices()
-        if myrank == 0:
+        if self.mpirank == 0:
             with open(self.outdir+self.varname+'.pvd', 'w') as fout:
                 fout.write('<?xml version="1.0"?>\n<VTKFile type="Collection"' +\
                 ' version="0.1">\n\t<Collection>\n')
