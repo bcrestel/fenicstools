@@ -18,53 +18,49 @@ from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
 from fenicstools.jointregularization import Tikhonovab
 from parametersinversion import parametersinversion
-try:
-    from dolfin import MPI, mpi_comm_world
-    mycomm = mpi_comm_world()
-    mpirank = MPI.rank(mycomm)
-    PARALLEL = True
-except:
-    mpirank = 0
-    PARALLEL = False
+
+from dolfin import MPI, mpi_comm_world
+mycomm = mpi_comm_world()
+mpirank = MPI.rank(mycomm)
 
 
 ######### Inverse problem
 #@profile
 def runjob(waveobj, myplot, ab_target_fn, dtruenorm, mpirank):
     waveobj.solvefwd_cost()
-    myplot.set_varname('a0')
+    myplot.set_varname('ainit')
     myplot.plot_vtk(waveobj.PDE.a)
-    myplot.set_varname('b0')
+    myplot.set_varname('binit')
     myplot.plot_vtk(waveobj.PDE.b)
     tolgrad = 1e-10
     tolcost = 1e-14
 #    check = False
-    for iter in xrange(2):
+    for it in xrange(50):
         # gradient
         waveobj.solveadj_constructgrad()    # expensive step (~20%)
         gradnorm = waveobj.MGv.inner(waveobj.Grad.vector())
-        if iter == 0:   gradnorm0 = gradnorm
+        if it == 0:   gradnorm0 = gradnorm
         dl.assign(waveobj.ab.sub(0), waveobj.PDE.a)
         dl.assign(waveobj.ab.sub(1), waveobj.PDE.b)
         diff = waveobj.ab.vector() - ab_target_fn.vector()
         medmisfit = diff.inner(waveobj.Mass*diff)
-#        if check and iter % 5 == 1:
+#        if check and it % 5 == 1:
 #            checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
 #            checkhessfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6])
         if mpirank == 0:
             print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.2f})'.\
-            format(iter, waveobj.cost, waveobj.cost_misfit, waveobj.cost_reg, \
+            format(it, waveobj.cost, waveobj.cost_misfit, waveobj.cost_reg, \
             gradnorm, medmisfit, medmisfit/dtruenorm),
         # plots
-        #myplot.plot_timeseries(waveobj.solfwd, 'p'+str(iter), 0, skip, dl.Function(V))
-        myplot.set_varname('a'+str(iter))
+        #myplot.plot_timeseries(waveobj.solfwd, 'p'+str(it), 0, skip, dl.Function(V))
+        myplot.set_varname('a'+str(it))
         myplot.plot_vtk(waveobj.PDE.a)
-        myplot.set_varname('b'+str(iter))
+        myplot.set_varname('b'+str(it))
         myplot.plot_vtk(waveobj.PDE.b)
         Ga, Gb = waveobj.Grad.split(deepcopy=True)
-        myplot.set_varname('grada'+str(iter))
+        myplot.set_varname('grada'+str(it))
         myplot.plot_vtk(Ga)
-        myplot.set_varname('gradb'+str(iter))
+        myplot.set_varname('gradb'+str(it))
         myplot.plot_vtk(Gb)
     #    fig = plt.figure()
     #    fig.set_size_inches(20., 15.)
@@ -73,7 +69,7 @@ def runjob(waveobj, myplot, ab_target_fn, dtruenorm, mpirank):
     #        ax.plot(waveobj.PDE.times, waveobj.dd[ii,:], 'k--')
     #        ax.plot(waveobj.PDE.times, waveobj.Bp[ii,:], 'b')
     #        ax.set_title('obs'+str(ii))
-    #    fig.savefig(filename + '/observations' + str(iter) + '.eps')
+    #    fig.savefig(filename + '/observations' + str(it) + '.eps')
     #    plt.close(fig)
         # stopping criterion (gradient)
         if gradnorm < gradnorm0 * tolgrad:
@@ -83,7 +79,7 @@ def runjob(waveobj, myplot, ab_target_fn, dtruenorm, mpirank):
         # search direction
         tolcg = min(0.5, np.sqrt(gradnorm/gradnorm0))
         cgiter, cgres, cgid, tolcg = compute_searchdirection(waveobj, 'Newt', tolcg)    # most cpu intensive step (~75%)
-        myplot.set_varname('srchdir'+str(iter))
+        myplot.set_varname('srchdir'+str(it))
         myplot.plot_vtk(waveobj.srchdir)
         # line search
         cost_old = waveobj.cost
@@ -107,9 +103,7 @@ if __name__ == "__main__":
     # set up plots:
     filename, ext = splitext(sys.argv[0])
     if mpirank == 0 and isdir(filename + '/'):   rmtree(filename + '/')
-    if PARALLEL:    MPI.barrier(mycomm)
     myplot = PlotFenics(filename)
-    if PARALLEL:    MPI.barrier(mycomm)
     myplot.set_varname('b_target')
     myplot.plot_vtk(b_target_fn)
     myplot.set_varname('a_target')
@@ -147,6 +141,14 @@ if __name__ == "__main__":
     #    smoothperturb_fn = dl.interpolate(smoothperturb, Vm)
     #    Medium[ii,:] = smoothperturb_fn.vector().array()
 
+    ab_target_fn = dl.Function(Vm*Vm)
+    dl.assign(ab_target_fn.sub(0), a_target_fn)
+    dl.assign(ab_target_fn.sub(1), b_target_fn)
+    ab_init_fn = dl.Function(Vm*Vm)
+    dl.assign(ab_init_fn.sub(0), a_initial_fn)
+    dl.assign(ab_init_fn.sub(1), b_initial_fn)
+    waveobj.inversion(ab_init_fn, ab_target_fn, mycomm)
+    """
     if mpirank == 0:
         print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t{:10s} {:12s} {:12s}'.format(\
         'iter', 'cost', 'misfit', 'reg', '|G|', 'medmisf', 'a_ls', 'tol_cg', 'n_cg')
@@ -156,4 +158,4 @@ if __name__ == "__main__":
     dtruenorm = ab_target_fn.vector().inner(waveobj.Mass*ab_target_fn.vector())
     waveobj.update_PDE({'a':a_initial_fn, 'b':b_initial_fn})
     runjob(waveobj, myplot, ab_target_fn, dtruenorm, mpirank)
-
+    """
