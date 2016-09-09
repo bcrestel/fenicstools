@@ -2,16 +2,17 @@ import numpy as np
 
 from dolfin import LinearOperator, Function, TestFunction, TrialFunction, \
 assemble, inner, nabla_grad, dx, sqrt, LUSolver, assign, Constant, \
-PETScKrylovSolver
+PETScKrylovSolver, MPI
 from miscfenics import setfct, isequal, ZeroRegularization
 from linalg.lumpedmatrixsolver import LumpedMassMatrixPrime
+from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
 
 class ObjectiveAcoustic(LinearOperator):
     """
     Computes data misfit, gradient and Hessian evaluation for the seismic
     inverse problem using acoustic wave data
     """
-    #TODO: add support for multiple sources
+    #TODO: add proper support for multiple sources
 
     # CONSTRUCTORS:
     def __init__(self, acousticwavePDE, sources, invparam='ab', regularization=None):
@@ -576,3 +577,108 @@ class ObjectiveAcoustic(LinearOperator):
     def getprecond(self):
         return self.regularization.getprecond()
 
+
+
+    def inversion(self, initial_medium, target_medium, mpicomm, \
+    tolgrad=1e-10, tolcost=1e-14, maxnbNewtiter=50, myplot=None):
+        """ solve inverse problem with that objective function """
+
+        mpirank = MPI.rank(mpicomm)
+        if mpirank == 0:
+            print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t{:10s} {:12s} {:12s}'.format(\
+            'iter', 'cost', 'misfit', 'reg', '|G|', 'medmisf', 'a_ls', 'tol_cg', 'n_cg')
+        # set medium to initial_medium, then plot
+        if self.invparam == 'a':    self.update_PDE({'a':initial_medium})
+        elif self.invparam == 'b':    self.update_PDE({'b':initial_medium})
+        elif self.invparam == 'ab':    
+            a_init, b_init = initial_medium.split(deepcopy=True)
+            self.update_PDE({'a':a_init, 'b':b_init})
+        self._plotab(myplot, 'init')
+
+        # start inversion
+        dtruenorm = target_medium.vector().inner(self.Mass*target_medium.vector())
+        self.solvefwd_cost()
+        for it in xrange(maxnbNewtiter):
+            # compute gradient
+            self.solveadj_constructgrad()
+            gradnorm = self.MGv.inner(self.Grad.vector())
+            if it == 0:   gradnorm0 = gradnorm
+            if self.invparam == 'a':
+                diff = self.PDE.a.vector() - target_medium.vector()
+            elif self.invparam == 'b':
+                diff = self.PDE.b.vector() - target_medium.vector()
+            elif self.invparam == 'ab':
+                dl.assign(waveobj.ab.sub(0), self.PDE.a)
+                dl.assign(waveobj.ab.sub(1), self.PDE.b)
+                diff = self.ab.vector() - target_medium.vector()
+            medmisfit = diff.inner(self.Mass*diff)
+            if mpirank == 0:
+                print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.2f})'.\
+                format(it, self.cost, self.cost_misfit, self.cost_reg, \
+                gradnorm, medmisfit, medmisfit/dtruenorm),
+            # plots
+            self._plotab(myplot, str(it))
+            self._plotgrad(myplot, str(it))
+            # stopping criterion (gradient)
+            if gradnorm < gradnorm0 * tolgrad or gradnorm < 1e-12:
+                if mpirank == 0:
+                    print '\nGradient sufficiently reduced -- optimization stopped'
+                break
+            # compute search direction and plot
+            tolcg = min(0.5, np.sqrt(gradnorm/gradnorm0))
+            cgiter, cgres, cgid, tolcg = compute_searchdirection(self, 'Newt', tolcg)
+            self._plotsrchdir(myplot, index)
+            # perform line search
+            cost_old = self.cost
+            statusLS, LScount, alpha = bcktrcklinesearch(self, 12)
+            cost = self.cost
+            if mpirank == 0:
+                print '{:11.3f} {:12.2e} {:10d}'.format(alpha, tolcg, cgiter)
+            # stopping criterion (cost)
+            if np.abs(cost-cost_old)/np.abs(cost_old) < tolcost:
+                if mpirank == 0:
+                    print 'Cost function stagnates -- optimization stopped'
+                break
+
+
+    def _plotab(self, myplot, index):
+        """ plot media during inversion """
+        if not myplot == None:
+            if self.invparam == 'a' or self.invparam == 'ab':
+                myplot.set_varname('a'+index)
+                myplot.plot_vtk(self.PDE.a)
+            if self.invparam == 'b' or self.invparam == 'ab':
+                myplot.set_varname('b'+index)
+                myplot.plot_vtk(self.PDE.b)
+
+    def _plotgrad(self, myplot, index):
+        """ plot grad during inversion """
+        if not myplot == None:
+            if self.invparam == 'a':
+                myplot.set_varname('Grad_a'+index)
+                myplot.plot_vtk(self.Grad)
+            elif self.invparam == 'b':
+                myplot.set_varname('Grad_b'+index)
+                myplot.plot_vtk(self.Grad)
+            elif self.invparam = 'ab':
+                Ga, Gb = self.Grad.split(deepcopy=True)
+                myplot.set_varname('Grad_a'+index)
+                myplot.plot_vtk(Ga)
+                myplot.set_varname('Grad_b'+index)
+                myplot.plot_vtk(Gb)
+
+    def _plotsrchdir(self, myplot, index):
+        """ plot srchdir during inversion """
+        if not myplot == None:
+            if self.invparam == 'a':
+                myplot.set_varname('srchdir_a'+index)
+                myplot.plot_vtk(self.srchdir)
+            elif self.invparam == 'b':
+                myplot.set_varname('srchdir_b'+index)
+                myplot.plot_vtk(self.srchdir)
+            elif self.invparam = 'ab':
+                Ga, Gb = self.srchdir.split(deepcopy=True)
+                myplot.set_varname('srchdir_a'+index)
+                myplot.plot_vtk(Ga)
+                myplot.set_varname('srchdir_b'+index)
+                myplot.plot_vtk(Gb)
