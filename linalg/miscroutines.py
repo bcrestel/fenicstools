@@ -4,6 +4,11 @@ the linear algebra backend """
 import numpy as np
 from dolfin import as_backend_type, PETScVector
 
+import petsc4py, sys
+petsc4py.init(sys.argv)
+from petsc4py import PETSc
+
+
 def get_diagonal(M):
     """ Extract diagonal of a square Matrix M and return a PETScVector """
 
@@ -24,3 +29,27 @@ def setglobalvalue(fct, globalindex, value):
         vec.set_local(value*np.ones(localindex.shape), localindex)
     vec.apply('insert')
 
+
+
+def setupPETScmatrix(Vr, Vc, mpicomm):
+    """ 
+    Set up a PETSc matrix partitioned consistently with Fenics mesh
+    Vr, Vc = function spaces for the rows and columns
+    """
+    
+    # extract local to global map for each fct space
+    VrDM, VcDM = Vr.dofmap(), Vc.dofmap()
+    r_map = PETSc.LGMap().create(VrDM.dofs(), comm=mpicomm)
+    c_map = PETSc.LGMap().create(VcDM.dofs(), comm=mpicomm)
+    # set up matrix
+    PETScMatrix = PETSc.Mat()
+    PETScMatrix.create(mpicomm)
+    PETScMatrix.setSizes([ [VrDM.local_dimension("owned"), Vr.dim()], \
+    [VcDM.local_dimension("owned"), Vc.dim()] ])
+    PETScMatrix.setType('aij') # sparse
+    PETScMatrix.setUp()
+    PETScMatrix.setLGMap(r_map, c_map)
+    # compare PETSc and Fenics local partitions:
+    Istart, Iend = PETScMatrix.getOwnershipRange()
+    assert list(VrDM.dofs()) == range(Istart, Iend)
+    return PETScMatrix, VrDM, VcDM
