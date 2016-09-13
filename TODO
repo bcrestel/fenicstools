@@ -5,11 +5,12 @@ TODO list
 
 
     - ACOUSTIC:
-* define 'solver' fct in objectiveacoustic (or elsewhere) to simplify misc codes
-* investigate how to export a matrix from fenics
-* Assemble Hessian for different frequencies to compare how it looks like
-* compute spectrum Hessian with mrhs to compare with single src (running on moench)
+* Time forward solve in parallel
+* Solve multiscale example as test case
 * Boundary conditions: implement ABC/PML in joint inversion
+* Solve inversion with TV regularization (primal-dual or Split Bregman?)
+* Study joint regularizers
+* L-BFGS (or BFGS for now) as preconditioner of Newton-CG system ?
 * implement misfit with blurring kernel
 * GLL integration points in Fenics
 * Code C++ version of fwd and adj pbs (?)
