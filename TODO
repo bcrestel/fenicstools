@@ -5,7 +5,7 @@ TODO list
 
 
     - ACOUSTIC:
-* Time forward solve in parallel
+* Check scalability of fwd solve on ccgo1 more in depth (looks like horrible scalability)
 * Solve multiscale example as test case
 * Boundary conditions: implement ABC/PML in joint inversion
 * Solve inversion with TV regularization (primal-dual or Split Bregman?)
