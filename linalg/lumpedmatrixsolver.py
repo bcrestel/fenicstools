@@ -2,7 +2,7 @@ import dolfin as dl
 from dolfin import MPI
 import numpy as np
 
-from miscroutines import get_diagonal
+from miscroutines import *
 from fenicstools.miscfenics import setfct
 from fenicstools.linalg.miscroutines import setglobalvalue, setupPETScmatrix
 
@@ -105,6 +105,7 @@ class LumpedMatrixSolverS(dl.GenericLinearSolver):
         self.invMdiag[:] = 1./self.Mdiag.array()
 
 
+    #@profile
     def solve(self, x, b):
         """ solve(self, x, b) solves Ax = b """
 
