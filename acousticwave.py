@@ -1,13 +1,12 @@
 import sys
 import numpy as np
-from miscfenics import isequal
 
 from dolfin import TestFunction, TrialFunction, Function, GenericVector, \
 assemble, inner, nabla_grad, dx, ds, sqrt, \
 PETScLUSolver, PETScKrylovSolver, \
 PointSource, Point, Constant, FacetFunction, Measure
 
-from miscfenics import setfct
+from miscfenics import setfct, isequal
 from linalg.lumpedmatrixsolver import LumpedMatrixSolverS, LumpedMassPreconditioner
 
 

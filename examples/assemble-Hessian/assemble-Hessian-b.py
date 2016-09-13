@@ -24,15 +24,31 @@ from fenicstools.sourceterms import PointSources, RickerWavelet
 from fenicstools.observationoperator import TimeObsPtwise
 from fenicstools.linalg.miscroutines import setglobalvalue, setupPETScmatrix
 
+outputdirectory = '/workspace/ben/fenics/assemble-Hessian/'
+
 mpicomm = mpi_comm_world()
 mpirank = MPI.rank(mpicomm)
+mpisize = MPI.size(mpicomm)
+
+# work-around to fenics poor scalability
+# by-hand paralellism....
+#assert mpisize == 1
+#myhandmaderank = 0
+#myhandmadesize = 16
 
 # Input data:
-Nxy = 100
+#Nxy = 100
+#Dt = 5e-4
+#T0TF = [[0.0, 0.02, 1.50, 1.52], [0.0, 0.04, 2.00, 2.02], [0.0, 0.5, 6.5, 7.0]]
+#FREQ = [10.0, 4.0, 0.5]
+#SKIP = [20, 20, 200]
+
+Nxy = 50
 Dt = 5e-4
-T0TF = [[0.0, 0.02, 0.98, 1.0], [0.0, 0.04, 1.16, 1.2], [0.0, 0.4, 4.0, 3.6], [0.0, 0.5, 4.5, 5.0]]
-FREQ = [6.0, 4.0, 1.0, 0.5]
-SKIP = [20, 20, 100, 200]
+T0TF = [[0.0, 0.04, 2.00, 2.04], [0.0, 0.5, 6.5, 7.0]]
+FREQ = [4.0, 0.5]
+SKIP = [20, 200]
+
 checkdt(Dt, 1./Nxy, 2, np.sqrt(2.0), True)
 
 # mesh
@@ -59,7 +75,7 @@ wavepde = AcousticWave({'V':V, 'Vm':Vm})
 wavepde.timestepper = 'backward'
 wavepde.lump = True
 
-regul = LaplacianPrior({'Vm':Vm,'gamma':5e-4,'beta':5e-4, 'm0':a_target_fn})
+regul = LaplacianPrior({'Vm':Vm,'gamma':1e-4,'beta':1e-4, 'm0':a_target_fn})
 
 
 for t0tf, freq, skip in zip(T0TF, FREQ, SKIP):
@@ -85,7 +101,7 @@ for t0tf, freq, skip in zip(T0TF, FREQ, SKIP):
 
     # set up plots:
     filename, ext = splitext(sys.argv[0])
-    myplot = PlotFenics(filename + str(freq))
+    myplot = PlotFenics(outputdirectory + filename + str(freq))
     MPI.barrier(mpicomm)
     myplot.set_varname('b_target')
     myplot.plot_vtk(b_target_fn)
@@ -110,11 +126,13 @@ for t0tf, freq, skip in zip(T0TF, FREQ, SKIP):
     if mpirank == 0:
         print 'noise misfit={}, regul cost={}, ratio={}'.format(waveobj.cost_misfit, \
         waveobj.cost_reg, waveobj.cost_misfit/waveobj.cost_reg)
-    myplot.plot_timeseries(waveobj.solfwd[0], 'pd', 0, skip, dl.Function(V))
+    myplot.plot_timeseries(waveobj.solfwd[2], 'pd', 0, skip, dl.Function(V))
 
     # solve inverse problem
     if mpirank == 0:    print 'Solve inverse problem'
     waveobj.inversion(b_target_fn, b_target_fn, mpicomm)
+    myplot.set_varname('b_MAP')
+    myplot.plot_vtk(waveobj.PDE.b)
 
     # Assemble data Hessian
     if mpirank == 0:    print 'Assemble data misfit part of the Hessian'
@@ -122,7 +140,7 @@ for t0tf, freq, skip in zip(T0TF, FREQ, SKIP):
     Hei, ei = dl.Function(Vm), dl.Function(Vm)
     Hessian, VrDM, VcDM = setupPETScmatrix(Vm, Vm, 'dense', mpicomm)
     for ii in xrange(Vm.dim()):
-        if mpirank == 0:    print 'ii={} out of {}'.format(ii, Vm.dim())
+        if ii%100 == 0 and mpirank == 0:    print 'ii={} out of {}'.format(ii, Vm.dim())
         ei.vector().zero()
         setglobalvalue(ei, ii, 1.0)
         waveobj.mult(ei.vector(), Hei.vector())
@@ -136,5 +154,6 @@ for t0tf, freq, skip in zip(T0TF, FREQ, SKIP):
     Hessian.assemblyEnd()
     # Print Hessian to file
     if mpirank == 0:    print 'Print Hessian to file'
-    myviewer = PETSc.Viewer().createBinary('Hessian' + str(freq) + '.dat', 'w')
+    myviewer = PETSc.Viewer().createBinary(outputdirectory + 'Hessian' + str(freq) + '.dat', 'w')
     myviewer(Hessian)
+

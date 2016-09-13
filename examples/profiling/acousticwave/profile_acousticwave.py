@@ -1,9 +1,33 @@
 """
 Routine to profile forward solve of acoustic wave problem
 
-09/12/16 -- Profiled method iteration_backward in class AcousticWave on laptopt
+09/12/16 -- Profiled method iteration_backward in class AcousticWave on laptop
+N = 50
+Dt = 5e-4
+t0tf = [0.0, 0.1, 2.00, 2.1]
+freq = 2.0
     lump = True --> 2.5537 s
     lump = False --> 35.3994 s
+
+09/12/16 -- Profiled waveobj.solvefwd() in parallel on ccgo1 (single run)
+N = 50
+Dt = 5e-4
+t0tf = [0.0, 0.1, 2.00, 2.1]
+freq = 2.0
+    n = 1 --> 3.6 s
+    n = 2 --> 3.3 s
+    n = 4 --> 4.1 s
+
+N = 100
+Dt = 5e-4
+t0tf = [0.0, 0.02, 2.00, 2.02]
+freq = 10.0
+    n = 1 --> 9.2 s
+    n = 2 --> 6.3 s
+    n = 4 --> 4.8 s
+    n = 12 --> 4.6 s
+    n = 16 --> 4.6 s
+    n = 32 --> 5.3 s
 """
 
 import sys
@@ -24,10 +48,16 @@ mpisize = MPI.size(mpicomm)
 
 from mpi4py.MPI import Wtime
 
-N = 50
+#N = 50
+#Dt = 5e-4
+#t0tf = [0.0, 0.1, 2.00, 2.1]
+#freq = 2.0
+#skip = 20
+
+N = 100
 Dt = 5e-4
-t0tf = [0.0, 0.1, 2.00, 2.1]
-freq = 2.0
+t0tf = [0.0, 0.02, 2.00, 2.02]
+freq = 10.0
 skip = 20
 PLOT = False
 
