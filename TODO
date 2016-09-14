@@ -5,8 +5,8 @@ TODO list
 
 
     - ACOUSTIC:
-* Check scalability of fwd solve on ccgo1 more in depth (looks like horrible scalability)
-* Profile Hessian matvec on ccgo1
+* Try implement some assembly in Hessian matvec to speedup code (hessianb takes 60% cpu time for large-ish pbs)
+* Same idea for time-iteration in acousticwave solver
 * Solve multiscale example as test case
 * Boundary conditions: implement ABC/PML in joint inversion
 * Solve inversion with TV regularization (primal-dual or Split Bregman?)

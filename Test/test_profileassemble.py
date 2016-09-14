@@ -12,7 +12,7 @@ def run_test(nbrep=100):
 #    ffc.parameters.FFC_PARAMETERS['optimize'] = True
 #    ffc.parameters.FFC_PARAMETERS['cpp_optimize'] = True
 #    ffc.parameters.FFC_PARAMETERS['cpp_optimize_flags'] = '-O3'
-    mesh = dl.UnitSquareMesh(100,100)
+    mesh = dl.UnitSquareMesh(1000,1000)
     V = dl.FunctionSpace(mesh, 'Lagrange', 2)
     test, trial = dl.TestFunction(V), dl.TrialFunction(V)
     k = dl.Function(V)
@@ -20,14 +20,15 @@ def run_test(nbrep=100):
     v2 = dl.assemble(wkform)
     for ii in xrange(nbrep):
         setfct(k, float(ii+1))
-        v1 = dl.assemble(wkform, form_compiler_parameters={\
-        'representation':'quadrature', 'quadrature_degree':1})
-        setfct(k, 2.0*float(ii+1))
-        dl.assemble(wkform, tensor=v2, \
-        form_compiler_parameters={'optimize':True, \
-        'representation':'quadrature', 'quadrature_degree':1})
+        dl.assemble(wkform)
+#        v1 = dl.assemble(wkform, form_compiler_parameters={\
+#        'representation':'quadrature', 'quadrature_degree':1})
+#        setfct(k, 2.0*float(ii+1))
+#        dl.assemble(wkform, tensor=v2, \
+#        form_compiler_parameters={'optimize':True, \
+#        'representation':'quadrature', 'quadrature_degree':1})
 
-@profile
+#@profile
 def run_test2(nbrep=100):
     mesh = dl.UnitSquareMesh(40,40)
     V = dl.FunctionSpace(mesh, 'Lagrange', 2)
@@ -47,4 +48,4 @@ def run_test2(nbrep=100):
 
 
 if __name__ == "__main__":
-    run_test2(100)
+    run_test(10)

@@ -35,7 +35,7 @@ class Termk : public Expression
 int main()
 {
     #ifdef HAS_PETSC
-    UnitSquareMesh mesh(100,100);
+    UnitSquareMesh mesh(1000,1000);
     test_profileassemble::FunctionSpace V(mesh);
 
     /*Termf f;
@@ -50,7 +50,7 @@ int main()
     a.k = k;
     std::shared_ptr<GenericMatrix> A(new Matrix);
 
-    for (int ii=0; ii<200; ii++)
+    for (int ii=0; ii<10; ii++)
     {
         assemble(*A, a);
         k.update();
