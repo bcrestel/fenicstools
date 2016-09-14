@@ -1,5 +1,16 @@
 """
 Compute MAP point then assemble the data-misfit part of the Hessian
+
+09/13 -- Results on ccgo1 with pbindex = 0 -- main extracts from profiler
+Line #      Hits         Time  Per Hit   % Time  Line Contents
+==============================================================
+...
+   428        50    353687710 7073754.2     10.5              self.solincrfwd,_ = self.PDE.solve()
+...
+   432        50    651466972 13029339.4     19.4              self.solincradj,_ = self.PDE.solve()
+...
+   456    152050   2152762347  14158.3     64.2                  self.hessianb(yb, fact)
+...
 """
 import sys
 from os.path import splitext, isdir
@@ -33,12 +44,11 @@ PLOT = False
 # Input data:
 NNxy = [100, 100, 20]
 DT = [5e-4, 5e-4, 1e-3]
-T0TF = [[0.0, 0.02, 1.50, 1.52], [0.0, 0.04, 2.00, 2.04], [0.0, 0.5, 1.5, 2.0]]
-#T0TF = [[0.0, 0.02, 1.50, 1.52], [0.0, 0.04, 2.00, 2.04], [0.0, 0.5, 6.5, 7.0]]
+T0TF = [[0.0, 0.02, 1.50, 1.52], [0.0, 0.04, 2.00, 2.04], [0.0, 0.5, 6.5, 7.0]]
 FREQ = [10.0, 4.0, 0.5]
 SKIP = [20, 20, 200]
 # Problem size
-pbindex = 2
+pbindex = 0
 Nxy, Dt, t0tf, freq, skip = NNxy[pbindex], DT[pbindex], T0TF[pbindex], FREQ[pbindex], SKIP[pbindex]
 checkdt(Dt, 1./Nxy, 2, np.sqrt(2.0), True)
 
@@ -70,7 +80,7 @@ wavepde.lump = True
 # source:
 if mpirank == 0:    print 'sources'
 srcloc = [[ii/10., 1.0] for ii in range(1,10,2)]
-srcloc = [[0.5, 1.0]]
+#srcloc = [[0.5, 1.0]]
 Ricker = RickerWavelet(freq, 1e-10)
 Pt = PointSources(V, srcloc)
 src = dl.Function(V)

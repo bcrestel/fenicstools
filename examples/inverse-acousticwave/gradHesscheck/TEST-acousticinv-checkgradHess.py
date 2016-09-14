@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 import dolfin as dl
-import ffc
+#import ffc
 from fenicstools.plotfenics import PlotFenics
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
@@ -23,7 +23,7 @@ from fenicstools.optimsolver import checkgradfd_med, checkhessabfd_med, checkhes
 from dolfin import MPI, mpi_comm_world
 mpicomm = mpi_comm_world()
 mpirank = MPI.rank(mpicomm)
-PLOT = True
+PLOT = False
 skip = 50
 
 # ABC:
