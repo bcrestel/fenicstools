@@ -1,5 +1,8 @@
 import os
 from os.path import isdir
+import matplotlib.pyplot as plt
+plt.ioff()
+import numpy as np
 
 from dolfin import File, MPI, mpi_comm_world
 from exceptionsfenics import *
@@ -82,3 +85,28 @@ class PlotFenics:
     def _check_indices(self):
         if self.indices == []:
             raise NoIndicesError("No indices defined")
+
+
+def plotobservations(times, Bp, dd):
+    """ Plot observations Bp along with data dd
+    Input:
+        times = numpy arrays (time steps)
+        Bp, dd = numpy arrays (time-series)
+    """
+
+    assert Bp.shape == dd.shape, \
+    "Both input arrays should have same dimensions"
+    nbobspts, timesteps = Bp.shape
+    assert len(times) == timesteps, \
+    "Time steps and time-series sizes do not coincide"
+    
+    griddim = np.ceil(np.sqrt(nbobspts))
+    fig = plt.figure()
+    fig.set_size_inches(20., 15.)
+    for ii in range(nbobspts):
+        ax = fig.add_subplot(griddim, griddim, ii+1)
+        ax.plot(times, dd[ii,:], 'k--')
+        ax.plot(times, Bp[ii,:], 'b')
+        ax.set_title('obs'+str(ii))
+
+    return fig
