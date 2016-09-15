@@ -8,6 +8,7 @@ TODO list
 * Try implement some assembly in Hessian matvec to speedup code (hessianb takes 60% cpu time for large-ish pbs)
 * Same idea for time-iteration in acousticwave solver
 * Solve multiscale example as test case
+* Use Marmousi data (see /home/ben/Work/Research/UT-Austin/Waves/Marmousi/fromNick)
 * Boundary conditions: implement ABC/PML in joint inversion
 * Solve inversion with TV regularization (primal-dual or Split Bregman?)
 * Study joint regularizers
