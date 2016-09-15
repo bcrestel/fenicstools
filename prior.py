@@ -26,6 +26,10 @@ class GaussianPrior():
         self.Parameters = Parameters
         self._assemble()
 
+    # For compatibility with Total Variation regularization
+    def isTV(self): return False
+    def isPD(self): return False
+
     @abc.abstractmethod
     def _assemble(self):    return None
 

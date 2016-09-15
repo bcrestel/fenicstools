@@ -83,7 +83,9 @@ class ObjectiveAcoustic(LinearOperator):
         if regularization == None:  
             print '*** Warning: Using zero regularization'
             self.regularization = ZeroRegularization()
-        else:   self.regularization = regularization
+        else:   
+            self.regularization = regularization
+            self.TV = self.regularization.isTV()
         self.alpha_reg = 1.0
         # gradient and Hessian
         self.p, self.q = Function(self.PDE.V), Function(self.PDE.V)
@@ -628,6 +630,7 @@ class ObjectiveAcoustic(LinearOperator):
                 break
             # compute search direction and plot
             tolcg = min(0.5, np.sqrt(gradnorm/gradnorm0))
+            self.assemblehessianregularization()    # for nonlinear regularizer
             cgiter, cgres, cgid, tolcg = compute_searchdirection(self, 'Newt', tolcg)
             self._plotsrchdir(myplot, str(it))
             # perform line search
@@ -642,6 +645,16 @@ class ObjectiveAcoustic(LinearOperator):
                     print 'Cost function stagnates -- optimization stopped'
                 break
 
+
+    def assemblehessianregularization(self):
+        """ Assemble Hessian of regularization when needed """
+        if self.invparam == 'a':
+            self.regularization.assemble_hessian(self.PDE.a)
+        elif self.invparam == 'b':
+            self.regularization.assemble_hessian(self.PDE.b)
+        elif self.invparam == 'ab':
+            # joint TV not implemented for joint yet
+            pass
 
     def _plotab(self, myplot, index):
         """ plot media during inversion """

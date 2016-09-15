@@ -30,6 +30,7 @@ class TV():
             print "inputs parameters must contain field 'Vm'"
             sys.exit(1)
 
+    def isTV(self): return True
     def isPD(self): return False
 
     def update(self, parameters=None):
@@ -98,7 +99,9 @@ class TV():
         self.H = assemble(self.wkformhess)
 
     def assemble_GNhessian(self, m_in):
-        """ Assemble the Gauss-Newton Hessian at m_in """
+        """ Assemble the Gauss-Newton Hessian at m_in 
+        Not used anymore (wkformhess selects GN Hessian if needed)
+        Left here for back-compatibility """
         setfct(self.m, m_in)
         self.H = assemble(self.wkformGNhess)
 

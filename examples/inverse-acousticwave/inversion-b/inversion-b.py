@@ -18,6 +18,7 @@ dl.set_log_active(False)
 from fenicstools.plotfenics import PlotFenics, plotobservations
 from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.prior import LaplacianPrior
+from fenicstools.regularization import TV, TVPD
 from fenicstools.miscfenics import checkdt, setfct
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
@@ -92,9 +93,19 @@ src = dl.Function(V)
 srcv = src.vector()
 mysrc = [Ricker, Pt, srcv]
 
+# define regularization
+# Tikhonov
+#regul = LaplacianPrior({'Vm':Vm,'gamma':1e-3,'beta':1e-3, 'm0':1.0})
+# Total Variation
+#   full TV w/o primal-dual
+regul = TV({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
+#   GN Hessian for TV w/o primal-dual
+#regul = TV({'k':1.0, 'eps':1e-2, 'GNhessian':True})
+#   full TV w/ primal-dual
+#regul = TVPD({'k':1.0, 'eps':1e-2, 'GNhessian':True})
+
 # define objective function:
 if mpirank == 0:    print 'Define objective function'
-regul = LaplacianPrior({'Vm':Vm,'gamma':1e-3,'beta':1e-3, 'm0':1.0})
 waveobj = ObjectiveAcoustic(wavepde, mysrc, 'b', regul)
 waveobj.obsop = obsop
 
