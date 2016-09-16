@@ -24,7 +24,8 @@ from fenicstools.sourceterms import PointSources, RickerWavelet
 from fenicstools.observationoperator import TimeObsPtwise
 from fenicstools.linalg.miscroutines import setglobalvalue, setupPETScmatrix
 
-outputdirectory = '/workspace/ben/fenics/assemble-Hessian/'
+#outputdirectory = '/workspace/ben/fenics/assemble-Hessian/'
+outputdirectory = ''
 
 mpicomm = mpi_comm_world()
 mpirank = MPI.rank(mpicomm)
@@ -43,12 +44,13 @@ mpisize = MPI.size(mpicomm)
 #FREQ = [10.0, 4.0, 0.5]
 #SKIP = [20, 20, 200]
 
-Nxy = 50
+#Nxy = 50   #TODO:TMP
+Nxy = 10
 Dt = 5e-4
 T0TF = [[0.0, 0.04, 2.00, 2.04], [0.0, 0.5, 6.5, 7.0]]
-FREQ = [4.0, 0.5]
+#FREQ = [4.0, 0.5]  #TODO:TMP
+FREQ = [0.5]
 SKIP = [20, 200]
-
 checkdt(Dt, 1./Nxy, 2, np.sqrt(2.0), True)
 
 # mesh
@@ -130,16 +132,18 @@ for t0tf, freq, skip in zip(T0TF, FREQ, SKIP):
 
     # solve inverse problem
     if mpirank == 0:    print 'Solve inverse problem'
-    waveobj.inversion(b_target_fn, b_target_fn, mpicomm)
-    myplot.set_varname('b_MAP')
-    myplot.plot_vtk(waveobj.PDE.b)
+#    waveobj.inversion(b_target_fn, b_target_fn, mpicomm)
+#    myplot.set_varname('b_MAP')
+#    myplot.plot_vtk(waveobj.PDE.b)
+    waveobj.solveadj_constructgrad()
 
     # Assemble data Hessian
     if mpirank == 0:    print 'Assemble data misfit part of the Hessian'
     waveobj.alpha_reg = 0.0
     Hei, ei = dl.Function(Vm), dl.Function(Vm)
     Hessian, VrDM, VcDM = setupPETScmatrix(Vm, Vm, 'dense', mpicomm)
-    for ii in xrange(Vm.dim()):
+#    for ii in xrange(Vm.dim()):    #TODO:TMP
+    for ii in xrange(2):
         if ii%100 == 0 and mpirank == 0:    print 'ii={} out of {}'.format(ii, Vm.dim())
         ei.vector().zero()
         setglobalvalue(ei, ii, 1.0)
