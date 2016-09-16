@@ -47,8 +47,8 @@ class TimeFilter():
 
     def __call__(self, tt):
         """ Overload () operator """
-        assert tt >= self.t0 and tt <= self.T, \
-        'Input tt={} out of bounds [t0, T]; tt-t0={}, T-tt={}'.format(tt, tt-self.t0, self.T-tt)
+        #assert tt >= self.t0 and tt <= self.T, \
+        #'Input tt={} out of bounds [t0, T]; tt-t0={}, T-tt={}'.format(tt, tt-self.t0, self.T-tt)
         if tt <= self.t0 + 1e-16: return 0.0
         if tt >= self.T - 1e-16:    return 0.0
         if tt <= self.t1:   
