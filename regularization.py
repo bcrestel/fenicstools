@@ -3,7 +3,8 @@ import numpy as np
 
 from dolfin import sqrt, inner, nabla_grad, grad, dx, \
 Function, TestFunction, TrialFunction, assemble, solve, \
-Constant, plot, interactive, assign, FunctionSpace
+Constant, plot, interactive, assign, FunctionSpace, \
+PETScKrylovSolver
 from miscfenics import isFunction, isVector, setfct
 
 
@@ -55,6 +56,12 @@ class TV():
         # define functions
         self.m = Function(self.Vm)
         self.test, self.trial = TestFunction(self.Vm), TrialFunction(self.Vm)
+        try:
+            factM = self.k.vector().min()
+        except:
+            factM = self.k
+        factM = 1e-2*factM
+        self.sMass = assemble(inner(self.test, self.trial)*dx)*factM
         # frequently-used variable
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + Constant(eps)
         self.kovsq = self.k / sqrt(self.fTV)
@@ -109,6 +116,16 @@ class TV():
         """ returns the Hessian applied along a direction mhat """
         isVector(mhat)
         return self.H * mhat
+
+    def getprecond(self):
+        """ Precondition by inverting the TV Hessian """
+        solver = PETScKrylovSolver("cg", "petsc_amg")
+        solver.parameters["maximum_iterations"] = 1000
+        solver.parameters["relative_tolerance"] = 1e-12
+        solver.parameters["error_on_nonconvergence"] = True 
+        solver.parameters["nonzero_initial_guess"] = False 
+        solver.set_operator(self.H + self.sMass)
+        return solver
 
 
 #----------------------------------------------------------------------
