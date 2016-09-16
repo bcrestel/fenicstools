@@ -268,7 +268,21 @@ class ObjectiveAcoustic(LinearOperator):
                     # add regularization
                     self.MGv.axpy(self.alpha_reg, self.regularization.grad(self.PDE.b))
             # compute Grad
-            self.solverM.solve(self.Grad.vector(), self.MGv)
+            # When Grad very small (optim almost converged), first few residuals
+            # may be flagged as diverging by PETSc. In that case, enlarge
+            # divergence_limit
+            try:
+                nbiter = self.solverM.solve(self.Grad.vector(), self.MGv)
+            except:
+                # Massive caveat: Hope that ALL processes throw an exception
+                pseudoGradnorm = np.sqrt(self.Mgv.inner(self.MGv))
+                if pseudoGradnorm < 1e-8 and nbiter < 10:
+                    print '*** Warning: Increasing divergence_limit for Mass matrix solver'
+                    self.solverM.parameters["divergence_limit"] = 1e6
+                    self.solverM.solve(self.Grad.vector(), self.MGv)
+                else:
+                    print '*** Error: Problem with Mass matrix solver'
+                    sys.exit(1)
 #            if self.PDE.abc:
 #                self.vD.vector().zero(); self.pD.vector().zero();
 #                self.p1D.vector().zero(); self.p2D.vector().zero();
