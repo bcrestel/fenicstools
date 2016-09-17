@@ -100,9 +100,9 @@ mysrc = [Ricker, Pt, srcv]
 #   full TV w/o primal-dual
 regul = TV({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
 #   GN Hessian for TV w/o primal-dual
-#regul = TV({'k':1.0, 'eps':1e-2, 'GNhessian':True})
+#regul = TV({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':True})
 #   full TV w/ primal-dual
-#regul = TVPD({'k':1.0, 'eps':1e-2, 'GNhessian':True})
+#regul = TVPD({'Vm':Vm, 'k':1.0, 'eps':1e-2, 'GNhessian':True})
 
 # define objective function:
 if mpirank == 0:    print 'Define objective function'
