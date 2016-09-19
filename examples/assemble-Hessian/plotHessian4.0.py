@@ -1,0 +1,46 @@
+""" Put smaller pieces of the Hessian matrix together,
+save it, then plot it
+"""
+import dolfin as dl
+import numpy as np
+from petsc4py import PETSc
+
+from fenicstools.linalg.miscroutines import gathermatrixrows, plotPETScmatrix, \
+setupPETScmatrix, loadPETScmatrixfromfile
+
+
+prefix = 'Hessian4.0/Hessian4.0_'
+
+# Set up PETSc matrix to store entire Hessian
+Nxy = 50
+mesh = dl.UnitSquareMesh(Nxy, Nxy)
+Vm = dl.FunctionSpace(mesh, 'Lagrange', 1)
+listdofmap = Vm.dofmap().tabulate_all_coordinates(mesh).reshape((-1,2))
+np.savetxt(prefix + 'dof.txt', listdofmap)
+mpicomm = dl.mpi_comm_world()
+Hessian,_,_ = setupPETScmatrix(Vm, Vm, 'dense', mpicomm)
+
+# Get filenames and range of rows for each sub-piece
+mysize = 16
+filenames = []
+rows = []
+for myrank in range(mysize):
+    a = myrank*(Vm.dim()/mysize)
+    if myrank+1 < mysize:
+        b = (myrank+1)*(Vm.dim()/mysize)+5
+    else:
+        b = Vm.dim()
+    filenames.append(prefix + str(a) + '-' + str(b) + '.dat')
+    rows.append(range(Vm.dim())[a:b])
+
+# Fill in the Hessian
+H0 = loadPETScmatrixfromfile(filenames[0], mpicomm, 'dense')
+gathermatrixrows(Hessian, filenames, rows, mpicomm, 'dense')
+# Save the Hessian
+Hessfilename = prefix + 'full.dat'
+myviewer = PETSc.Viewer().createBinary(Hessfilename, \
+mode='w', format=PETSc.Viewer.Format.NATIVE, comm=mpicomm)
+myviewer(Hessian)
+# Plot the Hessian
+fig,_ = plotPETScmatrix(Hessian)
+fig.savefig(prefix + 'full.eps')

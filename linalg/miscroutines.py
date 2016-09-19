@@ -43,30 +43,30 @@ def setupPETScmatrix(Vr, Vc, mattype, mpicomm):
     r_map = PETSc.LGMap().create(VrDM.dofs(), comm=mpicomm)
     c_map = PETSc.LGMap().create(VcDM.dofs(), comm=mpicomm)
     # set up matrix
-    PETScMatrix = PETSc.Mat()
-    PETScMatrix.create(mpicomm)
-    PETScMatrix.setSizes([ [VrDM.local_dimension("owned"), Vr.dim()], \
+    petscmatrix = PETSc.Mat()
+    petscmatrix.create(mpicomm)
+    petscmatrix.setSizes([ [VrDM.local_dimension("owned"), Vr.dim()], \
     [VcDM.local_dimension("owned"), Vc.dim()] ])
-    PETScMatrix.setType(mattype) # 'aij', 'dense'
-    PETScMatrix.setUp()
-    PETScMatrix.setLGMap(r_map, c_map)
+    petscmatrix.setType(mattype) # 'aij', 'dense'
+    petscmatrix.setUp()
+    petscmatrix.setLGMap(r_map, c_map)
     # compare PETSc and Fenics local partitions:
-    Istart, Iend = PETScMatrix.getOwnershipRange()
+    Istart, Iend = petscmatrix.getOwnershipRange()
     assert list(VrDM.dofs()) == range(Istart, Iend)
-    return PETScMatrix, VrDM, VcDM
+    return petscmatrix, VrDM, VcDM
 
 
 
-def loadPETScmatrixfromfile(filename, mattype='aij'):
+def loadPETScmatrixfromfile(filename, mpicomm, mattype='aij'):
     """ load PETSc matrix that was saved to file *.dat
     Assumed to be done in serial """
 
     viewer = PETSc.Viewer().createBinary(filename, mode='r')
-    PETScMatrix = PETSc.Mat()
-    PETScMatrix.create()
-    PETScMatrix.setType(mattype)
-    PETScMatrix.load(viewer)
-    return PETScMatrix
+    petscmatrix = PETSc.Mat()
+    petscmatrix.create(mpicomm)
+    petscmatrix.setType(mattype)
+    petscmatrix.load(viewer)
+    return petscmatrix
 
 
 
@@ -87,8 +87,27 @@ def plotPETScmatrix(Matrix, log=0):
         absmax = np.max(np.abs(Array))
         myvmin, myvmax = -absmax, absmax
     # Plot
-    plt.imshow(Arrayplot, cmap=mycmap, aspect='equal', \
+    fig = plt.figure()
+    ax = fig.add_subplot(111)
+    hh = ax.imshow(Arrayplot, cmap=mycmap, aspect='equal', \
     interpolation='nearest', norm=None, vmin=myvmin, vmax=myvmax)
-    plt.colorbar()
-    plt.show()
-    return Array
+    plt.colorbar(hh)
+    return fig, Array
+
+
+
+def gathermatrixrows(Matrix, filenames, rows, mpicomm, mattype):
+    """ Assemble complete matrix from partition of the rows 
+    Inputs:
+        Matrix = unassembled PETSc matrix to store whole matrix
+        filenames = list of filenames for each *.dat file
+        rows = list of indices of the rows corresponding to each *.dat files
+        mattype = string defining mattype of matrix
+    """
+
+    for ff, rr in zip(filenames, rows):
+        mm = loadPETScmatrixfromfile(ff, mpicomm, mattype)
+        for r in rr:
+            Matrix[r,:] = mm[r,:]
+    Matrix.assemblyBegin()
+    Matrix.assemblyEnd()
