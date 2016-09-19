@@ -47,7 +47,7 @@ def setupPETScmatrix(Vr, Vc, mattype, mpicomm):
     PETScMatrix.create(mpicomm)
     PETScMatrix.setSizes([ [VrDM.local_dimension("owned"), Vr.dim()], \
     [VcDM.local_dimension("owned"), Vc.dim()] ])
-    PETScMatrix.setType(mattype) # sparse
+    PETScMatrix.setType(mattype) # 'aij', 'dense'
     PETScMatrix.setUp()
     PETScMatrix.setLGMap(r_map, c_map)
     # compare PETSc and Fenics local partitions:
@@ -57,11 +57,22 @@ def setupPETScmatrix(Vr, Vc, mattype, mpicomm):
 
 
 
-def plotmatrixfromfile(filename, log=0):
+def loadPETScmatrixfromfile(filename, mattype='aij'):
+    """ load PETSc matrix that was saved to file *.dat
+    Assumed to be done in serial """
 
-    # Load matrix
-    viewer = PETSc.Viewer().createBinary(filename, 'r')
-    Matrix = PETSc.Mat().load(viewer)
+    viewer = PETSc.Viewer().createBinary(filename, mode='r')
+    PETScMatrix = PETSc.Mat()
+    PETScMatrix.create()
+    PETScMatrix.setType(mattype)
+    PETScMatrix.load(viewer)
+    return PETScMatrix
+
+
+
+def plotPETScmatrix(Matrix, log=0):
+    """ Plot PETSc matrix as 2d data array """
+
     # Convert to numpy array
     Array = PETScMatrix(Matrix).array()
     if log != 0:
