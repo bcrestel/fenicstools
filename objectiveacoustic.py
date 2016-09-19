@@ -275,7 +275,7 @@ class ObjectiveAcoustic(LinearOperator):
                 nbiter = self.solverM.solve(self.Grad.vector(), self.MGv)
             except:
                 # Massive caveat: Hope that ALL processes throw an exception
-                pseudoGradnorm = np.sqrt(self.Mgv.inner(self.MGv))
+                pseudoGradnorm = np.sqrt(self.MGv.inner(self.MGv))
                 if pseudoGradnorm < 1e-8 and nbiter < 10:
                     print '*** Warning: Increasing divergence_limit for Mass matrix solver'
                     self.solverM.parameters["divergence_limit"] = 1e6
