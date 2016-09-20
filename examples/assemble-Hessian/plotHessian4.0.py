@@ -42,5 +42,13 @@ myviewer = PETSc.Viewer().createBinary(Hessfilename, \
 mode='w', format=PETSc.Viewer.Format.NATIVE, comm=mpicomm)
 myviewer(Hessian)
 # Plot the Hessian
-fig,_ = plotPETScmatrix(Hessian)
+fig,_ = plotPETScmatrix(Hessian, 1)
 fig.savefig(prefix + 'full.eps')
+# Plot its diagonal
+x, y = H0.getVecs()
+H0.getDiagonal(y)
+fig2 = plt.figure()
+ax = fig2.add_subplot(111)
+ax.semilogy(y[:], 'o')
+fig2.savefig(prefix + 'full-diagonal.eps')
+np.where(y[:] < 0.0)
