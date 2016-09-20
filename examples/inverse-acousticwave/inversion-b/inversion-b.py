@@ -39,9 +39,9 @@ Data={'0.5': [0.5, 10, 5e-3, [0.0, 0.5, 6.0, 6.5]],\
 
 
 # Input data:
+PLOT = True
 freq, Nxy, Dt, t0tf = Data['0.5']
 t0, t1, t2, tf = t0tf
-PLOT = True
 skip = int(0.1/Dt)
 checkdt(Dt, 1./Nxy, 2, np.sqrt(2.0), True)
 
@@ -102,7 +102,7 @@ regul = TV({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
 #   GN Hessian for TV w/o primal-dual
 #regul = TV({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':True})
 #   full TV w/ primal-dual
-#regul = TVPD({'Vm':Vm, 'k':1.0, 'eps':1e-2, 'GNhessian':True})
+#regul = TVPD({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
 
 # define objective function:
 if mpirank == 0:    print 'Define objective function'
