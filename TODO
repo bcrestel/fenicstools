@@ -1,22 +1,27 @@
 TODO list
 
+    - JOINT:
+* Boundary conditions: implement ABC/PML in joint inversion
+* Study analytically/numerically similarity terms
+* Improve computational performance (primal-dual, split Bregman,...)
+
 
     - ACOUSTIC:
-* Implement inverse pb with TV regularization
-Can't solve preconditioner -> PETSc returns indefinite matrix
-see if same happens with non-constant medium
+* TV: try smaller eps -> GNHessian or Primal-dual
 * Try implement some assembly in Hessian matvec to speedup code 
 (hessianb takes 60% cpu time for large-ish pbs)
 * Same idea for time-iteration in acousticwave solver
 * Solve multiscale example as test case
 * Use Marmousi data 
 (see /home/ben/Work/Research/UT-Austin/Waves/Marmousi/fromNick)
-* Boundary conditions: implement ABC/PML in joint inversion
-* Solve inversion with TV regularization (primal-dual or Split Bregman?)
-* Study joint regularizers
 * L-BFGS (or BFGS for now) as preconditioner of Newton-CG system ?
 * implement misfit with blurring kernel
 * GLL integration points in Fenics
+
+
+    - HESSIAN:
+* Run with 1src (top-left corner) / 1rcv (bott-right corner); 4Hz, 8Hz (see Omar's email)
+* Look for improved ordering of dofs (see Georg's email)
 
 
     - BAYESIAN:
