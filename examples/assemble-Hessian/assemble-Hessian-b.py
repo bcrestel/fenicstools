@@ -42,7 +42,7 @@ Data={
 '8.0': [8.0, 50, 5e-4, [0.0, 0.04, 2.0, 2.04]], \
 '14.0': [14.0, 140, 5e-4, [0.0, 0.02, 1.5, 1.52]]
 }
-freq, Nxy, Dt, t0tf = Data['4.0']
+freq, Nxy, Dt, t0tf = Data['8.0']
 t0, t1, t2, tf = t0tf
 skip = int(0.1/Dt)
 checkdt(Dt, 1./Nxy, 2, np.sqrt(2.0), True)
@@ -61,18 +61,22 @@ a_target = dl.Expression('1.0')
 a_target_fn = dl.interpolate(a_target, Vm)
 
 # set up plots:
+filename, ext = splitext(sys.argv[0])
+myplot = PlotFenics(outputdirectory + filename + str(freq))
+MPI.barrier(mpicomm)
 if PLOT:
-    filename, ext = splitext(sys.argv[0])
-    myplot = PlotFenics(outputdirectory + filename + str(freq))
-    MPI.barrier(mpicomm)
     myplot.set_varname('b_target')
     myplot.plot_vtk(b_target_fn)
+else:
+    myplot = None
 
 # observations:
+"""
 obspts = [[0.0, ii/10.] for ii in range(1,10)] + \
 [[1.0, ii/10.] for ii in range(1,10)] + \
 [[ii/10., 0.0] for ii in range(1,10)]
-#obspts = [[1.0, 0.0]]
+"""
+obspts = [[1.0, 0.0]]
 
 # define pde operator:
 if mpirank == 0:    print 'define wave pde'
@@ -82,8 +86,10 @@ wavepde.lump = True
 
 # source:
 if mpirank == 0:    print 'sources'
+"""
 srcloc = [[ii/10., 1.0] for ii in range(1,10,2)]
-#srcloc = [[0.0, 1.0]]
+"""
+srcloc = [[0.0, 1.0]]
 Ricker = RickerWavelet(freq, 1e-10)
 Pt = PointSources(V, srcloc)
 src = dl.Function(V)
@@ -118,11 +124,13 @@ if SAVE_MAP:
     if mpirank == 0:
         print 'noise misfit={}, regul cost={}, ratio={}'.format(waveobj.cost_misfit, \
         waveobj.cost_reg, waveobj.cost_misfit/waveobj.cost_reg)
-    if PLOT:    myplot.plot_timeseries(waveobj.solfwd[2], 'pd', 0, skip, dl.Function(V))
+    if PLOT:    
+        plotindex = len(waveobj.solfwd)/2
+        myplot.plot_timeseries(waveobj.solfwd[plotindex], 'pd', 0, skip, dl.Function(V))
 
     # solve inverse problem
     if mpirank == 0:    print 'Solve inverse problem'
-    waveobj.inversion(b_target_fn, b_target_fn, mpicomm)
+    waveobj.inversion(b_target_fn, b_target_fn, mpicomm, myplot=myplot)
     if PLOT:
         myplot.set_varname('b_MAP')
         myplot.plot_vtk(waveobj.PDE.b)
@@ -135,8 +143,10 @@ if SAVE_MAP:
 else:
     # Load MAP point
     fileout = dl.HDF5File(mpicomm, \
-    outputdirectory + filename + str(freq) + 'MAP.h5', 'r')
-    fileout.read(waveobj.PDE.b, 'b')
+    outputdirectory + filename + str(freq) + '/MAP.h5', 'r')
+    binit = dl.Function(Vm)
+    fileout.read(binit, 'b')
+    waveobj.update_PDE({'b':binit})
 
     # Load data
     DDarr = np.load(outputdirectory + filename + str(freq) + '/dd.npy')
@@ -146,14 +156,25 @@ else:
     waveobj.dd = DD
 
     # Compute gradient
+    if mpirank == 0:    print 'Compute gradient'
     waveobj.solvefwd_cost()
     waveobj.solveadj_constructgrad()
+    # Print output for comparison with MAP computation
+    gradnorm = waveobj.MGv.inner(waveobj.Grad.vector())
+    diff = waveobj.PDE.b.vector() - b_target_fn.vector()
+    medmisfit = diff.inner(waveobj.Mass*diff)
+    dtruenorm = b_target_fn.vector().inner(waveobj.Mass*b_target_fn.vector())
+    print '\t{:10s} {:12s} {:12s} {:12s} {:10s} \t{:10s} {:12s} {:12s}'.format(\
+    'cost', 'misfit', 'reg', '|G|', 'medmisf', 'a_ls', 'tol_cg', 'n_cg')
+    print '{:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.2f})'.\
+    format(waveobj.cost, waveobj.cost_misfit, waveobj.cost_reg, \
+    gradnorm, medmisfit, medmisfit/dtruenorm)
 
     # Parallelism or hand-made parallelism?
     try:
-        myrank = int(sys.argv[1])
+        myrank = int(sys.argv[1])   # starts at 0
         if myrank > 0:  PLOT = False
-        mysize = int(sys.argv[2])
+        mysize = int(sys.argv[2])   # total nb of processes
         assert mpisize == 1, \
         "cannot run hand-made parallelims and MPI parallelism at the same time"
         assert myrank < mysize
@@ -196,4 +217,3 @@ else:
     myviewer = PETSc.Viewer().createBinary(Hessfilename, \
     mode='w', format=PETSc.Viewer.Format.NATIVE, comm=mpicomm)
     myviewer(Hessian)
-
