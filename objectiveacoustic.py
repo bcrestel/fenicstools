@@ -272,11 +272,11 @@ class ObjectiveAcoustic(LinearOperator):
             # may be flagged as diverging by PETSc. In that case, enlarge
             # divergence_limit
             try:
-                nbiter = self.solverM.solve(self.Grad.vector(), self.MGv)
+                self.solverM.solve(self.Grad.vector(), self.MGv)
             except:
                 # Massive caveat: Hope that ALL processes throw an exception
                 pseudoGradnorm = np.sqrt(self.MGv.inner(self.MGv))
-                if pseudoGradnorm < 1e-8 and nbiter < 10:
+                if pseudoGradnorm < 1e-8:
                     print '*** Warning: Increasing divergence_limit for Mass matrix solver'
                     self.solverM.parameters["divergence_limit"] = 1e6
                     self.solverM.solve(self.Grad.vector(), self.MGv)
