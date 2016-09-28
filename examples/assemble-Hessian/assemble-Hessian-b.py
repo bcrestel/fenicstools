@@ -33,8 +33,8 @@ mpisize = MPI.size(mpicomm)
 
 # SAVE_MAP = True only computes the MAP point and print to file
 # SAVE_MAP = False loads the MAP point and compute the Hessian at that point
-SAVE_MAP = True
-PLOT = True
+SAVE_MAP = False
+PLOT = False
 
 # Input data:
 Data={
@@ -71,12 +71,10 @@ else:
     myplot = None
 
 # observations:
-"""
 obspts = [[0.0, ii/10.] for ii in range(1,10)] + \
 [[1.0, ii/10.] for ii in range(1,10)] + \
 [[ii/10., 0.0] for ii in range(1,10)]
-"""
-obspts = [[1.0, 0.0]]
+#obspts = [[0.9, 0.1]]
 
 # define pde operator:
 if mpirank == 0:    print 'define wave pde'
@@ -86,10 +84,8 @@ wavepde.lump = True
 
 # source:
 if mpirank == 0:    print 'sources'
-"""
 srcloc = [[ii/10., 1.0] for ii in range(1,10,2)]
-"""
-srcloc = [[0.0, 1.0]]
+#srcloc = [[0.1, 0.9]]
 Ricker = RickerWavelet(freq, 1e-10)
 Pt = PointSources(V, srcloc)
 src = dl.Function(V)

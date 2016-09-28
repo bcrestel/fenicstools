@@ -39,7 +39,7 @@ Data={'0.5': [0.5, 10, 5e-3, [0.0, 0.5, 6.0, 6.5]],\
 
 
 # Input data:
-PLOT = True
+PLOT = False
 freq, Nxy, Dt, t0tf = Data['0.5']
 t0, t1, t2, tf = t0tf
 skip = int(0.1/Dt)
@@ -98,11 +98,11 @@ mysrc = [Ricker, Pt, srcv]
 #regul = LaplacianPrior({'Vm':Vm,'gamma':1e-3,'beta':1e-3, 'm0':1.0})
 # Total Variation
 #   full TV w/o primal-dual
-regul = TV({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
+#regul = TV({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
 #   GN Hessian for TV w/o primal-dual
 #regul = TV({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':True})
 #   full TV w/ primal-dual
-#regul = TVPD({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
+regul = TVPD({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
 
 # define objective function:
 if mpirank == 0:    print 'Define objective function'
