@@ -3,13 +3,14 @@ save it, then plot it
 """
 import dolfin as dl
 import numpy as np
+import matplotlib.pyplot as plt
 from petsc4py import PETSc
 
 from fenicstools.linalg.miscroutines import gathermatrixrows, plotPETScmatrix, \
 setupPETScmatrix, loadPETScmatrixfromfile
 
 
-prefix = 'Hessian4.0/Hessian4.0_'
+prefix = 'Hessian4.0-1src-1rcv/Hessian4.0_'
 
 # Set up PETSc matrix to store entire Hessian
 Nxy = 50
@@ -42,7 +43,7 @@ myviewer = PETSc.Viewer().createBinary(Hessfilename, \
 mode='w', format=PETSc.Viewer.Format.NATIVE, comm=mpicomm)
 myviewer(Hessian)
 # Plot the Hessian
-fig,_ = plotPETScmatrix(Hessian, 1)
+fig,_ = plotPETScmatrix(Hessian, 0)
 fig.savefig(prefix + 'full.eps')
 # Plot its diagonal
 x, y = H0.getVecs()
@@ -51,4 +52,4 @@ fig2 = plt.figure()
 ax = fig2.add_subplot(111)
 ax.semilogy(y[:], 'o')
 fig2.savefig(prefix + 'full-diagonal.eps')
-np.where(y[:] < 0.0)
+print np.where(y[:] < 0.0)

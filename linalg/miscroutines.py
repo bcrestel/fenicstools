@@ -81,17 +81,17 @@ def plotPETScmatrix(Matrix, log=0):
         Arrayplot = Arraylog
         #mycmap = plt.cm.Greys
         mycmap = plt.cm.seismic
-        myvmin, myvmax = min(0.0, np.min(Arraylog)), max(0.0, np.max(Arraylog))
+        #myvmin, myvmax = min(0.0, np.min(Arraylog)), max(0.0, np.max(Arraylog))
     else:   
         Arrayplot = Array
         mycmap = plt.cm.seismic
         absmax = np.max(np.abs(Array))
-        myvmin, myvmax = -absmax, absmax
+        #myvmin, myvmax = -absmax, absmax
     # Plot
     fig = plt.figure()
     ax = fig.add_subplot(111)
     hh = ax.imshow(Arrayplot, cmap=mycmap, aspect='equal', \
-    interpolation='nearest', norm=None, vmin=myvmin, vmax=myvmax)
+    interpolation='nearest', norm=None)#, vmin=myvmin, vmax=myvmax)
     plt.colorbar(hh)
     return fig, Array
 
