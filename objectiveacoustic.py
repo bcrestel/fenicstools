@@ -86,6 +86,7 @@ class ObjectiveAcoustic(LinearOperator):
         else:   
             self.regularization = regularization
             self.TV = self.regularization.isTV()
+            self.PD = self.regularization.isPD()
         self.alpha_reg = 1.0
         # gradient and Hessian
         self.p, self.q = Function(self.PDE.V), Function(self.PDE.V)
@@ -647,12 +648,16 @@ class ObjectiveAcoustic(LinearOperator):
             self.assemblehessianregularization()    # for nonlinear regularizer
             cgiter, cgres, cgid, tolcg = compute_searchdirection(self, 'Newt', tolcg)
             self._plotsrchdir(myplot, str(it))
+            # compute search direction for dual variable (TV-PD):
+            if self.PD: self.regularization.compute_dw(self.srchdir)
             # perform line search
             cost_old = self.cost
             statusLS, LScount, alpha = bcktrcklinesearch(self, 12)
             cost = self.cost
             if mpirank == 0:
                 print '{:11.3f} {:12.2e} {:10d}'.format(alpha, tolcg, cgiter)
+            # perform line search for dual variable (TV-PD):
+            if self.PD: self.regularization.update_w(alpha, not mpirank)
             # stopping criterion (cost)
             if np.abs(cost-cost_old)/np.abs(cost_old) < tolcost:
                 if mpirank == 0:

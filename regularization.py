@@ -179,7 +179,7 @@ class TVPD(TV):
         solve(self.Mw, self.dw.vector(), b)
 
 
-    def update_w(self, alpha):
+    def update_w(self, alpha, printres=True):
         """ update w and re-scale wH """
         self.w.vector().axpy(alpha, self.dw.vector())
         # project each w (coord-wise) onto unit sphere to get wH
@@ -198,5 +198,6 @@ class TVPD(TV):
         # Print results
         dualresnorm = assemble(self.dualresnorm)
         normgraddm = assemble(self.normgraddm)
-        print 'line search dual variable: max(|w|)={}, err(w,df)={}, |grad(dm)|={}'.\
-        format(np.amax(np.sqrt(normw)), np.sqrt(dualresnorm), np.sqrt(normgraddm))
+        if printres:
+            print 'line search dual variable: max(|w|)={}, err(w,df)={}, |grad(dm)|={}'.\
+            format(np.amax(np.sqrt(normw)), np.sqrt(dualresnorm), np.sqrt(normgraddm))
