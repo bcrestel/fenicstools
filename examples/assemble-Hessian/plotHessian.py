@@ -10,10 +10,13 @@ from fenicstools.linalg.miscroutines import gathermatrixrows, plotPETScmatrix, \
 setupPETScmatrix, loadPETScmatrixfromfile
 
 
-prefix = 'Hessian4.0-1src-1rcv/Hessian4.0_'
+#prefix = 'Hessian4.0-1src-1rcv/Hessian4.0_'
+prefix = 'Hessian4.0-5src-27rcv/Hessian4.0_'
+#prefix = 'Hessian8.0-5src-27rcv/Hessian8.0_'
+Nxy = 50
+mysize = 16
 
 # Set up PETSc matrix to store entire Hessian
-Nxy = 50
 mesh = dl.UnitSquareMesh(Nxy, Nxy)
 Vm = dl.FunctionSpace(mesh, 'Lagrange', 1)
 listdofmap = Vm.dofmap().tabulate_all_coordinates(mesh).reshape((-1,2))
@@ -22,7 +25,6 @@ mpicomm = dl.mpi_comm_world()
 Hessian,_,_ = setupPETScmatrix(Vm, Vm, 'dense', mpicomm)
 
 # Get filenames and range of rows for each sub-piece
-mysize = 16
 filenames = []
 rows = []
 for myrank in range(mysize):
