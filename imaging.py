@@ -89,7 +89,7 @@ class ObjectiveImageDenoising():
             k = self.parameters['k']
             mode = self.parameters['mode']
             if mode == 'primaldual':
-                self.Reg = self.Reg = TVPD({'eps':eps, 'k':k, 'Vm':self.V, 'GNhessian':False})
+                self.Reg = TVPD({'eps':eps, 'k':k, 'Vm':self.V, 'GNhessian':False})
             elif mode == 'full':
                 self.Reg = TV({'eps':eps, 'k':k, 'Vm':self.V, 'GNhessian':False})
             else:

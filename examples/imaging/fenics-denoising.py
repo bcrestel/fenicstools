@@ -68,7 +68,7 @@ else:
 
 # Generate data 
 denoise = ObjectiveImageDenoising(mesh, trueImage, \
-{'regularization':'TV', 'eps':1e-10, 'k':1.0, 'mode':'primaldual'})
+{'regularization':'TV', 'eps':1e-8, 'k':1.0, 'mode':'GN'})
 #{'regularization':'tikhonov', 'gamma':10., 'beta':0.0})
 denoise.generatedata(0.6)
 
