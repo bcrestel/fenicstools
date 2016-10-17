@@ -119,9 +119,14 @@ class TV():
 
     def getprecond(self):
         """ Precondition by inverting the TV Hessian """
-        solver = PETScKrylovSolver("cg", "petsc_amg")
+        try:
+            solver = PETScKrylovSolver("cg", "ml_amg")
+        except:
+            print '\n*** WARNING: ML not installed -- using petsc_amg instead'
+            solver = PETScKrylovSolver("cg", "petsc_amg")
         solver.parameters["maximum_iterations"] = 1000
         solver.parameters["relative_tolerance"] = 1e-12
+        solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["error_on_nonconvergence"] = True 
         solver.parameters["nonzero_initial_guess"] = False 
         solver.set_operator(self.H + self.sMass)
