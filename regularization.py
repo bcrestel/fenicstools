@@ -175,7 +175,8 @@ class TVPD(TV):
         inner(nabla_grad(self.m)+nabla_grad(self.dm), self.testw) \
         /sqrt(self.fTV)*dx + \
         inner(-inner(nabla_grad(self.m),nabla_grad(self.dm))* \
-        self.wH/sqrt(self.fTV), self.testw)*dx
+        self.w/sqrt(self.fTV), self.testw)*dx
+        #self.wH/sqrt(self.fTV), self.testw)*dx # not sure why self.wH
 
     def compute_dw(self, dm):
         """ Compute dw """
