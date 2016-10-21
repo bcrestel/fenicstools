@@ -4,7 +4,7 @@ import numpy as np
 from dolfin import sqrt, inner, nabla_grad, grad, dx, \
 Function, TestFunction, TrialFunction, assemble, solve, \
 Constant, plot, interactive, assign, FunctionSpace, \
-PETScKrylovSolver
+PETScKrylovSolver, PETScLUSolver
 from miscfenics import isFunction, isVector, setfct
 
 
@@ -129,6 +129,11 @@ class TV():
         solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["error_on_nonconvergence"] = True 
         solver.parameters["nonzero_initial_guess"] = False 
+        # used to compare iterative application of preconditioner 
+        # with exact application of preconditioner:
+#        solver = PETScLUSolver("petsc")
+#        solver.parameters['symmetric'] = True
+#        solver.parameters['reuse_factorization'] = True
         solver.set_operator(self.H + self.sMass)
         return solver
 
