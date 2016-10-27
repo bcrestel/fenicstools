@@ -19,11 +19,10 @@ from fenicstools.plotfenics import PlotFenics, plotobservations
 from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.prior import LaplacianPrior
 from fenicstools.regularization import TV, TVPD
-from fenicstools.miscfenics import checkdt, setfct
+from fenicstools.miscfenics import checkdt
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
 from fenicstools.observationoperator import TimeObsPtwise
-from fenicstools.linalg.miscroutines import setglobalvalue, setupPETScmatrix
 
 mpicomm = mpi_comm_world()
 mpirank = MPI.rank(mpicomm)
