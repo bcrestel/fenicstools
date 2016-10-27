@@ -35,8 +35,6 @@ Data={'0.5': [0.5, 10, 5e-3, [0.0, 0.5, 6.0, 6.5]],\
 '4.0': [4.0, 80, 5e-4, [0.0, 0.05, 1.6, 1.65]]
 }
 
-
-
 # Input data:
 PLOT = False
 freq, Nxy, Dt, t0tf = Data['0.5']
@@ -94,14 +92,14 @@ mysrc = [Ricker, Pt, srcv]
 
 # define regularization
 # Tikhonov
-#regul = LaplacianPrior({'Vm':Vm,'gamma':1e-3,'beta':1e-3, 'm0':1.0})
+regul = LaplacianPrior({'Vm':Vm,'gamma':1e-3,'beta':1e-3, 'm0':1.0})
 # Total Variation
 #   full TV w/o primal-dual
 #regul = TV({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
 #   GN Hessian for TV w/o primal-dual
 #regul = TV({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':True})
 #   full TV w/ primal-dual
-regul = TVPD({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
+#regul = TVPD({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
 
 # define objective function:
 if mpirank == 0:    print 'Define objective function'

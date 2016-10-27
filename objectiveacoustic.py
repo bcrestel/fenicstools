@@ -615,12 +615,13 @@ class ObjectiveAcoustic(LinearOperator):
         self._plotab(myplot, 'init')
 
         # start inversion
-        dtruenorm = target_medium.vector().inner(self.Mass*target_medium.vector())
+        dtruenorm = np.sqrt(target_medium.vector().\
+        inner(self.Mass*target_medium.vector()))
         self.solvefwd_cost()
         for it in xrange(maxnbNewtiter):
             # compute gradient
             self.solveadj_constructgrad()
-            gradnorm = self.MGv.inner(self.Grad.vector())
+            gradnorm = np.sqrt(self.MGv.inner(self.Grad.vector()))
             if it == 0:   gradnorm0 = gradnorm
             if self.invparam == 'a':
                 diff = self.PDE.a.vector() - target_medium.vector()
@@ -630,7 +631,7 @@ class ObjectiveAcoustic(LinearOperator):
                 assign(self.ab.sub(0), self.PDE.a)
                 assign(self.ab.sub(1), self.PDE.b)
                 diff = self.ab.vector() - target_medium.vector()
-            medmisfit = diff.inner(self.Mass*diff)
+            medmisfit = np.sqrt(diff.inner(self.Mass*diff))
             if mpirank == 0:
                 print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.2f})'.\
                 format(it, self.cost, self.cost_misfit, self.cost_reg, \
