@@ -85,7 +85,7 @@ class ObjectiveAcoustic(LinearOperator):
             self.regularization = ZeroRegularization()
         else:   
             self.regularization = regularization
-            self.TV = self.regularization.isTV()
+            #self.TV = self.regularization.isTV()# does NOT seem to be used
             self.PD = self.regularization.isPD()
         self.alpha_reg = 1.0
         # gradient and Hessian
@@ -645,7 +645,7 @@ class ObjectiveAcoustic(LinearOperator):
                 break
             # compute search direction and plot
             tolcg = min(0.5, np.sqrt(gradnorm/gradnorm0))
-            self.assemblehessianregularization()    # for nonlinear regularizer
+            self.assemblehessianregularization()    # for nonlinear regularization
             cgiter, cgres, cgid, tolcg = compute_searchdirection(self, 'Newt', tolcg)
             self._plotsrchdir(myplot, str(it))
             # compute search direction for dual variable (TV-PD):

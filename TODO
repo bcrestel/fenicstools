@@ -1,6 +1,7 @@
 TODO list
 
     - JOINT:
+* Finish VTV + test it
 * Boundary conditions: implement ABC/PML in joint inversion
 * Study analytically similarity terms + test examples that illustrate
  analytical results
