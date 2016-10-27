@@ -188,6 +188,10 @@ class TVPD(TV):
         setfct(self.dm, dm)
         b = assemble(self.rhswwk)
         solve(self.Mw, self.dw.vector(), b)
+        #TODO: Compute self.dw in a pointwise sense, where
+        # self.dw is defined at the quadrature nodes, and
+        # the values of nabla_grad(self.m) and nabla_grad(self.dm) are
+        # also read the quadrature nodes
 
 
     def update_w(self, alpha, printres=True):
@@ -207,8 +211,8 @@ class TVPD(TV):
         wxa, wya = wx.vector().array(), wy.vector().array()
         assert np.amax(np.sqrt(wxa**2 + wya**2)) <= 1.0 + 1e-14
         # Print results
-        dualresnorm = assemble(self.dualresnorm)
-        normgraddm = assemble(self.normgraddm)
         if printres:
+            dualresnorm = assemble(self.dualresnorm)
+            normgraddm = assemble(self.normgraddm)
             print 'line search dual variable: max(|w|)={}, err(w,df)={}, |grad(dm)|={}'.\
             format(np.amax(np.sqrt(normw)), np.sqrt(dualresnorm), np.sqrt(normgraddm))

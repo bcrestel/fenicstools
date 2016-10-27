@@ -8,6 +8,8 @@ TODO list
 
 
     - ACOUSTIC:
+* Re-write formulation primal-dual TV with FEM
+then test code (denoising, elliptic inverse problem)
 * Improve performance of some steps of inversion:
     -Try implement some assembly in Hessian matvec to speedup code 
 (hessianb takes 60% cpu time for large-ish pbs)
