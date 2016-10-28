@@ -666,6 +666,7 @@ class ObjectiveAcoustic(LinearOperator):
                 break
 
 
+    #TODO: already exists as assemble_hessian (see above) -- aggregate
     def assemblehessianregularization(self):
         """ Assemble Hessian of regularization when needed """
         if self.invparam == 'a':

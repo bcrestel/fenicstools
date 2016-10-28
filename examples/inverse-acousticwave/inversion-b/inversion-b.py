@@ -112,6 +112,7 @@ waveobj.solvefwd()
 DD = waveobj.Bp[:]
 noiselevel = 0.1   # = 10%
 np.random.seed(11)
+#TODO: Look into that again -- should divide noise by norm of noise
 for ii, dd in enumerate(DD):
     nbobspt, dimsol = dd.shape
     sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*noiselevel

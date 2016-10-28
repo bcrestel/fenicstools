@@ -22,7 +22,7 @@ class GaussianPrior():
         self.Parameters = Parameters
         self._assemble()
 
-    def update_Parameters(self, Paramters):
+    def update_Parameters(self, Parameters):
         self.Parameters = Parameters
         self._assemble()
 
