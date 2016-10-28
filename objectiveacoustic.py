@@ -646,7 +646,7 @@ class ObjectiveAcoustic(LinearOperator):
                 break
             # compute search direction and plot
             tolcg = min(0.5, np.sqrt(gradnorm/gradnorm0))
-            self.assemblehessianregularization()    # for nonlinear regularization
+            self.assemble_hessian() # for nonlinear regularization functionals
             cgiter, cgres, cgid, tolcg = compute_searchdirection(self, 'Newt', tolcg)
             self._plotsrchdir(myplot, str(it))
             # compute search direction for dual variable (TV-PD):
@@ -665,17 +665,6 @@ class ObjectiveAcoustic(LinearOperator):
                     print 'Cost function stagnates -- optimization stopped'
                 break
 
-
-    #TODO: already exists as assemble_hessian (see above) -- aggregate
-    def assemblehessianregularization(self):
-        """ Assemble Hessian of regularization when needed """
-        if self.invparam == 'a':
-            self.regularization.assemble_hessian(self.PDE.a)
-        elif self.invparam == 'b':
-            self.regularization.assemble_hessian(self.PDE.b)
-        elif self.invparam == 'ab':
-            # joint TV not implemented for joint yet
-            pass
 
     def _plotab(self, myplot, index):
         """ plot media during inversion """
