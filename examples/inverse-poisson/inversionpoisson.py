@@ -76,18 +76,28 @@ goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False, mpicomm)
 goal.update_m(mtrue)
 goal.solvefwd()
 np.random.seed(11)
-noisepercent = 0.00   # e.g., 0.02 = 2% noise level
+noisepercent = 0.02   # e.g., 0.02 = 2% noise level
 UD = goal.U[0]
 rndnb = np.random.randn(UD.size)
 rndnb = rndnb / np.linalg.norm(rndnb)
 noiseres = noisepercent*np.linalg.norm(UD)
 UDnoise = UD + rndnb*noiseres
-if mpirank == 0:    print 'Noise residual in data misfit={}'.format(noiseres)
+if mpirank == 0:    print 'Noise residual in data misfit={}'.format(0.5 * noiseres**2)
 if PLOT:
     myplot.set_varname('u_target')
     myplot.plot_vtk(goal.u)
 
-Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-10,'beta':1e-10, 'm0':1.0})
+# Define regularization:
+# Tikhonov
+Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-6,'beta':1e-6, 'm0':1.0})
+# Total Variation
+#   full TV w/o primal-dual
+#Regul = TV({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
+#   GN Hessian for TV w/o primal-dual
+#Regul = TV({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':True})
+#   full TV w/ primal-dual
+#Regul = TVPD({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
+
 ObsOp.noise = False
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, [UDnoise], Regul, [], False, mpicomm)
 

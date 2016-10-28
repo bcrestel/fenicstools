@@ -190,6 +190,9 @@ class crossgradient():
         return self.H * self.abhat.vector()
 
 
+#----------------------------------------------------------------------
+#----------------------------------------------------------------------
+#TODO: needs to be checked against finite-difference
 class VTV():
     """ Define Vectorial Total Variation regularization for 2 parameters """
 
