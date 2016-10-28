@@ -3,18 +3,12 @@ import sys
 from os.path import splitext
 import numpy as np
 
-try:
-    from dolfin import TrialFunction, TestFunction, Function, Vector, \
-    PETScKrylovSolver, LUSolver, set_log_active, LinearOperator, Expression, \
-    assemble, inner, nabla_grad, dx, \
-    MPI 
-except:
-    from dolfin import TrialFunction, TestFunction, Function, Vector, \
-    PETScKrylovSolver, LUSolver, set_log_active, LinearOperator, Expression, \
-    assemble, inner, nabla_grad, dx
+from dolfin import TrialFunction, TestFunction, Function, Vector, \
+PETScKrylovSolver, LUSolver, set_log_active, LinearOperator, Expression, \
+assemble, inner, nabla_grad, dx, MPI 
 from exceptionsfenics import WrongInstanceError
 from plotfenics import PlotFenics
-set_log_active(False)
+from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
 
 
 class ObjectiveFunctional(LinearOperator):
@@ -39,6 +33,7 @@ class ObjectiveFunctional(LinearOperator):
         self.srchdir = Function(Vm)
         self.delta_m = Function(Vm)
         self.MG = Function(Vm)
+        self.MGv = self.MG.vector()
         self.Grad = Function(Vm)
         self.Gradnorm = 0.0
         self.lenm = len(self.m.vector().array())
@@ -65,6 +60,8 @@ class ObjectiveFunctional(LinearOperator):
         self.assemble_A()
         self.assemble_RHS(RHSinput)
         self.Regul = Regul
+        if Regul != []:
+            self.PD = self.Regul.isPD()
         # Counters, tolerances and others
         self.nbPDEsolves = 0    # Updated when solve_A called
         self.nbfwdsolves = 0    # Counter for plots
@@ -72,10 +69,6 @@ class ObjectiveFunctional(LinearOperator):
         self._set_plots(plot)
         # MPI:
         self.mycomm = mycomm
-        try:
-            self.myrank = MPI.rank(self.mycomm)
-        except:
-            self.myrank = 0
 
     def copy(self):
         """Define a copy method"""
@@ -114,7 +107,7 @@ class ObjectiveFunctional(LinearOperator):
     def getmcopyarray(self):    return self.mcopy.vector().array()
     def getVm(self):    return self.mtrial.function_space()
     def getMGarray(self):   return self.MG.vector().array()
-    def getMGvec(self):   return self.MG.vector()
+    def getMGvec(self):   return self.MGv
     def getGradarray(self):   return self.Grad.vector().array()
     def getGradnorm(self):  return self.Gradnorm
     def getsrchdirarray(self):    return self.srchdir.vector().array()
@@ -124,12 +117,13 @@ class ObjectiveFunctional(LinearOperator):
     def getgradxdir(self): return self.gradxdir
     def getcost(self):  return self.cost, self.misfit, self.regul
     def getprecond(self):
-        Prec = PETScKrylovSolver("richardson", "amg")
-        Prec.parameters["maximum_iterations"] = 1
-        Prec.parameters["error_on_nonconvergence"] = False
-        Prec.parameters["nonzero_initial_guess"] = False
-        Prec.set_operator(self.Regul.get_precond())
-        return Prec
+        return self.Regul.getprecond()
+#        Prec = PETScKrylovSolver("richardson", "amg")
+#        Prec.parameters["maximum_iterations"] = 1
+#        Prec.parameters["error_on_nonconvergence"] = False
+#        Prec.parameters["nonzero_initial_guess"] = False
+#        Prec.set_operator(self.Regul.get_precond())
+#        return Prec
     def getMass(self):    return self.MM
 
     # Setters
@@ -146,7 +140,7 @@ class ObjectiveFunctional(LinearOperator):
     def solvefwd(self, cost=False):
         """Solve fwd operators for given RHS"""
         self.nbfwdsolves += 1
-        if self.ObsOp.noise:    self.noise = 0.0
+        #if self.ObsOp.noise:    self.noise = 0.0
         if self.plot:
             self.plotu = PlotFenics(self.plotoutdir)
             self.plotu.set_varname('u{0}'.format(self.nbfwdsolves))
@@ -156,7 +150,7 @@ class ObjectiveFunctional(LinearOperator):
             if self.plot:   self.plotu.plot_vtk(self.u, ii)
             u_obs, noiselevel = self.ObsOp.obs(self.u)
             self.U.append(u_obs)
-            if self.ObsOp.noise:    self.noise += noiselevel
+            #if self.ObsOp.noise:    self.noise += noiselevel
             if cost:
                 self.misfit += self.ObsOp.costfct(u_obs, self.UD[ii])
             self.C.append(assemble(self.c))
@@ -164,10 +158,10 @@ class ObjectiveFunctional(LinearOperator):
             self.misfit /= len(self.U)
             self.regul = self.Regul.cost(self.m)
             self.cost = self.misfit + self.regul
-        if self.ObsOp.noise and self.myrank == 0:
-            print 'Total noise in data misfit={:.5e}\n'.\
-            format(self.noise*.5/len(self.U))
-            self.ObsOp.noise = False    # Safety
+#        if self.ObsOp.noise and self.myrank == 0:
+#            print 'Total noise in data misfit={:.5e}\n'.\
+#            format(self.noise*.5/len(self.U))
+#            self.ObsOp.noise = False    # Safety
         if self.plot:   self.plotu.gather_vtkplots()
 
     def solvefwd_cost(self):
@@ -313,6 +307,86 @@ class ObjectiveFunctional(LinearOperator):
     @abc.abstractmethod
     def _wkforme(self): self.e = []
 
+
+    def inversion(self, initial_medium, target_medium, mpicomm, \
+    parameters_in=[], myplot=None):
+        """ solve inverse problem with that objective function """
+
+        parameters = {'tolgrad':1e-10, 'tolcost':1e-14, 'maxnbNewtiter':50}
+        parameters.update(parameters_in)
+        maxnbNewtiter = parameters['maxnbNewtiter']
+        tolgrad = parameters['tolgrad']
+        tolcost = parameters['tolcost']
+        mpirank = MPI.rank(mpicomm)
+
+        self.update_m(initial_medium)
+        self._plotm(myplot, 'init')
+
+        if mpirank == 0:
+            print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t{:10s} {:12s} {:12s}'.format(\
+            'iter', 'cost', 'misfit', 'reg', '|G|', 'medmisf', 'a_ls', 'tol_cg', 'n_cg')
+        dtruenorm = np.sqrt(target_medium.vector().\
+        inner(self.MM*target_medium.vector()))
+
+        self.solvefwd_cost()
+        for it in xrange(maxnbNewtiter):
+            self.solveadj_constructgrad()   # compute gradient
+
+            if it == 0:   gradnorm0 = self.Gradnorm
+            diff = self.m.vector() - target_medium.vector()
+            medmisfit = np.sqrt(diff.inner(self.MM*diff))
+            if mpirank == 0:
+                print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.2f})'.\
+                format(it, self.cost, self.misfit, self.regul, \
+                self.Gradnorm, medmisfit, medmisfit/dtruenorm),
+            self._plotm(myplot, str(it))
+            self._plotgrad(myplot, str(it))
+
+            if self.Gradnorm < gradnorm0*tolgrad or self.Gradnorm < 1e-12:
+                if mpirank == 0:
+                    print '\nGradient sufficiently reduced -- optimization stopped'
+                break
+
+            # Compute search direction:
+            tolcg = min(0.5, np.sqrt(self.Gradnorm/gradnorm0))
+            self.assemble_hessian() # for regularization
+            cgiter, cgres, cgid, tolcg = compute_searchdirection(self, 'Newt', tolcg)
+            if self.PD: self.regularization.compute_dw(self.srchdir)
+            self._plotsrchdir(myplot, str(it))
+
+            # Line search:
+            cost_old = self.cost
+            statusLS, LScount, alpha = bcktrcklinesearch(self, 12)
+            if mpirank == 0:
+                print '{:11.3f} {:12.2e} {:10d}'.format(alpha, tolcg, cgiter)
+            if self.PD: self.regularization.update_w(alpha, not mpirank)
+
+            if np.abs(self.cost-cost_old)/np.abs(cost_old) < tolcost:
+                if mpirank == 0:
+                    print 'Cost function stagnates -- optimization stopped'
+                break
+
+
+    def assemble_hessian(self):
+        self.Regul.assemble_hessian(self.m)
+
+    def _plotm(self, myplot, index):
+        """ plot media during inversion """
+        if not myplot == None:
+            myplot.set_varname('m'+index)
+            myplot.plot_vtk(self.m)
+
+    def _plotgrad(self, myplot, index):
+        """ plot grad during inversion """
+        if not myplot == None:
+            myplot.set_varname('Grad_m'+index)
+            myplot.plot_vtk(self.Grad)
+
+    def _plotsrchdir(self, myplot, index):
+        """ plot srchdir during inversion """
+        if not myplot == None:
+            myplot.set_varname('srchdir_m'+index)
+            myplot.plot_vtk(self.srchdir)
 
 ###########################################################
 # Derived Classes
