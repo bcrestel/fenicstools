@@ -1,5 +1,12 @@
 TODO list
 
+    - TV:
+* primal-dual TV
+ -> missing preconditioner for variational formulation
+ -> formulate and implement quadrature nodes-based formulation
+ -> test poisson inverse problem with TV (full) then TV-PD
+
+
     - JOINT:
 * Finish VTV + test it
 * Boundary conditions: implement ABC/PML in joint inversion
@@ -9,8 +16,6 @@ TODO list
 
 
     - ACOUSTIC:
-* Re-write formulation primal-dual TV with FEM
-then test code (denoising, elliptic inverse problem)
 * Check time-filter formulation
 * Check noise application
 * Improve performance of some steps of inversion:

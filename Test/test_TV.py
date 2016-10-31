@@ -23,7 +23,7 @@ k = dl.interpolate(k_exp, V)
 #k = dl.Constant(1.0)
 m_in = dl.Function(V)
 TV1 = TV({'Vm':V, 'eps':dl.Constant(0.0001), 'k':k, 'GNhessian':False})
-TV2 = TVPD({'Vm':V, 'eps':dl.Constant(0.0001), 'k':k})
+TV2 = TVPD({'Vm':V, 'eps':dl.Constant(0.0001), 'k':k, 'exact':True})
 
 for ii in range(1,4):
     # Verification point, i.e., point at which gradient and Hessian are checked
