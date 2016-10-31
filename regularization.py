@@ -149,12 +149,13 @@ class TVPD():
 
     def __init__(self, parameters):
 
-        self.parameters = {'k':1.0, 'eps':1e-2}
+        self.parameters = {'k':1.0, 'eps':1e-2, 'exact':False}
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
-        Vm = parameters['Vm']
-        self.k = parameters['k']
-        self.eps = parameters['eps']
+        Vm = self.parameters['Vm']
+        k = self.parameters['k']
+        eps = self.parameters['eps']
+        exact = self.parameters['exact']
 
         self.m = Function(Vm)
         self.mhat = Function(Vm)
@@ -162,36 +163,35 @@ class TVPD():
         trialm = TrialFunction(Vm)
 
         # WARNING: should not be changed.
-        # AS it is, code only works with DG0
+        # As it is, code only works with DG0
         Vw = FunctionSpace(Vm.mesh(), 'DG', 0)
         self.w = Function(Vw*Vw)
         #self.wb = Function(Vw*Vw)   # re-scaled dual variable
         self.what = Function(Vw*Vw)
-        testw = TestFunction(Vw)
-        trialw = TrialFunction(Vw)
+        testw = TestFunction(Vw*Vw)
+        trialw = TrialFunction(Vw*Vw)
 
-        #TODO: need to check that TVnorm is replaced by its expression
-        # and not frozen independently of subsequent updates of m
         normm = inner(nabla_grad(self.m), nabla_grad(self.m))
-        TVnormsq = normm + Constant(self.eps)
+        TVnormsq = normm + Constant(eps)
         TVnorm = sqrt(TVnormsq)
-        self.wkformcost = self.k * TVnorm * dx
+        self.wkformcost = k * TVnorm * dx
 
-        self.wkformgrad = self.k * inner(nabla_grad(testm), self.w) * dx
+        if exact:
+            self.w = nabla_grad(self.m)/TVnorm # full Hessian
+        self.wkformgrad = k * inner(nabla_grad(testm), self.w) * dx
 
         self.rhswhat = inner(testw, nabla_grad(self.m) + nabla_grad(self.mhat) - \
         self.w * inner(nabla_grad(self.m), nabla_grad(self.mhat))/TVnorm - \
         self.w * TVnorm) * dx
         self.massw = inner(TVnorm*testw, trialw) * dx
-        self.H = assemble(self.k * inner(nabla_grad(testm), trialw) * dx)
+        self.H = assemble(k * inner(nabla_grad(testm), trialw) * dx)
 
         try:
-            factM = self.k.vector().min()
+            factM = k.vector().min()
         except:
-            factM = self.k
+            factM = k
         factM = 1e-2*factM
         self.sMass = assemble(inner(testm, trialm)*dx)*factM
-
 
 
     def isTV(self): return True
@@ -231,11 +231,35 @@ class TVPD():
 
         # compute what = what(mhat)
         setfct(self.mhat, mhat)
-        whatrhs = assemble(self.rhswhat)
+        rhswhat = assemble(self.rhswhat)
         self.what.vector().zero()
-        self.what.vector().axpy(1.0, self.invMwd * self.whatrhs)
+        self.what.vector().axpy(1.0, self.invMwd * rhswhat)
 
         return self.H * self.what.vector()
+
+
+    #TODO: does not work; H not invertible here
+    def getprecond(self):
+        """ Precondition by inverting the TV Hessian """
+        try:
+            solver = PETScKrylovSolver("cg", "ml_amg")
+        except:
+            print '\n*** WARNING: ML not installed -- using petsc_amg instead'
+            solver = PETScKrylovSolver("cg", "petsc_amg")
+        solver.parameters["maximum_iterations"] = 1000
+        solver.parameters["relative_tolerance"] = 1e-12
+        solver.parameters["absolute_tolerance"] = 1e-24
+        solver.parameters["error_on_nonconvergence"] = True 
+        solver.parameters["nonzero_initial_guess"] = False 
+        # used to compare iterative application of preconditioner 
+        # with exact application of preconditioner:
+#        solver = PETScLUSolver("petsc")
+#        solver.parameters['symmetric'] = True
+#        solver.parameters['reuse_factorization'] = True
+        solver.set_operator(self.H + self.sMass)
+        return solver
+
+
 
 
 #class TVPD(TV):
