@@ -2,7 +2,7 @@ import sys
 import numpy as np
 
 from dolfin import sqrt, inner, nabla_grad, grad, dx, \
-Function, TestFunction, TrialFunction, assemble, solve, \
+Function, TestFunction, TrialFunction, Vector, assemble, solve, \
 Constant, plot, interactive, assign, FunctionSpace, \
 PETScKrylovSolver, PETScLUSolver
 from miscfenics import isFunction, isVector, setfct
@@ -141,9 +141,6 @@ class TV():
 
 #----------------------------------------------------------------------
 #----------------------------------------------------------------------
-#TODO:
-# Check this!
-# Think about need to re-scale variable w for the Hessian
 class TVPD():
     """ Total variation using primal-dual Newton """
 
@@ -158,7 +155,6 @@ class TVPD():
         exact = self.parameters['exact']
 
         self.m = Function(Vm)
-        self.mhat = Function(Vm)
         testm = TestFunction(Vm)
         trialm = TrialFunction(Vm)
 
@@ -168,6 +164,9 @@ class TVPD():
         self.w = Function(Vw*Vw)
         #self.wb = Function(Vw*Vw)   # re-scaled dual variable
         self.what = Function(Vw*Vw)
+        self.whatw = Function(Vw*Vw)
+        self.whatm = Function(Vw*Vw)
+        self.whatn = Function(Vw*Vw)
         testw = TestFunction(Vw*Vw)
         trialw = TrialFunction(Vw*Vw)
 
@@ -179,12 +178,18 @@ class TVPD():
         if exact:
             self.w = nabla_grad(self.m)/TVnorm # full Hessian
         self.wkformgrad = k * inner(nabla_grad(testm), self.w) * dx
+        self.misfitw = inner(testw, self.w*TVnorm - nabla_grad(self.m)) * dx
 
-        self.rhswhat = inner(testw, nabla_grad(self.m) + nabla_grad(self.mhat) - \
-        self.w * inner(nabla_grad(self.m), nabla_grad(self.mhat))/TVnorm - \
-        self.w * TVnorm) * dx
+#        self.rhswhat = inner(testw, nabla_grad(self.m) + nabla_grad(self.mhat) - \
+#        self.w * inner(nabla_grad(self.m), nabla_grad(self.mhat))/TVnorm - \
+#        self.w * TVnorm) * dx
+        self.Htv = assemble(k * inner(nabla_grad(testm), trialw) * dx)
+        self.rhswhatn, self.xH = Vector(), Vector()
+        self.Htv.init_vector(self.rhswhatn, 0)
+        self.Htv.init_vector(self.xH, 1)
         self.massw = inner(TVnorm*testw, trialw) * dx
-        self.H = assemble(k * inner(nabla_grad(testm), trialw) * dx)
+        self.wkformA = inner(testw, nabla_grad(trialm) - \
+        self.w * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
 
         try:
             factM = k.vector().min()
@@ -205,17 +210,9 @@ class TVPD():
         return assemble(self.wkformcost)
 
 
-    def grad(self, m):
-        """ compute the gradient at m """
-
-        setfct(self.m, m)
-        return assemble(self.wkformgrad)
-
-
-    def assemble_hessian(self, m):
-        """ For PD-TV, we do not really assemble the Hessian,
-        but instead assemble the mass matrix that will be inverted
-        in the evaluation of what """
+    def assemble_invMw(self, m):
+        """ Assemble inverse of matrix Mw,
+        weighted mass matrix in dual space """
 
         # WARNING: only works if w is in DG0
         setfct(self.m, m)
@@ -223,19 +220,54 @@ class TVPD():
         Mwd = get_diagonal(Mw)
         self.invMwd = Mwd.copy()
         self.invMwd[:] = 1./Mwd.array()
-        
+
+
+    def grad(self, m):
+        """ compute the gradient at m (and whatw) """
+
+        self.assemble_invMw(m)
+
+        self.whatw.vector().zero()
+        self.whatw.vector().axpy(-1.0, self.invMwd * assemble(self.misfitw))
+        return assemble(self.wkformgrad) + self.Htv*self.whatw.vector()
+        #return assemble(self.wkformgrad)
+
+
+    def assemble_hessian(self, m):
+        """ For PD-TV, we do not really assemble the Hessian,
+        but instead assemble the matrices that will be inverted
+        in the evaluation of what """
+
+        self.assemble_invMw(m)
+
+        self.A = assemble(self.wkformA)
+        self.yA, self.xA = Vector(), Vector()
+        self.A.init_vector(self.yA, 0)
+        self.A.init_vector(self.xA, 1)
+
 
     def hessian(self, mhat):
         """ evaluate H*mhat 
         mhat must be a dolfin vector """
 
-        # compute what = what(mhat)
-        setfct(self.mhat, mhat)
-        rhswhat = assemble(self.rhswhat)
-        self.what.vector().zero()
-        self.what.vector().axpy(1.0, self.invMwd * rhswhat)
+        rhswhatm = self.A * mhat
+        self.whatm.vector().zero()
+        self.whatm.vector().axpy(1.0, self.invMwd * rhswhatm)
 
-        return self.H * self.what.vector()
+        self.xH.zero()
+        self.xH.axpy(1.0, mhat)
+        self.Htv.transpmult(self.xH , self.rhswhatn)
+        self.whatn.vector().zero()
+        self.whatn.vector().axpy(1.0, self.invMwd * self.rhswhatn)
+
+        self.what.vector().zero()
+        self.what.vector().axpy(1.0, self.whatm.vector())
+        self.what.vector().axpy(1.0, self.whatn.vector())
+
+        self.xA.zero()
+        self.xA.axpy(1.0, self.whatn.vector())
+        self.A.transpmult(self.xA, self.yA)
+        return 0.5*(self.Htv * self.what.vector() + self.yA)
 
 
     #TODO: does not work; H not invertible here
