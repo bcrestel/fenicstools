@@ -366,7 +366,11 @@ class ObjectiveFunctional(LinearOperator):
             if self.PD: self.regularization.update_w(alpha, not mpirank)
 
             if np.abs(self.cost-cost_old)/np.abs(cost_old) < tolcost:
-                if mpirank == 0:    maxtolcg = 0.1*tolcg
+                if mpirank == 0:
+                    maxtolcg = 0.1*tolcg
+                    if maxtolcg < 1e-20:
+                        print 'Cost function stagnates -- optimization aborted'
+                        break
 
 
     def assemble_hessian(self):
