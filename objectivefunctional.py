@@ -314,11 +314,13 @@ class ObjectiveFunctional(LinearOperator):
     parameters_in=[], myplot=None):
         """ solve inverse problem with that objective function """
 
-        parameters = {'tolgrad':1e-10, 'tolcost':1e-14, 'maxnbNewtiter':50}
+        parameters = {'tolgrad':1e-10, 'tolcost':1e-14, 'maxnbNewtiter':50, \
+        'maxtolcg':0.5}
         parameters.update(parameters_in)
         maxnbNewtiter = parameters['maxnbNewtiter']
         tolgrad = parameters['tolgrad']
         tolcost = parameters['tolcost']
+        maxtolcg = parameters['maxtolcg']
         mpirank = MPI.rank(mpicomm)
 
         self.update_m(initial_medium)
@@ -350,7 +352,7 @@ class ObjectiveFunctional(LinearOperator):
                 break
 
             # Compute search direction:
-            tolcg = min(0.5, np.sqrt(self.Gradnorm/gradnorm0))
+            tolcg = min(maxtolcg, np.sqrt(self.Gradnorm/gradnorm0))
             self.assemble_hessian() # for regularization
             cgiter, cgres, cgid, tolcg = compute_searchdirection(self, 'Newt', tolcg)
             if self.PD: self.regularization.compute_dw(self.srchdir)
@@ -364,9 +366,7 @@ class ObjectiveFunctional(LinearOperator):
             if self.PD: self.regularization.update_w(alpha, not mpirank)
 
             if np.abs(self.cost-cost_old)/np.abs(cost_old) < tolcost:
-                if mpirank == 0:
-                    print 'Cost function stagnates -- optimization stopped'
-                break
+                if mpirank == 0:    maxtolcg = 0.1*tolcg
 
 
     def assemble_hessian(self):
