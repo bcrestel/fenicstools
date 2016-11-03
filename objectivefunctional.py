@@ -60,18 +60,20 @@ class ObjectiveFunctional(LinearOperator):
         self.assemble_A()
         self.assemble_RHS(RHSinput)
         self.Regul = Regul
+        self.regparam = 1.0
         if Regul != []:
             self.PD = self.Regul.isPD()
         # Counters, tolerances and others
         self.nbPDEsolves = 0    # Updated when solve_A called
         self.nbfwdsolves = 0    # Counter for plots
         self.nbadjsolves = 0    # Counter for plots
-        self._set_plots(plot)
         # MPI:
         self.mycomm = mycomm
 
+
     def copy(self):
         """Define a copy method"""
+
         V = self.trial.function_space()
         Vm = self.mtrial.function_space()
         newobj = self.__class__(V, Vm, self.bc, self.bcadj, [], self.ObsOp, \
@@ -80,9 +82,11 @@ class ObjectiveFunctional(LinearOperator):
         newobj.update_m(self.m)
         return newobj
 
+
     def mult(self, mhat, y):
         """mult(self, mhat, y): do y = Hessian * mhat
         member self.GN sets full Hessian (=1.0) or GN Hessian (=0.0)"""
+
         N = self.Nbsrc # Number of sources
         y[:] = np.zeros(self.lenm)
         for C, E in zip(self.C, self.E):
@@ -99,7 +103,8 @@ class ObjectiveFunctional(LinearOperator):
             # Compute Hessian*x:
             y.axpy(1.0/N, C * self.p.vector())
             y.axpy(self.GN/N, E * self.u.vector())
-        y.axpy(1.0, self.Regul.hessian(mhat))
+        y.axpy(self.regparam, self.Regul.hessian(mhat))
+
 
     # Getters
     def getm(self): return self.m
@@ -136,79 +141,75 @@ class ObjectiveFunctional(LinearOperator):
             valueglob = valueloc
         self.gradxdir = valueglob
 
+
     # Solve
     def solvefwd(self, cost=False):
         """Solve fwd operators for given RHS"""
+
         self.nbfwdsolves += 1
-        #if self.ObsOp.noise:    self.noise = 0.0
-        if self.plot:
-            self.plotu = PlotFenics(self.plotoutdir)
-            self.plotu.set_varname('u{0}'.format(self.nbfwdsolves))
         if cost:    self.misfit = 0.0
         for ii, rhs in enumerate(self.RHS):
             self.solve_A(self.u.vector(), rhs)
-            if self.plot:   self.plotu.plot_vtk(self.u, ii)
             u_obs, noiselevel = self.ObsOp.obs(self.u)
             self.U.append(u_obs)
-            #if self.ObsOp.noise:    self.noise += noiselevel
             if cost:
                 self.misfit += self.ObsOp.costfct(u_obs, self.UD[ii])
             self.C.append(assemble(self.c))
         if cost:
             self.misfit /= len(self.U)
             self.regul = self.Regul.cost(self.m)
-            self.cost = self.misfit + self.regul
-#        if self.ObsOp.noise and self.myrank == 0:
-#            print 'Total noise in data misfit={:.5e}\n'.\
-#            format(self.noise*.5/len(self.U))
-#            self.ObsOp.noise = False    # Safety
-        if self.plot:   self.plotu.gather_vtkplots()
+            self.cost = self.misfit + self.regparam*self.regul
 
     def solvefwd_cost(self):
         """Solve fwd operators for given RHS and compute cost fct"""
+
         self.solvefwd(True)
+
 
     def solveadj(self, grad=False):
         """Solve adj operators"""
+
         self.nbadjsolves += 1
-        if self.plot:
-            self.plotp = PlotFenics(self.plotoutdir)
-            self.plotp.set_varname('p{0}'.format(self.nbadjsolves))
         self.Nbsrc = len(self.UD)
         if grad:    self.MG.vector()[:] = np.zeros(self.lenm)
         for ii, C in enumerate(self.C):
             self.ObsOp.assemble_rhsadj(self.U[ii], self.UD[ii], \
             self.rhs, self.bcadj)
             self.solve_A(self.p.vector(), self.rhs.vector())
-            if self.plot:   self.plotp.plot_vtk(self.p, ii)
             self.E.append(assemble(self.e))
-            if grad:    self.MG.vector().axpy(1.0/self.Nbsrc, \
-                        C * self.p.vector())
+            if grad:    
+                self.MG.vector().axpy(1.0/self.Nbsrc, C * self.p.vector())
         if grad:
-            self.MG.vector().axpy(1.0, self.Regul.grad(self.m))
+            self.MG.vector().axpy(self.regparam, self.Regul.grad(self.m))
             self.solverM.solve(self.Grad.vector(), self.MG.vector())
             self.Gradnorm = np.sqrt(self.Grad.vector().inner(self.MG.vector()))
-        if self.plot:   self.plotp.gather_vtkplots()
 
     def solveadj_constructgrad(self):
         """Solve adj operators and assemble gradient"""
+
         self.solveadj(True)
+
 
     # Assembler
     def assemble_A(self):
         """Assemble operator A(m)"""
+
         self.A = assemble(self.a)
         self.bc.apply(self.A)
         self.set_solver()
 
+
     def solve_A(self, b, f):
         """Solve system of the form A.b = f, 
         with b and f in form to be used in solver."""
+
         self.solver.solve(b, f)
         self.nbPDEsolves += 1
 
+
     def assemble_RHS(self, RHSin):
         """Assemble RHS for fwd solve"""
+
         if RHSin == []: self.RHS = None
         else:
             self.RHS = []
@@ -219,6 +220,7 @@ class ObjectiveFunctional(LinearOperator):
                     self.bc.apply(b)
                     self.RHS.append(b)
                 else:   raise WrongInstanceError("rhs should be Expression")
+
 
     def _assemble_solverM(self, Vm):
         self.MM = assemble(inner(self.mtrial, self.mtest)*dx)
