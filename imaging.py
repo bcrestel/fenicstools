@@ -23,7 +23,7 @@ class ObjectiveImageDenoising():
             trueImage = object from class Image
             parameters = dict
         """
-        # Mesh
+
         self.mesh = mesh
         self.V = dl.FunctionSpace(self.mesh, 'Lagrange', 1)
         self.xx = self.V.dofmap().tabulate_all_coordinates(self.mesh)
@@ -33,28 +33,29 @@ class ObjectiveImageDenoising():
         self.g, self.dg, self.gtmp = dl.Function(self.V), dl.Function(self.V), dl.Function(self.V)
         self.Grad = dl.Function(self.V)
         self.Gradnorm0 = None
-        # mass matrix
+
         self.Mweak = dl.inner(self.test, self.trial)*dl.dx
         self.M = dl.assemble(self.Mweak)
         self.solverM = dl.LUSolver('petsc')
         self.solverM.parameters['symmetric'] = True
         self.solverM.parameters['reuse_factorization'] = True
         self.solverM.set_operator(self.M)
-        # identity matrix
+
         self.I = dl.assemble(self.Mweak)
         self.I.zero()
         self.I.set_diagonal(dl.interpolate(dl.Constant(1), self.V).vector())
+
         #self.targetnorm = np.sqrt((self.M*self.f_true.vector()).inner(self.f_true.vector()))
         self.targetnorm = np.sqrt((self.f_true.vector()).inner(self.f_true.vector()))
+
         # line search parameters
         self.parameters = {'alpha0':1.0, 'rho':0.5, 'c':5e-5, 'max_backtrack':12}
-        # regularization
         self.parameters.update({'eps':1e-4, 'k':1.0, \
         'regularization':'TV', 'mode':'primaldual'})
         self.parameters.update(parameters)
         self.define_regularization()
         self.regparam = 1.0
-        # plots:
+
         filename, ext = os.path.splitext(sys.argv[0])
         if os.path.isdir(filename + '/'):   shutil.rmtree(filename + '/')
         self.myplot = PlotFenics(filename)
@@ -62,9 +63,10 @@ class ObjectiveImageDenoising():
         
     def generatedata(self, noisepercent):
         """ compute data and add noisepercent (%) of noise """
+
         sigma = noisepercent*np.linalg.norm(self.f_true.vector().array())/np.sqrt(self.dimV)
         print 'sigma_noise = ', sigma
-        #np.random.seed(11)
+        np.random.seed(11)
         eta = sigma*np.random.randn(self.dimV)
         self.dn = dl.Function(self.V)
         setfct(self.dn, eta)
@@ -76,7 +78,9 @@ class ObjectiveImageDenoising():
         np.amin(self.dn.vector().array()), \
         np.amax(self.dn.vector().array()))
 
+
     def define_regularization(self, parameters=None):
+
         if not parameters == None:  self.parameters.update(parameters)
         regularization = self.parameters['regularization']
         if regularization == 'tikhonov':
@@ -100,6 +104,7 @@ class ObjectiveImageDenoising():
     ### COST and DERIVATIVES
     def computecost(self, f=None):
         """ Compute cost functional at f """
+
         if f == None:   f = self.g
         df = f.vector() - self.dn.vector()
         #self.misfit = 0.5 * (self.M*df).inner(df)
@@ -108,8 +113,10 @@ class ObjectiveImageDenoising():
         self.cost = self.misfit + self.regparam*self.reg
         return self.cost
 
+
     def gradient(self, f=None):
         """ Compute M.g (discrete gradient) at a given point f """
+
         if f == None:   f = self.g
         df = f.vector() - self.dn.vector()
         #self.MGk = self.M*df
@@ -120,8 +127,10 @@ class ObjectiveImageDenoising():
         self.Gradnorm = np.sqrt((self.MG).inner(self.Grad.vector()))
         if self.Gradnorm0 == None:  self.Gradnorm0 = self.Gradnorm
 
+
     def Hessian(self, f=None):
         """ Assemble Hessian at f """
+
         if f == None:   f = self.g
         regularization = self.parameters['regularization']
         if regularization == 'TV':  
@@ -135,6 +144,7 @@ class ObjectiveImageDenoising():
     ### SOLVER
     def searchdirection(self):
         """ Compute search direction """
+
         self.gradient()
         self.Hessian()
         solver = dl.PETScKrylovSolver("cg", "petsc_amg")
@@ -149,8 +159,10 @@ class ObjectiveImageDenoising():
         if (self.MG).inner(self.dg.vector()) > 0.0:    
             print "*** WARNING: NOT a descent direction"
 
+
     def linesearch(self):
         """ Perform inexact backtracking line search """
+
         regularization = self.parameters['regularization']
         # compute new direction for dual variables
         if regularization == 'TV' and self.Reg.isPD():
@@ -174,8 +186,10 @@ class ObjectiveImageDenoising():
         if regularization == 'TV' and self.Reg.isPD():
             self.Reg.update_w(self.alpha)
 
+
     def solve(self, plot=False):
         """ Solve image denoising pb """
+
         regularization = self.parameters['regularization']
         print '\t{:12s} {:12s} {:12s} {:12s} {:12s} {:12s} {:12s}\t{:12s} {:12s}'.format(\
         'a_reg', 'cost', 'misfit', 'reg', '||G||', 'a_LS', 'medmisfit', \
@@ -222,6 +236,7 @@ class ObjectiveImageDenoising():
     ### OUTPUT
     def printout(self):
         """ Print results """
+
         df = self.f_true.vector() - self.g.vector()
         self.medmisfit = np.sqrt((self.M*df).inner(df))
         self.relmedmisfit = self.medmisfit/self.targetnorm
@@ -230,8 +245,10 @@ class ObjectiveImageDenoising():
         self.regparam, self.cost, self.misfit, self.reg, self.Gradnorm, self.alpha, \
         self.medmisfit**2, self.relmedmisfit, self.cgtol, self.cgiter)
 
+
     def plot(self, index=0, add=''):
         """ Plot target (w/ noise 0, or w/o noise 1) or current iterate (2) """
+
         if index == 0:
             self.myplot.set_varname('target' + add)
             self.myplot.plot_vtk(self.f_true)
@@ -246,6 +263,7 @@ class ObjectiveImageDenoising():
     ### TESTS
     def test_gradient(self, f=None, n=5):
         """ test gradient with FD approx around point f """
+
         if f == None:   f = self.f_true
         pm = [1.0, -1.0]
         eps = 1e-5
@@ -263,8 +281,10 @@ class ObjectiveImageDenoising():
             print 'n={}:\tMGFD={:.5e}, MGdf={:.5e}, error={:.2e}'.format(\
             nn, MGFD, MGdf, np.abs(MGdf-MGFD)/np.abs(MGdf))
 
+
     def test_hessian(self, f=None, n=5):
         """ test Hessian with FD approx around point f """
+
         if f == None:   f = self.f_true
         pm = [1.0, -1.0]
         eps = 1e-5

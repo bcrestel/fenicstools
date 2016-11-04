@@ -31,7 +31,7 @@ mpicomm = mpi_comm_world()
 mpirank = MPI.rank(mpicomm)
 mpisize = MPI.size(mpicomm)
 
-PLOT = True
+PLOT = False
 CHECK = False
 
 mesh = dl.UnitSquareMesh(150,150)
@@ -80,7 +80,7 @@ rndnb = np.random.randn(UD.size)
 rndnb = rndnb / np.linalg.norm(rndnb)
 noiseres = noisepercent*np.linalg.norm(UD)
 UDnoise = UD + rndnb*noiseres
-if mpirank == 0:    print 'noiseres={}'.format(noiseres)
+if mpirank == 0:    print 'noiseres={}'.format(MPI.sum(mpicomm, noiseres))
 if PLOT:
     myplot.set_varname('u_target')
     myplot.plot_vtk(goal.u)

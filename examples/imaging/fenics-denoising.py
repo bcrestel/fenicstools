@@ -18,8 +18,8 @@ def run_exple(denoise, PLOT=True, TEST=False):
     # testcase == 0
     print 'Run basic example -- PLOT={}. TEST={}'.format(PLOT, TEST)
     # Solve
-    #ALPHAS = 10**(-np.linspace(-3.,3.,7))
-    ALPHAS = [1.0]
+    ALPHAS = 10**(-np.linspace(-3.,3.,7))
+    #ALPHAS = [1.0]
     denoise.g = dl.Function(denoise.V)
     for aa in ALPHAS:
         setfct(denoise.g, denoise.dn)   # start from noisy image
@@ -46,6 +46,9 @@ def run_continuation(denoise, PLOT=True, TEST=False):
 
 
 
+########################################################################
+########################################################################
+########################################################################
 
 # Target data:
 data = np.loadtxt('image.dat', delimiter=',')
@@ -68,7 +71,7 @@ else:
 
 # Generate data 
 denoise = ObjectiveImageDenoising(mesh, trueImage, \
-{'regularization':'TV', 'eps':1e-8, 'k':1.0, 'mode':'GN'})
+{'regularization':'TV', 'eps':1e-8, 'k':1.0, 'mode':'full'})
 #{'regularization':'tikhonov', 'gamma':10., 'beta':0.0})
 denoise.generatedata(0.6)
 
@@ -77,16 +80,17 @@ denoise.generatedata(0.6)
 # 0 = basic exple
 # 1 = continuation on eps
 testcase = 0
+
 # choose options
 PLOT = 1
 TEST = 0
-
 
 
 # plot
 if PLOT:
     denoise.plot(0)
     denoise.plot(1)
+
 # test gradient and Hessian
 if TEST:
     print 'Test gradient'
@@ -94,6 +98,7 @@ if TEST:
     print '\nTest Hessian'
     denoise.test_hessian()
     sys.exit(0)
+
 # run
 if testcase == 0:   
     run_exple(denoise, PLOT, TEST)
