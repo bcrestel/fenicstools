@@ -89,20 +89,22 @@ class ObjectiveFunctional(LinearOperator):
 
         N = self.Nbsrc # Number of sources
         y[:] = np.zeros(self.lenm)
+
         for C, E in zip(self.C, self.E):
-            # Solve for uhat
+
             C.transpmult(mhat, self.rhs.vector())
             self.bcadj.apply(self.rhs.vector())
             self.solve_A(self.u.vector(), -self.rhs.vector())
-            # Solve for phat
+
             E.transpmult(mhat, self.rhs.vector())
             Etmhat = self.rhs.vector().array()
             self.rhs.vector().axpy(1.0, self.ObsOp.incradj(self.u))
             self.bcadj.apply(self.rhs.vector())
             self.solve_A(self.p.vector(), -self.rhs.vector())
-            # Compute Hessian*x:
+
             y.axpy(1.0/N, C * self.p.vector())
             y.axpy(self.GN/N, E * self.u.vector())
+
         y.axpy(self.regparam, self.Regul.hessian(mhat))
 
 
@@ -223,35 +225,31 @@ class ObjectiveFunctional(LinearOperator):
 
 
     def _assemble_solverM(self, Vm):
+
         self.MM = assemble(inner(self.mtrial, self.mtest)*dx)
-        self.solverM = LUSolver()
-        self.solverM.parameters['reuse_factorization'] = True
-        self.solverM.parameters['symmetric'] = True
+        self.solverM = PETScKrylovSolver("cg", "hypre_amg")
+        self.solverM.parameters["maximum_iterations"] = 1000
+        self.solverM.parameters["relative_tolerance"] = 1e-12
+        self.solverM.parameters["error_on_nonconvergence"] = True 
+        self.solverM.parameters["nonzero_initial_guess"] = False 
+#        self.solverM = LUSolver()
+#        self.solverM.parameters['reuse_factorization'] = True
+#        self.solverM.parameters['symmetric'] = True
         self.solverM.set_operator(self.MM)
 
-    def _set_plots(self, plot):
-        self.plot = plot
-        if self.plot:
-            filename, ext = splitext(sys.argv[0])
-            self.plotoutdir = filename + '/Plots/'
-            self.plotvarm = PlotFenics(self.plotoutdir)
-            self.plotvarm.set_varname('m')
-
-    def plotm(self, index):
-        if self.plot:   self.plotvarm.plot_vtk(self.m, index)
-
-    def gatherm(self):
-        if self.plot:   self.plotvarm.gather_vtkplots()
 
     # Update param
     def update_Data(self, Data):
         """Update Data member"""
+
         self.Data = Data
         self.assemble_A()
         self.reset()
 
+
     def update_m(self, m):
         """Update values of parameter m"""
+
         if isinstance(m, np.ndarray):
             self.m.vector()[:] = m
         elif isinstance(m, Function):
@@ -263,6 +261,7 @@ class ObjectiveFunctional(LinearOperator):
         else:   raise WrongInstanceError('Format for m not accepted')
         self.assemble_A()
         self.reset()
+
 
     def backup_m(self):
         self.mcopy.assign(self.m)
@@ -276,11 +275,19 @@ class ObjectiveFunctional(LinearOperator):
         self.C = []
         self.E = []
 
+
     def set_solver(self):
         """Reset solver for fwd operator"""
-        self.solver = LUSolver()
-        self.solver.parameters['reuse_factorization'] = True
+
+        #self.solver = LUSolver()
+        #self.solver.parameters['reuse_factorization'] = True
+        self.solver = PETScKrylovSolver("cg", "amg")
+        self.solver.parameters["maximum_iterations"] = 1000
+        self.solver.parameters["relative_tolerance"] = 1e-12
+        self.solver.parameters["error_on_nonconvergence"] = True 
+        self.solver.parameters["nonzero_initial_guess"] = False 
         self.solver.set_operator(self.A)
+
 
     def addPDEcount(self, increment=1):
         """Increase 'nbPDEsolves' by 'increment'"""
