@@ -374,10 +374,10 @@ class ObjectiveFunctional(LinearOperator):
 
             if np.abs(self.cost-cost_old)/np.abs(cost_old) < tolcost:
                 if mpirank == 0:
-                    maxtolcg = 0.1*tolcg
-                    if maxtolcg < 1e-20:
+                    if maxtolcg < 1e-14:
                         print 'Cost function stagnates -- optimization aborted'
                         break
+                    maxtolcg = 0.001*tolcg
 
 
     def assemble_hessian(self):
