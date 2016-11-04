@@ -159,9 +159,9 @@ class TVPD():
         self.w = Function(Vw*Vw)
         #self.wb = Function(Vw*Vw)   # re-scaled dual variable
         self.what = Function(Vw*Vw)
-        self.whatw = Function(Vw*Vw)
-        self.whatm = Function(Vw*Vw)
-        self.whatn = Function(Vw*Vw)
+        self.what2 = Function(Vw*Vw)
+        self.what1 = Function(Vw*Vw)
+        self.what1s = Function(Vw*Vw)
         testw = TestFunction(Vw*Vw)
         trialw = TrialFunction(Vw*Vw)
 
@@ -179,9 +179,9 @@ class TVPD():
 #        self.w * inner(nabla_grad(self.m), nabla_grad(self.mhat))/TVnorm - \
 #        self.w * TVnorm) * dx
         self.Htv = assemble(k * inner(nabla_grad(testm), trialw) * dx)
-        self.rhswhatn, self.xH = Vector(), Vector()
-        self.Htv.init_vector(self.rhswhatn, 0)
-        self.Htv.init_vector(self.xH, 1)
+        self.rhswhat1s, self.xH = Vector(), Vector()
+        self.Htv.init_vector(self.rhswhat1s, 1)
+        self.Htv.init_vector(self.xH, 0)
         self.massw = inner(TVnorm*testw, trialw) * dx
         self.wkformA = inner(testw, nabla_grad(trialm) - \
         self.w * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
@@ -205,12 +205,11 @@ class TVPD():
         return assemble(self.wkformcost)
 
 
-    def assemble_invMw(self, m):
+    def assemble_invMw(self):
         """ Assemble inverse of matrix Mw,
         weighted mass matrix in dual space """
 
         # WARNING: only works if w is in DG0
-        setfct(self.m, m)
         Mw = assemble(self.massw)
         Mwd = get_diagonal(Mw)
         self.invMwd = Mwd.copy()
@@ -218,13 +217,15 @@ class TVPD():
 
 
     def grad(self, m):
-        """ compute the gradient at m (and whatw) """
+        """ compute the gradient at m (and what2) """
 
-        self.assemble_invMw(m)
+        setfct(self.m, m)
+        self.assemble_invMw()
 
-        self.whatw.vector().zero()
-        self.whatw.vector().axpy(-1.0, self.invMwd * assemble(self.misfitw))
-        return assemble(self.wkformgrad) + self.Htv*self.whatw.vector()
+        self.what2.vector().zero()
+        self.what2.vector().axpy(-1.0, self.invMwd * assemble(self.misfitw))
+        #print '|what2|={}'.format(np.linalg.norm(self.what2.vector().array()))
+        return assemble(self.wkformgrad) + self.Htv*self.what2.vector()
         #return assemble(self.wkformgrad)
 
 
@@ -233,36 +234,38 @@ class TVPD():
         but instead assemble the matrices that will be inverted
         in the evaluation of what """
 
-        self.assemble_invMw(m)
+        setfct(self.m, m)
+        self.assemble_invMw()
 
         self.A = assemble(self.wkformA)
         self.yA, self.xA = Vector(), Vector()
-        self.A.init_vector(self.yA, 0)
-        self.A.init_vector(self.xA, 1)
+        self.A.init_vector(self.yA, 1)
+        self.A.init_vector(self.xA, 0)
 
 
     def hessian(self, mhat):
         """ evaluate H*mhat 
         mhat must be a dolfin vector """
 
-        rhswhatm = self.A * mhat
-        self.whatm.vector().zero()
-        self.whatm.vector().axpy(1.0, self.invMwd * rhswhatm)
+        rhswhat1 = self.A * mhat
+        self.what1.vector().zero()
+        self.what1.vector().axpy(1.0, self.invMwd * rhswhat1)
 
         self.xH.zero()
         self.xH.axpy(1.0, mhat)
-        self.Htv.transpmult(self.xH , self.rhswhatn)
-        self.whatn.vector().zero()
-        self.whatn.vector().axpy(1.0, self.invMwd * self.rhswhatn)
+        self.Htv.transpmult(self.xH , self.rhswhat1s)
+        self.what1s.vector().zero()
+        self.what1s.vector().axpy(1.0, self.invMwd * self.rhswhat1s)
 
         self.what.vector().zero()
-        self.what.vector().axpy(1.0, self.whatm.vector())
-        self.what.vector().axpy(1.0, self.whatn.vector())
+        self.what.vector().axpy(1.0, self.what1.vector())
+        self.what.vector().axpy(1.0, self.what2.vector())
 
         self.xA.zero()
-        self.xA.axpy(1.0, self.whatn.vector())
+        self.xA.axpy(1.0, self.what1s.vector())
         self.A.transpmult(self.xA, self.yA)
         return 0.5*(self.Htv * self.what.vector() + self.yA)
+        #return self.Htv * self.what.vector()
 
 
     #TODO: does not work; H not invertible here
