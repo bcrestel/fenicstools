@@ -18,7 +18,7 @@ def run_exple(denoise, PLOT=True, TEST=False):
     # testcase == 0
     print 'Run basic example -- PLOT={}. TEST={}'.format(PLOT, TEST)
     # Solve
-    ALPHAS = 10**(-np.linspace(-3.,3.,7))
+    ALPHAS = 10**(-np.linspace(0.,4.,5))
     #ALPHAS = [1.0]
     denoise.g = dl.Function(denoise.V)
     for aa in ALPHAS:
@@ -70,9 +70,9 @@ else:
     mesh = dl.RectangleMesh(dl.Point(0.,0.), dl.Point(Lx,Ly), 200, 100)
 
 # Generate data 
-denoise = ObjectiveImageDenoising(mesh, trueImage, \
-{'regularization':'TV', 'eps':1e-8, 'k':1.0, 'mode':'full'})
-#{'regularization':'tikhonov', 'gamma':10., 'beta':0.0})
+denoise = ObjectiveImageDenoising(mesh, trueImage, parameters=\
+{'regularization':'tikhonov', 'gamma':1.0, 'beta':0.0})
+#{'regularization':'TV', 'eps':1e-2, 'k':1.0, 'mode':'full'})
 denoise.generatedata(0.6)
 
 
@@ -83,7 +83,7 @@ testcase = 0
 
 # choose options
 PLOT = 1
-TEST = 0
+FDCHECK = 0
 
 
 # plot
@@ -92,7 +92,7 @@ if PLOT:
     denoise.plot(1)
 
 # test gradient and Hessian
-if TEST:
+if FDCHECK:
     print 'Test gradient'
     denoise.test_gradient()
     print '\nTest Hessian'
@@ -101,7 +101,7 @@ if TEST:
 
 # run
 if testcase == 0:   
-    run_exple(denoise, PLOT, TEST)
+    run_exple(denoise, PLOT, FDCHECK)
 else:   
-    run_continuation(denoise, PLOT, TEST)
+    run_continuation(denoise, PLOT, FDCHECK)
 
