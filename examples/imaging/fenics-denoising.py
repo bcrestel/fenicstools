@@ -18,12 +18,10 @@ def run_exple(denoise, PLOT=True, TEST=False):
     # testcase == 0
     print 'Run basic example -- PLOT={}. TEST={}'.format(PLOT, TEST)
     # Solve
-    ALPHAS = 10**(-np.linspace(0.,4.,5))
-    #ALPHAS = [1.0]
-    denoise.g = dl.Function(denoise.V)
+    #ALPHAS = 10**(-np.linspace(0.,4.,5))
+    ALPHAS = [1.0]
     for aa in ALPHAS:
-        setfct(denoise.g, denoise.dn)   # start from noisy image
-        denoise.regparam = aa
+        denoise.alpha = aa
         denoise.solve()
         if PLOT:    denoise.plot(2,'-'+str(aa))
 
@@ -50,30 +48,8 @@ def run_continuation(denoise, PLOT=True, TEST=False):
 ########################################################################
 ########################################################################
 
-# Target data:
-data = np.loadtxt('image.dat', delimiter=',')
-Lx, Ly = 200, 100 #float(data.shape[1])/float(data.shape[0]), 1.
-class Image(dl.Expression):
-    def __init__(self, Lx, Ly, data):
-        self.data = data
-        self.hx = Lx/float(self.data.shape[1]-1)
-        self.hy = Ly/float(self.data.shape[0]-1)
-
-    def eval(self, values, x):
-        j = math.floor(x[0]/self.hx)
-        i = math.floor(x[1]/self.hy)
-        values[0] = self.data[i,j]
-trueImage = Image(Lx, Ly, data)
-if dl.__version__.split('.')[1] == '5':
-    mesh = dl.RectangleMesh(0,0, Lx,Ly, 200,100)
-else:
-    mesh = dl.RectangleMesh(dl.Point(0.,0.), dl.Point(Lx,Ly), 200, 100)
-
-# Generate data 
-denoise = ObjectiveImageDenoising(mesh, trueImage, parameters=\
-{'regularization':'tikhonov', 'gamma':1.0, 'beta':0.0})
-#{'regularization':'TV', 'eps':1e-2, 'k':1.0, 'mode':'full'})
-denoise.generatedata(0.6)
+#denoise = ObjectiveImageDenoising(1, 'tikhonov')
+denoise = ObjectiveImageDenoising(1, 'TV')
 
 
 # choose test case
