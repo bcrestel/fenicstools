@@ -48,16 +48,17 @@ class ObjectiveImageDenoising():
 
         self.u = dl.Function(V)
         self.ucopy = dl.Function(V)
+        self.G = dl.Function(V)
         self.du = dl.Function(V)
         u_test = dl.TestFunction(V)
         u_trial = dl.TrialFunction(V)
 
-#        Mweak = dl.inner(self.test, self.trial)*dl.dx
-#        self.M = dl.assemble(Mweak)
-#        self.solverM = dl.LUSolver('petsc')
-#        self.solverM.parameters['symmetric'] = True
-#        self.solverM.parameters['reuse_factorization'] = True
-#        self.solverM.set_operator(self.M)
+        Mweak = dl.inner(u_test, u_trial)*dl.dx
+        self.M = dl.assemble(Mweak)
+        self.solverM = dl.LUSolver('petsc')
+        self.solverM.parameters['symmetric'] = True
+        self.solverM.parameters['reuse_factorization'] = True
+        self.solverM.set_operator(self.M)
 
         self.regul = regularizationtype
         if regularizationtype == 'tikhonov':
@@ -69,11 +70,7 @@ class ObjectiveImageDenoising():
             self.inexact = True
         self.alpha = 1.0
 
-        self.medmisfit = dl.inner(self.u-self.u_true, self.u-self.u_true)*dl.dx
-
-        self.cost = 0.5*dl.inner(self.u-self.u_0, self.u-self.u_0)*dl.dx
-        self.grad = dl.inner(self.u-self.u_0, u_test)*dl.dx
-        self.Hess = dl.inner(u_test, u_trial)*dl.dx
+        self.Hess = self.M
 
         self.parametersLS = {'alpha0':1.0, 'rho':0.5, 'c':5e-5, 'max_backtrack':12}
 
@@ -88,44 +85,60 @@ class ObjectiveImageDenoising():
 
 
     def costmisfitreg(self):
-        misfit = dl.assemble(self.cost)
+        """ Compute objective function (cost = misfit + alpha*reg) """
+
+        misfit = 0.5*(self.Hess*(self.u.vector() - self.u_0.vector())).inner(\
+        self.u.vector() - self.u_0.vector())
         reg = self.Regul.cost(self.u)
         cost = misfit + self.alpha*reg
 
         return cost, misfit, reg
 
 
+    def gradient(self):
+        """ Compute gradient at current value of self.u """
+
+        MG = self.Hess * (self.u.vector() - self.u_0.vector())
+        MG.axpy(self.alpha, self.Regul.grad(self.u))
+
+        self.solverM.solve(self.G.vector(), MG)
+
+        return MG, np.sqrt(MG.inner(self.G.vector()))
+        #return MG, MG.norm("l2")
+
+
+    def mediummisfit(self):
+        """ Compute medium misfit """
+
+        return np.sqrt((self.Hess*(self.u.vector() - self.u_true.vector())).inner(\
+        self.u.vector() - self.u_true.vector()))
+        #return (self.Hess*(self.u.vector() - self.u_true.vector())).inner(\
+        #self.u.vector() - self.u_true.vector())
+
+
     def solvetikhonov(self):
+
         print '\t{:12s} {:12s} {:12s} {:12s} {:12s} {:12s}'.format(\
         'iter', 'cost', 'misfit', 'reg', 'medmisfit', 'n_cg')
 
         self.u.vector().zero()
-        MG = dl.assemble(self.grad)
-        MG.axpy(self.alpha, self.Regul.grad(self.u))
-        H = dl.assemble(self.Hess) + self.Regul.R*self.alpha
+        MG, MGnorm = self.gradient()
+
+        H = self.Hess + self.Regul.R*self.alpha
         solver = dl.PETScKrylovSolver("cg", "petsc_amg")
         solver.set_operator(H)
         cgiter = solver.solve(self.u.vector(), -MG)
 
         cost, misfit, reg = self.costmisfitreg()
         print '{:12s} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12d}'.format(\
-        '', cost, misfit, reg, dl.assemble(self.medmisfit), cgiter)
-
-
-    def gradient(self):
-        """ Compute gradient at current value of self.u """
-
-        MG = dl.assemble(self.grad)
-        MG.axpy(self.alpha, self.Regul.grad(self.u))
-
-        return MG, MG.norm("l2")
+        '', cost, misfit, reg, self.mediummisfit(), cgiter)
 
 
     def searchdirection(self, MG, cgtol):
         """ Compute search direction """
 
         self.Regul.assemble_hessian(self.u)
-        H = dl.assemble(self.Hess) + self.Regul.H*self.alpha
+        H = self.Hess + self.Regul.H*self.alpha
 
         solver = dl.PETScKrylovSolver("cg", "petsc_amg")
         solver.parameters['nonzero_initial_guess'] = False
@@ -180,11 +193,13 @@ class ObjectiveImageDenoising():
         print '\t{:12s} {:12s} {:12s} {:12s} {:12s} {:12s} {:12s}\t{:12s} {:12s}'.format(\
         'iter', 'cost', 'misfit', 'reg', '||G||', 'a_LS', 'medmisfit', 'tol_cg', 'n_cg')
         print '{:12d} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12s} {:12.2e}'.format(\
-        0, cost, misfit, reg, normMG, '', dl.assemble(self.medmisfit))
+        0, cost, misfit, reg, normMG, '', self.mediummisfit())
 
+        cgtol = 0.5
         for ii in xrange(1000):
             if self.inexact:
-                cgtol = min(0.5, np.sqrt(normMG/normMG0))
+                cgtol = min(cgtol, np.sqrt(normMG/normMG0))
+                #cgtol = min(0.5, np.sqrt(normMG/normMG0)))
             else:
                 cgtol = 1e-12
             cgiter, MGdu = self.searchdirection(MG, cgtol)
@@ -192,7 +207,7 @@ class ObjectiveImageDenoising():
             MG, normMG = self.gradient()
             print '{:12d} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12.2e} {:12.2e} {:12d}'.format(\
             ii+1, cost, misfit, reg, normMG, alphaLS, \
-            dl.assemble(self.medmisfit), cgtol, cgiter)
+            self.mediummisfit(), cgtol, cgiter)
 
             if normMG < min(1e-12, 1e-10*normMG0):
                 print 'gradient sufficiently reduced -- optimization converged'
@@ -200,9 +215,12 @@ class ObjectiveImageDenoising():
             if not success:
                 print 'Line search failed -- optimization aborted'
                 break
-            if np.abs(cost-costold)/costold < 1e-12:
-                print 'cost functional stagnates -- optimization aborted'
-                break
+            if np.abs(cost-costold)/costold < 1e-10:
+                if cgtol < 1e-10:
+                    print 'cost functional stagnates -- optimization aborted'
+                    break
+                else:
+                    cgtol *= 1e-3
 
             costold = cost
 
