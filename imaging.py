@@ -66,7 +66,7 @@ class ObjectiveImageDenoising():
             paramTV = {'Vm':V, 'k':1.0, 'eps':1e-4, 'GNhessian':True}
             paramTV.update(parameters)
             self.Regul = TV(paramTV)
-            self.inexact = False
+            self.inexact = True
         self.alpha = 1.0
 
         self.medmisfit = dl.inner(self.u-self.u_true, self.u-self.u_true)*dl.dx
@@ -97,7 +97,7 @@ class ObjectiveImageDenoising():
 
     def solvetikhonov(self):
         print '\t{:12s} {:12s} {:12s} {:12s} {:12s} {:12s}'.format(\
-        'a_reg', 'cost', 'misfit', 'reg', 'medmisfit', 'n_cg')
+        'iter', 'cost', 'misfit', 'reg', 'medmisfit', 'n_cg')
 
         self.u.vector().zero()
         MG = dl.assemble(self.grad)
@@ -108,8 +108,8 @@ class ObjectiveImageDenoising():
         cgiter = solver.solve(self.u.vector(), -MG)
 
         cost, misfit, reg = self.costmisfitreg()
-        print '{:12.1e} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12d}'.format(\
-        self.alpha, cost, misfit, reg, dl.assemble(self.medmisfit), cgiter)
+        print '{:12s} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12d}'.format(\
+        '', cost, misfit, reg, dl.assemble(self.medmisfit), cgiter)
 
 
     def gradient(self):
@@ -178,10 +178,9 @@ class ObjectiveImageDenoising():
         normMG0 = normMG
 
         print '\t{:12s} {:12s} {:12s} {:12s} {:12s} {:12s} {:12s}\t{:12s} {:12s}'.format(\
-        'a_reg', 'cost', 'misfit', 'reg', '||G||', 'a_LS', 'medmisfit', \
-        'tol_cg', 'n_cg')
-        print '{:12.1e} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12s} {:12.2e}'.format(\
-        self.alpha, cost, misfit, reg, normMG, '', dl.assemble(self.medmisfit))
+        'iter', 'cost', 'misfit', 'reg', '||G||', 'a_LS', 'medmisfit', 'tol_cg', 'n_cg')
+        print '{:12d} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12s} {:12.2e}'.format(\
+        0, cost, misfit, reg, normMG, '', dl.assemble(self.medmisfit))
 
         for ii in xrange(1000):
             if self.inexact:
@@ -191,8 +190,8 @@ class ObjectiveImageDenoising():
             cgiter, MGdu = self.searchdirection(MG, cgtol)
             success, alphaLS, cost, misfit, reg = self.linesearch(MG)
             MG, normMG = self.gradient()
-            print '{:12.1e} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12.2e} {:12.2e} {:12d}'.format(\
-            self.alpha, cost, misfit, reg, normMG, alphaLS, \
+            print '{:12d} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12.2e} {:12.2e} {:12d}'.format(\
+            ii+1, cost, misfit, reg, normMG, alphaLS, \
             dl.assemble(self.medmisfit), cgtol, cgiter)
 
             if normMG < min(1e-12, 1e-10*normMG0):
