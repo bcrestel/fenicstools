@@ -78,7 +78,7 @@ class ObjectiveImageDenoising():
         self.parametersLS = {'alpha0':1.0, 'rho':0.5, 'c':5e-5, 'max_backtrack':12}
 
         filename, ext = os.path.splitext(sys.argv[0])
-        if os.path.isdir(filename + '/'):   shutil.rmtree(filename + '/')
+        #if os.path.isdir(filename + '/'):   shutil.rmtree(filename + '/')
         self.myplot = PlotFenics(filename)
 
 
