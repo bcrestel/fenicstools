@@ -18,8 +18,9 @@ def run_exple(denoise, PLOT=True, TEST=False):
     # testcase == 0
     print 'Run basic example -- PLOT={}. TEST={}'.format(PLOT, TEST)
     # Solve
-    #ALPHAS = 10**(-np.linspace(0.,4.,5))
-    ALPHAS = [1e-2]
+    ALPHAS = 10**(-np.linspace(0.,4.,5))
+    #ALPHAS = [1e-2]
+    #ALPHAS = [1.0]
     for aa in ALPHAS:
         denoise.alpha = aa
         denoise.solve()
