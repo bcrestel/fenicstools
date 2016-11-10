@@ -22,6 +22,7 @@ def run_exple(denoise, PLOT=True, TEST=False):
     #ALPHAS = [1e-2]
     #ALPHAS = [1.0]
     for aa in ALPHAS:
+        print '\tRegularization parameter={:f}'.format(aa)
         denoise.alpha = aa
         denoise.solve()
         if PLOT:    denoise.plot(2,'-'+str(aa))
@@ -49,8 +50,8 @@ def run_continuation(denoise, PLOT=True, TEST=False):
 ########################################################################
 ########################################################################
 
-denoise = ObjectiveImageDenoising(1, 'tikhonov', image='image2.dat')
-#denoise = ObjectiveImageDenoising(1, 'TV', {'GNhessian':True})
+#denoise = ObjectiveImageDenoising(1, 'tikhonov', image='image2.dat')
+denoise = ObjectiveImageDenoising(1, 'TV', parameters={'GNhessian':False})
 
 
 # choose test case
