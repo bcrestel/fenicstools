@@ -72,7 +72,8 @@ class ObjectiveImageDenoising():
 
         self.Hess = self.M
 
-        self.parametersLS = {'alpha0':1.0, 'rho':0.5, 'c':5e-5, 'max_backtrack':12}
+        self.parametersLS = {'alpha0':1.0, 'rho':0.5, 'c':5e-5, \
+        'max_backtrack':12, 'cgtol':0.5, 'maxiter':5000}
 
         filename, ext = os.path.splitext(sys.argv[0])
         #if os.path.isdir(filename + '/'):   shutil.rmtree(filename + '/')
@@ -122,6 +123,7 @@ class ObjectiveImageDenoising():
         'iter', 'cost', 'misfit', 'reg', 'medmisfit', 'n_cg')
 
         self.u.vector().zero()
+
         MG, MGnorm = self.gradient()
 
         H = self.Hess + self.Regul.R*self.alpha
@@ -185,6 +187,8 @@ class ObjectiveImageDenoising():
     def solveTV(self):
         """ Solve image denoising pb """
 
+        self.u.vector().zero()
+
         cost, misfit, reg = self.costmisfitreg()
         costold = cost
         MG, normMG = self.gradient()
@@ -195,8 +199,9 @@ class ObjectiveImageDenoising():
         print '{:12d} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12s} {:12.2e}'.format(\
         0, cost, misfit, reg, normMG, '', self.mediummisfit())
 
-        cgtol = 0.5
-        for ii in xrange(1000):
+        cgtol = self.parametersLS['cgtol']
+        maxiter = self.parametersLS['maxiter']
+        for ii in xrange(maxiter):
             if self.inexact:
                 cgtol = min(cgtol, np.sqrt(normMG/normMG0))
                 #cgtol = min(0.5, np.sqrt(normMG/normMG0)))
