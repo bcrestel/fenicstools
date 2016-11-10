@@ -5,7 +5,7 @@ from dolfin import sqrt, inner, nabla_grad, grad, dx, \
 Function, TestFunction, TrialFunction, Vector, assemble, solve, \
 Constant, plot, interactive, assign, FunctionSpace, \
 PETScKrylovSolver, PETScLUSolver
-from miscfenics import isFunction, isVector, setfct
+from miscfenics import isVector, setfct
 from linalg.miscroutines import get_diagonal
 
 
@@ -153,6 +153,7 @@ class TVPD():
         self.what2 = Function(Vw*Vw)
         self.what1 = Function(Vw*Vw)
         self.what1s = Function(Vw*Vw)
+        self.wtmp = Function(Vw*Vw) # tmp variable
         testw = TestFunction(Vw*Vw)
         trialw = TrialFunction(Vw*Vw)
 
@@ -184,6 +185,14 @@ class TVPD():
         factM = 1e-2*factM
         self.sMass = assemble(inner(testm, trialm)*dx)*factM
 
+        print 'TV regularization -- primal-dual method'
+        try:
+            solver = PETScKrylovSolver('cg', 'ml_amg')
+            self.precond = 'ml_amg'
+        except:
+            print '*** WARNING: ML not installed -- using petsc_amg instead'
+            self.precond = 'petsc_amg'
+
 
     def isTV(self): return True
     def isPD(self): return True
@@ -196,7 +205,7 @@ class TVPD():
         return assemble(self.wkformcost)
 
 
-    def assemble_invMw(self):
+    def _assemble_invMw(self):
         """ Assemble inverse of matrix Mw,
         weighted mass matrix in dual space """
 
@@ -211,7 +220,7 @@ class TVPD():
         """ compute the gradient at m (and what2) """
 
         setfct(self.m, m)
-        self.assemble_invMw()
+        self._assemble_invMw()
 
         self.what2.vector().zero()
         self.what2.vector().axpy(-1.0, self.invMwd * assemble(self.misfitw))
@@ -226,16 +235,18 @@ class TVPD():
         in the evaluation of what """
 
         setfct(self.m, m)
-        self.assemble_invMw()
+        self._assemble_invMw()
 
-        self.A = assemble(self.wkformA)
+        self.Ars = assemble(self.wkformArs)
+        #self.A = assemble(self.wkformA)
+        self.A = self.Ars   # using re-scaled dual variable for Hessian
         self.yA, self.xA = Vector(), Vector()
         self.A.init_vector(self.yA, 1)
         self.A.init_vector(self.xA, 0)
 
 
     def hessian(self, mhat):
-        """ evaluate H*mhat 
+        """ evaluate H*mhat, with H symmetric
         mhat must be a dolfin vector """
 
         rhswhat1 = self.A * mhat
@@ -259,25 +270,77 @@ class TVPD():
         #return self.Htv * self.what.vector()
 
 
-    #TODO: does not work; H not invertible here
+    def hessianrs(self, mhat):
+        """ evaluate H*mhat, with H symmetric and positive definite
+        mhat must be a dolfin vector """
+
+        rhswhat1 = self.Ars * mhat
+
+        self.xH.zero()
+        self.xH.axpy(1.0, mhat)
+        self.Htv.transpmult(self.xH , self.rhswhat1s)
+
+        self.wtmp.vector().zero()
+        self.wtmp.vector().axpy(1.0, self.invMwd * rhswhat1)
+        self.wtmp.vector().axpy(1.0, self.what2.vector())
+
+        self.xA.zero()
+        self.xA.axpy(1.0, self.invMwd * self.rhswhat1s)
+        self.Ars.transpmult(self.xA, self.yA)
+
+        return 0.5*(self.Htv * self.wtmp.vector() + self.yA)
+
+
+    def update_w(self, alpha):
+        """ update dual variable in direction what """
+
+        self.w.vector().axpy(alpha, self.what.vector())
+
+        wx, wy = self.w.split(deepcopy=True)
+        wxa, wya = wx.vector().array(), wy.vector().array()
+        normw = np.sqrt(wxa**2 + wya**2)
+        factorw = [max(1.0, ii) for ii in normw]
+        setfct(wx, wxa/factorw)
+        setfct(wy, wya/factorw)
+        assign(self.wb.sub(0), wx)
+        assign(self.wb.sub(1), wy)
+        
+
+    #TODO: to be continued--cannot use algebraic multigrid w/o an assembled matrix
+    # need to assemble Hessian of TVPD, or find geometric multigrid routine in Fenics
     def getprecond(self):
         """ Precondition by inverting the TV Hessian """
-        try:
-            solver = PETScKrylovSolver("cg", "ml_amg")
-        except:
-            print '\n*** WARNING: ML not installed -- using petsc_amg instead'
-            solver = PETScKrylovSolver("cg", "petsc_amg")
+
+        class HessianReg(dl.LinearOperator):
+            def __init__(self, OuterClass):
+                self.outer = OuterClass
+                dl.LinearOperator.__init__(self, self.outer.m.vector(), self.outer.m.vector())
+
+            def mult(self, x, y):
+                """ compute Hessian-vect y = H*x """
+                y.zero()
+                y.axpy(1.0, self.outer.hessianrs(x))
+                y.axpy(1.0, self.outer.sMass*x)
+
+            def init_vector(self, x, dim):
+                self.outer.sMass.init_vector(x, dim)
+
+        solver = PETScKrylovSolver('cg', self.precond)
         solver.parameters["maximum_iterations"] = 1000
         solver.parameters["relative_tolerance"] = 1e-12
         solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["error_on_nonconvergence"] = True 
         solver.parameters["nonzero_initial_guess"] = False 
-        # used to compare iterative application of preconditioner 
-        # with exact application of preconditioner:
+        HReg = HessianReg(self)
+        solver.set_operator(HReg)
+
+#        # used to compare iterative application of preconditioner 
+#        # with exact application of preconditioner:
 #        solver = PETScLUSolver("petsc")
 #        solver.parameters['symmetric'] = True
 #        solver.parameters['reuse_factorization'] = True
-        solver.set_operator(self.H + self.sMass)
+#        solver.set_operator(self.H + self.sMass)
+
         return solver
 
 

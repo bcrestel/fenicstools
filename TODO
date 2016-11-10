@@ -5,6 +5,8 @@ TODO list
  -> missing preconditioner for variational formulation
  -> formulate and implement quadrature nodes-based formulation
  -> test on denoising problem (TV, TV-PD)
++ check best preconditioner for that problem; can't use amg w/ matrix-free, so
+what else?
  -> test on poisson inverse problem with TV (full) then TV-PD + 
 inspect poisson inverse problem further--behave fishy sometimes
 

@@ -62,14 +62,14 @@ class ObjectiveImageDenoising():
         self.solverM.set_operator(self.M)
 
         self.regul = regularizationtype
-        if regularizationtype == 'tikhonov':
+        if self.regul == 'tikhonov':
             self.Regul = LaplacianPrior({'Vm':V, 'gamma':1.0, 'beta':0.0})
-        elif regularizationtype == 'TV':
+        elif self.regul == 'TV':
             paramTV = {'Vm':V, 'k':1.0, 'eps':1e-4, 'GNhessian':True}
             paramTV.update(parameters)
             self.Regul = TV(paramTV)
             self.inexact = True
-        elif regularizationtype == 'TVPD':
+        elif self.regul == 'TVPD':
             paramTV = {'Vm':V, 'k':1.0, 'eps':1e-4, 'exact':False}
             paramTV.update(parameters)
             self.Regul = TVPD(paramTV)
@@ -89,6 +89,7 @@ class ObjectiveImageDenoising():
     def solve(self):
         if self.regul == 'tikhonov': self.solvetikhonov()
         elif self.regul == 'TV':    self.solveTV()
+        elif self.regul == 'TVPD':    self.solveTV()
 
 
     def costmisfitreg(self):
@@ -146,11 +147,25 @@ class ObjectiveImageDenoising():
         """ Compute search direction """
 
         self.Regul.assemble_hessian(self.u)
-        H = self.Hess + self.Regul.H*self.alpha
+        class Hessian(dl.LinearOperator):
+            def __init__(self, OuterClass):
+                self.outer = OuterClass
+                dl.LinearOperator.__init__(self, self.outer.u.vector(), self.outer.u.vector())
+
+            def mult(self, x, y):
+                """ compute Hessian-vect y = H*x """
+                y.zero()
+                y.axpy(1.0, self.outer.Hess*x)
+                y.axpy(self.outer.alpha, self.outer.Regul.hessian(x))
+
+            def init_vector(self, x, dim):
+                self.outer.Hess.init_vector(x, dim)
+
 
 #        solver = dl.PETScKrylovSolver("cg", "petsc_amg")
 #        solver.parameters['nonzero_initial_guess'] = False
 #        solver.parameters['relative_tolerance'] = cgtol
+#        H = self.Hess + self.Regul.H*self.alpha
 #        solver.set_operator(H)
 #        cgiter = solver.solve(self.du.vector(), -1.0*MG)
 
@@ -158,6 +173,7 @@ class ObjectiveImageDenoising():
         solver.parameters["rel_tolerance"] = cgtol
         solver.parameters["zero_initial_guess"] = True
         solver.parameters["print_level"] = -1
+        H = Hessian(self)
         solver.set_operator(H)
         solver.set_preconditioner(self.Regul.getprecond())
         solver.solve(self.du.vector(), -1.0*MG)
@@ -172,8 +188,6 @@ class ObjectiveImageDenoising():
 
     def linesearch(self, MG):
         """ Perform inexact backtracking line search """
-
-        if self.Regul.isPD():   self.Regul.compute_dw(self.du)
 
         alphaLS = self.parametersLS['alpha0']
         rhoLS = self.parametersLS['rho']
