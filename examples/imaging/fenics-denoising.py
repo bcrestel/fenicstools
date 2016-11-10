@@ -49,8 +49,8 @@ def run_continuation(denoise, PLOT=True, TEST=False):
 ########################################################################
 ########################################################################
 
-#denoise = ObjectiveImageDenoising(1, 'tikhonov')
-denoise = ObjectiveImageDenoising(1, 'TV', {'GNhessian':True})
+denoise = ObjectiveImageDenoising(1, 'tikhonov', image='image2.dat')
+#denoise = ObjectiveImageDenoising(1, 'TV', {'GNhessian':True})
 
 
 # choose test case

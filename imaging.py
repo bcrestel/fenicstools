@@ -17,7 +17,7 @@ from plotfenics import PlotFenics
 
 class ObjectiveImageDenoising():
 
-    def __init__(self, CGdeg, regularizationtype, parameters=[]):
+    def __init__(self, CGdeg, regularizationtype, parameters=[], image='image.dat'):
 
 
         class Image(dl.Expression):
@@ -31,7 +31,7 @@ class ObjectiveImageDenoising():
                 i = math.floor(x[1]/self.hy)
                 values[0] = self.data[i,j]
 
-        data = np.loadtxt('image.dat', delimiter=',')
+        data = np.loadtxt(image, delimiter=',')
         Lx, Ly = float(data.shape[1])/float(data.shape[0]), 1.
         np.random.seed(seed=1)
         noise_std_dev = 0.3
