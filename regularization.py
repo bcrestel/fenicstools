@@ -17,44 +17,21 @@ class TV():
     Define Total Variation regularization
     """
 
-    def __init__(self, parameters):
-        """
-        parameters should be:
+    def __init__(self, parameters=[]):
+        """ parameters should be:
             - k(x) = factor inside TV
             - eps = regularization parameter
-        ||f||_TV = int k(x) sqrt{|grad f|^2 + eps} dx
-        """
+        |f|_TV = int k(x) sqrt{|grad f|^2 + eps} dx """
+
         self.parameters = {'k':1.0, 'eps':1e-2, 'GNhessian':False} # default parameters
-        if parameters.has_key('Vm'):
-            self.parameters.update(parameters)
-            self.update()
-        else:   
-            print "inputs parameters must contain field 'Vm'"
-            sys.exit(1)
 
-    def isTV(self): return True
-    def isPD(self): return False
-
-    def update(self, parameters=None):
-        """ Update the parameters.
-        parameters should be:
-            - k(x) = factor inside TV
-            - eps = regularization parameter
-            - Vm = FunctionSpace for parameter. 
-        ||f||_TV = int k(x) sqrt{|grad f|^2 + eps} dx
-        """
-        # reset some variables
-        self.H = None
-        # udpate parameters
-        if parameters == None:  
-            parameters = self.parameters
-        else:
-            self.parameters.update(parameters)
+        assert parameters.has_key('Vm')
+        self.parameters.update(parameters)
         GN = self.parameters['GNhessian']
         self.Vm = self.parameters['Vm']
         eps = self.parameters['eps']
         self.k = self.parameters['k']
-        # define functions
+
         self.m = Function(self.Vm)
         self.test, self.trial = TestFunction(self.Vm), TrialFunction(self.Vm)
         try:
@@ -63,15 +40,14 @@ class TV():
             factM = self.k
         factM = 1e-2*factM
         self.sMass = assemble(inner(self.test, self.trial)*dx)*factM
-        # frequently-used variable
+
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + Constant(eps)
         self.kovsq = self.k / sqrt(self.fTV)
-        #
-        # cost functional
+
         self.wkformcost = self.k*sqrt(self.fTV)*dx
-        # gradient
+
         self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(self.test))*dx
-        # Hessian
+
         self.wkformGNhess = self.kovsq*inner(nabla_grad(self.trial), nabla_grad(self.test))*dx
         self.wkformFhess = self.kovsq*( \
         inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
@@ -83,6 +59,18 @@ class TV():
         else:   
             self.wkformhess = self.wkformFhess
             print 'TV regularization -- full Hessian'
+
+        try:
+            solver = PETScKrylovSolver('cg', 'ml_amg')
+            self.precond = 'ml_amg'
+        except:
+            print '*** WARNING: ML not installed -- using petsc_amg instead'
+            self.precond = 'petsc_amg'
+
+
+    def isTV(self): return True
+    def isPD(self): return False
+
 
     def cost(self, m_in):
         """ returns the cost functional for self.m=m_in """
@@ -113,25 +101,26 @@ class TV():
         isVector(mhat)
         return self.H * mhat
 
+
     def getprecond(self):
         """ Precondition by inverting the TV Hessian """
-        try:
-            solver = PETScKrylovSolver("cg", "ml_amg")
-        except:
-            print '\n*** WARNING: ML not installed -- using petsc_amg instead'
-            solver = PETScKrylovSolver("cg", "petsc_amg")
+
+        solver = PETScKrylovSolver('cg', self.precond)
         solver.parameters["maximum_iterations"] = 1000
         solver.parameters["relative_tolerance"] = 1e-12
         solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["error_on_nonconvergence"] = True 
         solver.parameters["nonzero_initial_guess"] = False 
+
         # used to compare iterative application of preconditioner 
         # with exact application of preconditioner:
 #        solver = PETScLUSolver("petsc")
 #        solver.parameters['symmetric'] = True
 #        solver.parameters['reuse_factorization'] = True
+
         solver.set_operator(self.H + self.sMass)
         return solver
+
 
 
 #----------------------------------------------------------------------
@@ -140,6 +129,8 @@ class TVPD():
     """ Total variation using primal-dual Newton """
 
     def __init__(self, parameters):
+        """ parameters must have key 'Vm' for parameter function space,
+        key 'exact' run exact TV, w/o primal-dual; used to check w/ FD """
 
         self.parameters = {'k':1.0, 'eps':1e-2, 'exact':False}
         assert parameters.has_key('Vm')
@@ -157,7 +148,7 @@ class TVPD():
         # As it is, code only works with DG0
         Vw = FunctionSpace(Vm.mesh(), 'DG', 0)
         self.w = Function(Vw*Vw)
-        #self.wb = Function(Vw*Vw)   # re-scaled dual variable
+        self.wb = Function(Vw*Vw)   # re-scaled dual variable
         self.what = Function(Vw*Vw)
         self.what2 = Function(Vw*Vw)
         self.what1 = Function(Vw*Vw)
@@ -175,9 +166,6 @@ class TVPD():
         self.wkformgrad = k * inner(nabla_grad(testm), self.w) * dx
         self.misfitw = inner(testw, self.w*TVnorm - nabla_grad(self.m)) * dx
 
-#        self.rhswhat = inner(testw, nabla_grad(self.m) + nabla_grad(self.mhat) - \
-#        self.w * inner(nabla_grad(self.m), nabla_grad(self.mhat))/TVnorm - \
-#        self.w * TVnorm) * dx
         self.Htv = assemble(k * inner(nabla_grad(testm), trialw) * dx)
         self.rhswhat1s, self.xH = Vector(), Vector()
         self.Htv.init_vector(self.rhswhat1s, 1)
@@ -185,6 +173,9 @@ class TVPD():
         self.massw = inner(TVnorm*testw, trialw) * dx
         self.wkformA = inner(testw, nabla_grad(trialm) - \
         self.w * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
+
+        self.wkformArs = inner(testw, nabla_grad(trialm) - \
+        self.wb * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
 
         try:
             factM = k.vector().min()
