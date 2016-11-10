@@ -11,6 +11,7 @@ from miscfenics import setfct
 from prior import LaplacianPrior
 from regularization import TV, TVPD
 from plotfenics import PlotFenics
+from linalg.cgsolverSteihaug import CGSolverSteihaug
 
 
 
@@ -67,6 +68,11 @@ class ObjectiveImageDenoising():
             paramTV = {'Vm':V, 'k':1.0, 'eps':1e-4, 'GNhessian':True}
             paramTV.update(parameters)
             self.Regul = TV(paramTV)
+            self.inexact = True
+        elif regularizationtype == 'TVPD':
+            paramTV = {'Vm':V, 'k':1.0, 'eps':1e-4, 'exact':False}
+            paramTV.update(parameters)
+            self.Regul = TVPD(paramTV)
             self.inexact = True
         self.alpha = 1.0
 
@@ -142,12 +148,21 @@ class ObjectiveImageDenoising():
         self.Regul.assemble_hessian(self.u)
         H = self.Hess + self.Regul.H*self.alpha
 
-        solver = dl.PETScKrylovSolver("cg", "petsc_amg")
-        solver.parameters['nonzero_initial_guess'] = False
-        solver.parameters['relative_tolerance'] = cgtol
-        solver.set_operator(H)
+#        solver = dl.PETScKrylovSolver("cg", "petsc_amg")
+#        solver.parameters['nonzero_initial_guess'] = False
+#        solver.parameters['relative_tolerance'] = cgtol
+#        solver.set_operator(H)
+#        cgiter = solver.solve(self.du.vector(), -1.0*MG)
 
-        cgiter = solver.solve(self.du.vector(), -1.0*MG)
+        solver = CGSolverSteihaug()
+        solver.parameters["rel_tolerance"] = cgtol
+        solver.parameters["zero_initial_guess"] = True
+        solver.parameters["print_level"] = -1
+        solver.set_operator(H)
+        solver.set_preconditioner(self.Regul.getprecond())
+        solver.solve(self.du.vector(), -1.0*MG)
+        cgiter = solver.iter
+
         MGdu = MG.inner(self.du.vector())
         if MGdu > 0.0:    
             print "*** WARNING: NOT a descent direction"
