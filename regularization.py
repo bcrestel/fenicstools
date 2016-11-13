@@ -4,10 +4,14 @@ import numpy as np
 from dolfin import sqrt, inner, nabla_grad, grad, dx, \
 Function, TestFunction, TrialFunction, Vector, assemble, solve, \
 Constant, plot, interactive, assign, FunctionSpace, \
-PETScKrylovSolver, PETScLUSolver
+PETScKrylovSolver, PETScLUSolver, mpi_comm_world, PETScMatrix
 from miscfenics import isVector, setfct
-from linalg.miscroutines import get_diagonal
+from linalg.miscroutines import get_diagonal, setupPETScmatrix
+from hippylib.linalg import MatMatMult, Transpose
 
+import petsc4py, sys
+petsc4py.init(sys.argv)
+from petsc4py import PETSc
 
 
 #----------------------------------------------------------------------
@@ -42,9 +46,9 @@ class TV():
         self.sMass = assemble(inner(self.test, self.trial)*dx)*factM
 
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + Constant(eps)
-        self.kovsq = self.k / sqrt(self.fTV)
+        self.kovsq = Constant(self.k) / sqrt(self.fTV)
 
-        self.wkformcost = self.k*sqrt(self.fTV)*dx
+        self.wkformcost = Constant(self.k) * sqrt(self.fTV) * dx
 
         self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(self.test))*dx
 
@@ -105,18 +109,18 @@ class TV():
     def getprecond(self):
         """ Precondition by inverting the TV Hessian """
 
-        solver = PETScKrylovSolver('cg', self.precond)
-        solver.parameters["maximum_iterations"] = 1000
-        solver.parameters["relative_tolerance"] = 1e-12
-        solver.parameters["absolute_tolerance"] = 1e-24
-        solver.parameters["error_on_nonconvergence"] = True 
-        solver.parameters["nonzero_initial_guess"] = False 
+#        solver = PETScKrylovSolver('cg', self.precond)
+#        solver.parameters["maximum_iterations"] = 1000
+#        solver.parameters["relative_tolerance"] = 1e-12
+#        solver.parameters["absolute_tolerance"] = 1e-24
+#        solver.parameters["error_on_nonconvergence"] = True 
+#        solver.parameters["nonzero_initial_guess"] = False 
 
         # used to compare iterative application of preconditioner 
         # with exact application of preconditioner:
-#        solver = PETScLUSolver("petsc")
-#        solver.parameters['symmetric'] = True
-#        solver.parameters['reuse_factorization'] = True
+        solver = PETScLUSolver("petsc")
+        solver.parameters['symmetric'] = True
+        #solver.parameters['reuse_factorization'] = True
 
         solver.set_operator(self.H + self.sMass)
         return solver
@@ -128,11 +132,11 @@ class TV():
 class TVPD():
     """ Total variation using primal-dual Newton """
 
-    def __init__(self, parameters):
+    def __init__(self, parameters, mpicomm=PETSc.COMM_WORLD):
         """ parameters must have key 'Vm' for parameter function space,
         key 'exact' run exact TV, w/o primal-dual; used to check w/ FD """
 
-        self.parameters = {'k':1.0, 'eps':1e-2, 'exact':False}
+        self.parameters = {'k':1.0, 'eps':Constant(1e-2), 'exact':False}
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
         Vm = self.parameters['Vm']
@@ -148,42 +152,45 @@ class TVPD():
         # As it is, code only works with DG0
         Vw = FunctionSpace(Vm.mesh(), 'DG', 0)
         self.w = Function(Vw*Vw)
-        self.wb = Function(Vw*Vw)   # re-scaled dual variable
+        self.wrs = Function(Vw*Vw)   # re-scaled dual variable
         self.what = Function(Vw*Vw)
-        self.what2 = Function(Vw*Vw)
-        self.what1 = Function(Vw*Vw)
-        self.what1s = Function(Vw*Vw)
-        self.wtmp = Function(Vw*Vw) # tmp variable
+        self.gw = Function(Vw*Vw)
         testw = TestFunction(Vw*Vw)
         trialw = TrialFunction(Vw*Vw)
 
         normm = inner(nabla_grad(self.m), nabla_grad(self.m))
         TVnormsq = normm + Constant(eps)
         TVnorm = sqrt(TVnormsq)
-        self.wkformcost = k * TVnorm * dx
-
-        if exact:
+        self.wkformcost = TVnorm * dx
+        if exact:   
             self.w = nabla_grad(self.m)/TVnorm # full Hessian
-        self.wkformgrad = k * inner(nabla_grad(testm), self.w) * dx
-        self.misfitw = inner(testw, self.w*TVnorm - nabla_grad(self.m)) * dx
 
-        self.Htv = assemble(k * inner(nabla_grad(testm), trialw) * dx)
-        self.rhswhat1s, self.xH = Vector(), Vector()
-        self.Htv.init_vector(self.rhswhat1s, 1)
-        self.Htv.init_vector(self.xH, 0)
+        self.misfitw = inner(testw, self.w*TVnorm - nabla_grad(self.m)) * dx
+        self.Htvw = inner(Constant(k) * nabla_grad(testm), self.w) * dx
+        self.Htv = assemble(inner(Constant(k) * nabla_grad(testm), trialw) * dx)
+
         self.massw = inner(TVnorm*testw, trialw) * dx
+        invMwMat, VDM, VDM = setupPETScmatrix(Vw*Vw, Vw*Vw, 'aij', mpicomm)
+        for ii in VDM.dofs():
+            invMwMat[ii, ii] = 1.0
+        invMwMat.assemblyBegin()
+        invMwMat.assemblyEnd()
+        self.invMwMat = PETScMatrix(invMwMat)
+        self.invMwd = Vector()
+        self.invMwMat.init_vector(self.invMwd, 0)
+
         self.wkformA = inner(testw, nabla_grad(trialm) - \
         self.w * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
-
         self.wkformArs = inner(testw, nabla_grad(trialm) - \
-        self.wb * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
+        self.wrs * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
 
         try:
             factM = k.vector().min()
         except:
             factM = k
         factM = 1e-2*factM
-        self.sMass = assemble(inner(testm, trialm)*dx)*factM
+        factM = Constant(1e-2)
+        self.sMass = assemble(factM*inner(testm, trialm)*dx)
 
         print 'TV regularization -- primal-dual method'
         try:
@@ -209,11 +216,12 @@ class TVPD():
         """ Assemble inverse of matrix Mw,
         weighted mass matrix in dual space """
 
-        # WARNING: only works if w is in DG0
+        # WARNING: only works if Mw is diagonal (e.g, DG0)
         Mw = assemble(self.massw)
         Mwd = get_diagonal(Mw)
-        self.invMwd = Mwd.copy()
         self.invMwd[:] = 1./Mwd.array()
+
+        self.invMwMat.set_diagonal(self.invMwd)
 
 
     def grad(self, m):
@@ -222,130 +230,161 @@ class TVPD():
         setfct(self.m, m)
         self._assemble_invMw()
 
-        self.what2.vector().zero()
-        self.what2.vector().axpy(-1.0, self.invMwd * assemble(self.misfitw))
-        #print '|what2|={}'.format(np.linalg.norm(self.what2.vector().array()))
-        return assemble(self.wkformgrad) + self.Htv*self.what2.vector()
-        #return assemble(self.wkformgrad)
+        self.gw.vector().zero()
+        self.gw.vector().axpy(1.0, assemble(self.misfitw))
+        print '|gw|={}'.format(np.linalg.norm(self.gw.vector().array()))
+
+        return self.Htv*(self.w.vector() - self.invMwd*self.gw.vector())
+        #return assemble(self.Htvw) - self.Htv*(self.invMwd*self.gw.vector())
 
 
     def assemble_hessian(self, m):
-        """ For PD-TV, we do not really assemble the Hessian,
-        but instead assemble the matrices that will be inverted
-        in the evaluation of what """
+        """ build Hessian matrix at given point m """
 
         setfct(self.m, m)
         self._assemble_invMw()
 
-        self.Ars = assemble(self.wkformArs)
-        #self.A = assemble(self.wkformA)
-        self.A = self.Ars   # using re-scaled dual variable for Hessian
-        self.yA, self.xA = Vector(), Vector()
-        self.A.init_vector(self.yA, 1)
-        self.A.init_vector(self.xA, 0)
+        Ars = assemble(self.wkformArs)
+        self.A = assemble(self.wkformA)
+
+        Hasym = MatMatMult(self.Htv, MatMatMult(self.invMwMat, self.A))
+        self.H = (Hasym + Transpose(Hasym)) * 0.5
+
+        Hrsasym = MatMatMult(self.Htv, MatMatMult(self.invMwMat, Ars))
+        self.Hrs = (Hrsasym + Transpose(Hrsasym)) * 0.5
 
 
     def hessian(self, mhat):
-        """ evaluate H*mhat, with H symmetric
-        mhat must be a dolfin vector """
+        return self.Hrs * mhat
+        #return self.H * mhat
 
-        rhswhat1 = self.A * mhat
-        self.what1.vector().zero()
-        self.what1.vector().axpy(1.0, self.invMwd * rhswhat1)
 
-        self.xH.zero()
-        self.xH.axpy(1.0, mhat)
-        self.Htv.transpmult(self.xH , self.rhswhat1s)
-        self.what1s.vector().zero()
-        self.what1s.vector().axpy(1.0, self.invMwd * self.rhswhat1s)
+    def update_w(self, mhat, alphaLS):
+        """ update dual variable in direction what 
+        and update re-scaled version """
 
         self.what.vector().zero()
-        self.what.vector().axpy(1.0, self.what1.vector())
-        self.what.vector().axpy(1.0, self.what2.vector())
+        self.what.vector().axpy(1.0, self.invMwd*(self.A*mhat - self.gw.vector()))
+        print '|what|={}'.format(np.linalg.norm(self.what.vector().array()))
 
-        self.xA.zero()
-        self.xA.axpy(1.0, self.what1s.vector())
-        self.A.transpmult(self.xA, self.yA)
-        return 0.5*(self.Htv * self.what.vector() + self.yA)
-        #return self.Htv * self.what.vector()
-
-
-    def hessianrs(self, mhat):
-        """ evaluate H*mhat, with H symmetric and positive definite
-        mhat must be a dolfin vector """
-
-        rhswhat1 = self.Ars * mhat
-
-        self.xH.zero()
-        self.xH.axpy(1.0, mhat)
-        self.Htv.transpmult(self.xH , self.rhswhat1s)
-
-        self.wtmp.vector().zero()
-        self.wtmp.vector().axpy(1.0, self.invMwd * rhswhat1)
-        self.wtmp.vector().axpy(1.0, self.what2.vector())
-
-        self.xA.zero()
-        self.xA.axpy(1.0, self.invMwd * self.rhswhat1s)
-        self.Ars.transpmult(self.xA, self.yA)
-
-        return 0.5*(self.Htv * self.wtmp.vector() + self.yA)
-
-
-    def update_w(self, alpha):
-        """ update dual variable in direction what """
-
-        self.w.vector().axpy(alpha, self.what.vector())
+        self.w.vector().axpy(alphaLS, self.what.vector())
+        #self.w.vector().axpy(1.0, self.what.vector())
 
         wx, wy = self.w.split(deepcopy=True)
         wxa, wya = wx.vector().array(), wy.vector().array()
         normw = np.sqrt(wxa**2 + wya**2)
         factorw = [max(1.0, ii) for ii in normw]
+        print 'min(factorw)={}, max(factorw)={}'.format(min(factorw), max(factorw))
         setfct(wx, wxa/factorw)
         setfct(wy, wya/factorw)
-        assign(self.wb.sub(0), wx)
-        assign(self.wb.sub(1), wy)
+        assign(self.wrs.sub(0), wx)
+        assign(self.wrs.sub(1), wy)
         
 
-    #TODO: to be continued--cannot use algebraic multigrid w/o an assembled matrix
-    # need to assemble Hessian of TVPD, or find geometric multigrid routine in Fenics
     def getprecond(self):
         """ Precondition by inverting the TV Hessian """
 
-        class HessianReg(dl.LinearOperator):
-            def __init__(self, OuterClass):
-                self.outer = OuterClass
-                dl.LinearOperator.__init__(self, self.outer.m.vector(), self.outer.m.vector())
+#        solver = PETScKrylovSolver('cg', self.precond)
+#        solver.parameters["maximum_iterations"] = 1000
+#        solver.parameters["relative_tolerance"] = 1e-12
+#        solver.parameters["absolute_tolerance"] = 1e-24
+#        solver.parameters["error_on_nonconvergence"] = True 
+#        solver.parameters["nonzero_initial_guess"] = False 
 
-            def mult(self, x, y):
-                """ compute Hessian-vect y = H*x """
-                y.zero()
-                y.axpy(1.0, self.outer.hessianrs(x))
-                y.axpy(1.0, self.outer.sMass*x)
+        # used to compare iterative application of preconditioner 
+        # with exact application of preconditioner:
+        solver = PETScLUSolver("petsc")
+        solver.parameters['symmetric'] = True
+        #solver.parameters['reuse_factorization'] = True
 
-            def init_vector(self, x, dim):
-                self.outer.sMass.init_vector(x, dim)
-
-        solver = PETScKrylovSolver('cg', self.precond)
-        solver.parameters["maximum_iterations"] = 1000
-        solver.parameters["relative_tolerance"] = 1e-12
-        solver.parameters["absolute_tolerance"] = 1e-24
-        solver.parameters["error_on_nonconvergence"] = True 
-        solver.parameters["nonzero_initial_guess"] = False 
-        HReg = HessianReg(self)
-        solver.set_operator(HReg)
-
-#        # used to compare iterative application of preconditioner 
-#        # with exact application of preconditioner:
-#        solver = PETScLUSolver("petsc")
-#        solver.parameters['symmetric'] = True
-#        solver.parameters['reuse_factorization'] = True
-#        solver.set_operator(self.H + self.sMass)
+        solver.set_operator(self.Hrs + self.sMass)
 
         return solver
 
 
 
 
+
+#### MATRIX-FREE VERSION -- NOT SUITABLE FOR FENICS PRECONDITIONERS
+#    def grad(self, m):
+#        """ compute the gradient at m (and what2) """
+#
+#        setfct(self.m, m)
+#        self._assemble_invMw()
+#
+#        self.what2.vector().zero()
+#        self.what2.vector().axpy(-1.0, self.invMwd * assemble(self.misfitw))
+#        #print '|what2|={}'.format(np.linalg.norm(self.what2.vector().array()))
+#
+#        return assemble(self.wkformgrad) + self.Htv*self.what2.vector()
+#        #return assemble(self.wkformgrad)
+#
+#
+#    def assemble_hessian(self, m):
+#        """ For PD-TV, we do not really assemble the Hessian,
+#        but instead assemble the matrices that will be inverted
+#        in the evaluation of what """
+#
+#        setfct(self.m, m)
+#        self._assemble_invMw()
+#
+#        self.Ars = assemble(self.wkformArs)
+#        #self.A = assemble(self.wkformA)
+#        self.A = self.Ars   # using re-scaled dual variable for Hessian
+#        self.yA, self.xA = Vector(), Vector()
+#        self.A.init_vector(self.yA, 1)
+#        self.A.init_vector(self.xA, 0)
+#
+#
+#    def hessian(self, mhat):
+#        """ evaluate H*mhat, with H symmetric
+#        mhat must be a dolfin vector """
+#
+#        rhswhat1 = self.A * mhat
+#        self.what1.vector().zero()
+#        self.what1.vector().axpy(1.0, self.invMwd * rhswhat1)
+#
+#        self.xH.zero()
+#        self.xH.axpy(1.0, mhat)
+#        self.Htv.transpmult(self.xH , self.rhswhat1s)
+#        self.what1s.vector().zero()
+#        self.what1s.vector().axpy(1.0, self.invMwd * self.rhswhat1s)
+#
+#        self.what.vector().zero()
+#        self.what.vector().axpy(1.0, self.what1.vector())
+#        self.what.vector().axpy(1.0, self.what2.vector())
+#
+#        self.xA.zero()
+#        self.xA.axpy(1.0, self.what1s.vector())
+#        self.A.transpmult(self.xA, self.yA)
+#        return 0.5*(self.Htv * self.what.vector() + self.yA)
+#        #return self.Htv * self.what.vector()
+#
+#
+#    def hessianrs(self, mhat):
+#        """ evaluate H*mhat, with H symmetric and positive definite
+#        mhat must be a dolfin vector """
+#
+#        rhswhat1 = self.Ars * mhat
+#
+#        self.xH.zero()
+#        self.xH.axpy(1.0, mhat)
+#        self.Htv.transpmult(self.xH , self.rhswhat1s)
+#
+#        self.wtmp.vector().zero()
+#        self.wtmp.vector().axpy(1.0, self.invMwd * rhswhat1)
+#        self.wtmp.vector().axpy(1.0, self.what2.vector())
+#
+#        self.xA.zero()
+#        self.xA.axpy(1.0, self.invMwd * self.rhswhat1s)
+#        self.Ars.transpmult(self.xA, self.yA)
+#
+#        return 0.5*(self.Htv * self.wtmp.vector() + self.yA)
+
+
+
+
+#### OLDER VERSION
 #class TVPD(TV):
 #    """ Total variation using primal-dual Newton """
 #
