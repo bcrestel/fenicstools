@@ -18,8 +18,8 @@ def run_exple(denoise, PLOT=True, TEST=False):
     # testcase == 0
     print 'Run basic example -- PLOT={}. TEST={}'.format(PLOT, TEST)
     # Solve
-    ALPHAS = 10**(-np.linspace(0.,4.,5))
-    #ALPHAS = [1e-2]
+    #ALPHAS = 10**(-np.linspace(0.,4.,5))
+    ALPHAS = [1e-2]
     #ALPHAS = [1.0]
     for aa in ALPHAS:
         print '\tRegularization parameter={:f}'.format(aa)
@@ -51,7 +51,8 @@ def run_continuation(denoise, PLOT=True, TEST=False):
 ########################################################################
 
 #denoise = ObjectiveImageDenoising(1, 'tikhonov', image='image2.dat')
-denoise = ObjectiveImageDenoising(1, 'TV', parameters={'GNhessian':False})
+#denoise = ObjectiveImageDenoising(1, 'TV', parameters={'GNhessian':False})
+denoise = ObjectiveImageDenoising(1, 'TVPD', parameters={'eps':dl.Constant(1e-4)}, image='image.dat')
 
 
 # choose test case

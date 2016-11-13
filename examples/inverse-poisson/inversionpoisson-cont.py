@@ -31,6 +31,8 @@ mpicomm = mpi_comm_world()
 mpirank = MPI.rank(mpicomm)
 mpisize = MPI.size(mpicomm)
 
+
+#### Set-up
 PLOT = False
 CHECK = False
 
@@ -52,7 +54,6 @@ minit_exp = dl.Expression('1.0 + 0.3*sin(pi*x[0])*sin(pi*x[1])')
 minit = dl.interpolate(minit_exp, Vm) # target medium
 f = dl.Expression("1.0")   # source term
 
-# set up plots:
 if PLOT:
     filename, ext = splitext(sys.argv[0])
     if mpirank == 0 and isdir(filename + '/'):   
@@ -87,17 +88,18 @@ if PLOT:
 
 # Define regularization:
 # Tikhonov
-Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-7,'beta':1e-7, 'm0':1.0})
+#Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-1,'beta':1e-1, 'm0':1.0})
 # Total Variation
 #   full TV w/o primal-dual
-#Regul = TV({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
+#Regul = TV({'Vm':Vm, 'eps':dl.Constant(1e-4), 'GNhessian':False})
 #   GN Hessian for TV w/o primal-dual
-#Regul = TV({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':True})
+#Regul = TV({'Vm':Vm, 'eps':dl.Constant(1e-4), 'GNhessian':True})
 #   full TV w/ primal-dual
-#Regul = TVPD({'Vm':Vm, 'k':1e-3, 'eps':1e-2, 'GNhessian':False})
+Regul = TVPD({'Vm':Vm, 'eps':dl.Constant(1e-4)})
 
 ObsOp.noise = False
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, [UDnoise], Regul, [], False, mpicomm)
+InvPb.regparam = 1e-6
 InvPb.update_m(mtrueVm)
 InvPb.solvefwd_cost()
 if mpirank == 0:
@@ -105,6 +107,7 @@ if mpirank == 0:
     InvPb.misfit, \
     np.sqrt(InvPb.misfit/ObsOp.costfct(InvPb.UD[0], np.zeros(InvPb.UD[0].shape))), \
     InvPb.regul)
+
 
 #### check gradient and Hessian against finite-difference ####
 if CHECK:
@@ -128,6 +131,7 @@ if CHECK:
 
     sys.exit(0)
 
-# Solve inverse problem
+
+#### Solve inverse problem
 if mpirank == 0:    print 'Solve inverse problem'
 InvPb.inversion(minit, mtrueVm, mpicomm, {'maxnbNewtiter':200}, myplot=myplot)

@@ -362,7 +362,6 @@ class ObjectiveFunctional(LinearOperator):
             tolcg = min(maxtolcg, np.sqrt(self.Gradnorm/gradnorm0))
             self.assemble_hessian() # for regularization
             cgiter, cgres, cgid, tolcg = compute_searchdirection(self, 'Newt', tolcg)
-            if self.PD: self.regularization.compute_dw(self.srchdir)
             self._plotsrchdir(myplot, str(it))
 
             # Line search:
@@ -370,7 +369,7 @@ class ObjectiveFunctional(LinearOperator):
             statusLS, LScount, alpha = bcktrcklinesearch(self, 12)
             if mpirank == 0:
                 print '{:11.3f} {:12.2e} {:10d}'.format(alpha, tolcg, cgiter)
-            if self.PD: self.regularization.update_w(alpha, not mpirank)
+            if self.PD: self.Regul.update_w(self.srchdir.vector(), alpha)
 
             if np.abs(self.cost-cost_old)/np.abs(cost_old) < tolcost:
                 if mpirank == 0:

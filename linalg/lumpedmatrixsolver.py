@@ -1,5 +1,4 @@
 import dolfin as dl
-from dolfin import MPI
 import numpy as np
 
 from miscroutines import *

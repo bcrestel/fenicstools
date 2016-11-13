@@ -13,7 +13,7 @@ import numpy as np
 from fenicstools.regularization import TV, TVPD
 from fenicstools.miscfenics import setfct
 
-sndorder = False
+sndorder = True
 
 #HH = [1e-4]
 #HH = [1e-4, 1e-5, 1e-6]
@@ -26,8 +26,8 @@ V = dl.FunctionSpace(mesh, 'Lagrange', 1)
 #k = dl.interpolate(k_exp, V)
 #k = dl.Constant(1.0)
 m_in = dl.Function(V)
-TV1 = TV({'Vm':V, 'eps':1e-8, 'k':1.0, 'GNhessian':False})
-TV2 = TVPD({'Vm':V, 'eps':1e-8, 'k':1.0, 'exact':True})
+TV1 = TV({'Vm':V, 'eps':1e-4, 'k':1.0, 'GNhessian':False})
+TV2 = TVPD({'Vm':V, 'eps':1e-4, 'k':1.0, 'exact':True})
 
 #M_EXP = [dl.Expression('1.0'),\
 #dl.Expression('1.0 + (x[0]>=0.2)*(x[0]<=0.8)*(x[1]>=0.2)*(x[1]<=0.8)'), \
