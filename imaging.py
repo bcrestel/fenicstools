@@ -65,12 +65,12 @@ class ObjectiveImageDenoising():
         if self.regul == 'tikhonov':
             self.Regul = LaplacianPrior({'Vm':V, 'gamma':1.0, 'beta':0.0})
         elif self.regul == 'TV':
-            paramTV = {'Vm':V, 'k':1.0, 'eps':1e-4, 'GNhessian':True}
+            paramTV = {'Vm':V, 'k':dl.Constant(1.0), 'eps':dl.Constant(1e-4), 'GNhessian':True}
             paramTV.update(parameters)
             self.Regul = TV(paramTV)
             self.inexact = True
         elif self.regul == 'TVPD':
-            paramTV = {'Vm':V, 'k':1.0, 'eps':1e-4, 'exact':False}
+            paramTV = {'Vm':V, 'k':dl.Constant(1.0), 'eps':dl.Constant(1e-4), 'exact':False}
             paramTV.update(parameters)
             self.Regul = TVPD(paramTV)
             self.inexact = True
@@ -84,6 +84,13 @@ class ObjectiveImageDenoising():
         filename, ext = os.path.splitext(sys.argv[0])
         #if os.path.isdir(filename + '/'):   shutil.rmtree(filename + '/')
         self.myplot = PlotFenics(filename)
+
+        try:
+            solver = PETScKrylovSolver('cg', 'ml_amg')
+            self.precond = 'ml_amg'
+        except:
+            print '*** WARNING: ML not installed -- using petsc_amg instead'
+            self.precond = 'petsc_amg'
 
 
     def solve(self):
@@ -112,7 +119,6 @@ class ObjectiveImageDenoising():
         self.solverM.solve(self.G.vector(), MG)
 
         return MG, np.sqrt(MG.inner(self.G.vector()))
-        #return MG, MG.norm("l2")
 
 
     def mediummisfit(self):
@@ -120,8 +126,6 @@ class ObjectiveImageDenoising():
 
         return np.sqrt((self.Hess*(self.u.vector() - self.u_true.vector())).inner(\
         self.u.vector() - self.u_true.vector()))
-        #return (self.Hess*(self.u.vector() - self.u_true.vector())).inner(\
-        #self.u.vector() - self.u_true.vector())
 
 
     def solvetikhonov(self):
@@ -147,37 +151,27 @@ class ObjectiveImageDenoising():
         """ Compute search direction """
 
         self.Regul.assemble_hessian(self.u)
-        class Hessian(dl.LinearOperator):
-            def __init__(self, OuterClass):
-                self.outer = OuterClass
-                dl.LinearOperator.__init__(self, self.outer.u.vector(), self.outer.u.vector())
+        if self.Regul.isPD():
+            H = self.Hess + self.Regul.Hrs*self.alpha
+            #H = self.Hess + self.Regul.H*self.alpha
+        else:
+            H = self.Hess + self.Regul.H*self.alpha
 
-            def mult(self, x, y):
-                """ compute Hessian-vect y = H*x """
-                y.zero()
-                y.axpy(1.0, self.outer.Hess*x)
-                y.axpy(self.outer.alpha, self.outer.Regul.hessian(x))
-
-            def init_vector(self, x, dim):
-                self.outer.Hess.init_vector(x, dim)
-
-
-#        solver = dl.PETScKrylovSolver("cg", "petsc_amg")
-#        solver.parameters['nonzero_initial_guess'] = False
-#        solver.parameters['relative_tolerance'] = cgtol
-#        H = self.Hess + self.Regul.H*self.alpha
-#        solver.set_operator(H)
-#        cgiter = solver.solve(self.du.vector(), -1.0*MG)
-
-        solver = CGSolverSteihaug()
-        solver.parameters["rel_tolerance"] = cgtol
-        solver.parameters["zero_initial_guess"] = True
-        solver.parameters["print_level"] = -1
-        H = Hessian(self)
-        solver.set_operator(H)
-        solver.set_preconditioner(self.Regul.getprecond())
-        solver.solve(self.du.vector(), -1.0*MG)
-        cgiter = solver.iter
+        if False:
+            solver = dl.PETScKrylovSolver("cg", self.precond)
+            solver.parameters['nonzero_initial_guess'] = False
+            solver.parameters['relative_tolerance'] = cgtol
+            solver.set_operator(H)
+            cgiter = solver.solve(self.du.vector(), -1.0*MG)
+        else:
+            solver = CGSolverSteihaug()
+            solver.set_operator(H)
+            solver.set_preconditioner(self.Regul.getprecond())
+            solver.parameters["rel_tolerance"] = cgtol
+            solver.parameters["zero_initial_guess"] = True
+            solver.parameters["print_level"] = -1
+            solver.solve(self.du.vector(), -1.0*MG)
+            cgiter = solver.iter
 
         MGdu = MG.inner(self.du.vector())
         if MGdu > 0.0:    
@@ -208,7 +202,7 @@ class ObjectiveImageDenoising():
                 break
             else:   alphaLS *= rhoLS
 
-        if self.Regul.isPD(): self.Regul.update_w(alphaLS)
+        if self.Regul.isPD(): self.Regul.update_w(self.du.vector(), alphaLS)
 
         return success, alphaLS, cost, misfit, reg
 
