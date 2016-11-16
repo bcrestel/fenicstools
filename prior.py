@@ -51,16 +51,22 @@ class GaussianPrior():
         solver.set_operator(self.precond)
         return solver
 
+
     # Note: this returns global value (in parallel)
     def cost(self, m_in):
-        isFunction(m_in)
         diff = m_in.vector() - self.m0.vector()
         return 0.5 * self.Minvpriordot(diff).inner(diff)
+
+    def costvect(self, m_in):
+            return 0.5 * self.Minvpriordot(m_in).inner(m_in)
 
     def grad(self, m_in):
         isFunction(m_in)
         diff = m_in.vector() - self.m0.vector()
         return self.Minvpriordot(diff)
+
+    def gradvect(self, m_in):
+        return self.Minvpriordot(m_in)
 
     def assemble_hessian(self, m_in):
         pass
@@ -110,6 +116,12 @@ class LaplacianPrior(GaussianPrior):
         self.R = assemble(inner(nabla_grad(self.mtrial), \
         nabla_grad(self.mtest))*dx)
         self.M = assemble(inner(self.mtrial, self.mtest)*dx)
+
+        self.Msolver = LUSolver()
+        self.Msolver.parameters['reuse_factorization'] = True
+        self.Msolver.parameters['symmetric'] = True
+        self.Msolver.set_operator(self.M)
+
         # preconditioner is Gamma^{-1}:
         if self.beta > 1e-10: self.precond = self.gamma*self.R + self.beta*self.M
         else:   self.precond = self.gamma*self.R + (1e-10)*self.M
@@ -117,8 +129,13 @@ class LaplacianPrior(GaussianPrior):
         self.Minvprior = self.gamma*self.R + self.beta*self.M
         # L is used to sample
 
+
     def Minvpriordot(self, vect):
         return self.Minvprior * vect
+
+
+    def init_vector(self, u, dim):
+        self.R.init_vector(u, dim)
 
 
 class BilaplacianPrior(GaussianPrior):

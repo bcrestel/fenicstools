@@ -37,26 +37,32 @@ class TV():
         self.k = self.parameters['k']
 
         self.m = Function(self.Vm)
-        self.test, self.trial = TestFunction(self.Vm), TrialFunction(self.Vm)
+        test, trial = TestFunction(self.Vm), TrialFunction(self.Vm)
         try:
             factM = self.k.vector().min()
         except:
             factM = self.k
         factM = 1e-2*factM
-        self.sMass = assemble(inner(self.test, self.trial)*dx)*factM
+        M = assemble(inner(test, trial)*dx)
+        self.sMass = M*factM
+
+        self.Msolver = PETScLUSolver("petsc")
+        self.Msolver.parameters['reuse_factorization'] = True
+        self.Msolver.parameters['symmetric'] = True
+        self.Msolver.set_operator(M)
 
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + Constant(eps)
         self.kovsq = Constant(self.k) / sqrt(self.fTV)
 
         self.wkformcost = Constant(self.k) * sqrt(self.fTV) * dx
 
-        self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(self.test))*dx
+        self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(test))*dx
 
-        self.wkformGNhess = self.kovsq*inner(nabla_grad(self.trial), nabla_grad(self.test))*dx
+        self.wkformGNhess = self.kovsq*inner(nabla_grad(trial), nabla_grad(test))*dx
         self.wkformFhess = self.kovsq*( \
-        inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
-        inner(nabla_grad(self.m), nabla_grad(self.test))*\
-        inner(nabla_grad(self.trial), nabla_grad(self.m))/self.fTV )*dx
+        inner(nabla_grad(trial), nabla_grad(test)) - \
+        inner(nabla_grad(self.m), nabla_grad(test))*\
+        inner(nabla_grad(trial), nabla_grad(self.m))/self.fTV )*dx
         if GN: 
             self.wkformhess = self.wkformGNhess
             print 'TV regularization -- GN Hessian'
@@ -79,14 +85,20 @@ class TV():
     def cost(self, m_in):
         """ returns the cost functional for self.m=m_in """
         setfct(self.m, m_in)
-        self.H = None
+        #self.H = None
         return assemble(self.wkformcost)
+
+    def costvect(self, m_in):   return self.cost(m_in)
+
 
     def grad(self, m_in):
         """ returns the gradient (in vector format) evaluated at self.m = m_in """
         setfct(self.m, m_in)
-        self.H = None
+        #self.H = None
         return assemble(self.wkformgrad)
+
+    def gradvect(self, m_in):   return self.grad(m_in)
+
 
     def assemble_hessian(self, m_in):
         """ Assemble the Hessian of TV at m_in """
@@ -124,6 +136,10 @@ class TV():
 
         solver.set_operator(self.H + self.sMass)
         return solver
+
+
+    def init_vector(self, u, dim):
+        self.sMass.init_vector(u, dim)
 
 
 
@@ -190,7 +206,13 @@ class TVPD():
             factM = k
         factM = 1e-2*factM
         factM = Constant(1e-2)
-        self.sMass = assemble(factM*inner(testm, trialm)*dx)
+        M = assemble(inner(testm, trialm)*dx)
+        self.sMass = M*factM
+
+        self.Msolver = PETScLUSolver("petsc")
+        self.Msolver.parameters['reuse_factorization'] = True
+        self.Msolver.parameters['symmetric'] = True
+        self.Msolver.set_operator(M)
 
         print 'TV regularization -- primal-dual method'
         try:
@@ -300,6 +322,10 @@ class TVPD():
         solver.set_operator(self.Hrs + self.sMass)
 
         return solver
+
+
+    def init_vector(self, u, dim):
+        self.sMass.init_vector(u, dim)
 
 
 
