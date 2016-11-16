@@ -5,7 +5,7 @@ import numpy as np
 
 from dolfin import TrialFunction, TestFunction, Function, Vector, \
 PETScKrylovSolver, LUSolver, set_log_active, LinearOperator, Expression, \
-assemble, inner, nabla_grad, dx, MPI 
+assemble, inner, nabla_grad, dx, MPI, exp
 from exceptionsfenics import WrongInstanceError
 from plotfenics import PlotFenics
 from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
@@ -150,6 +150,8 @@ class ObjectiveFunctional(LinearOperator):
 
         self.nbfwdsolves += 1
         if cost:    self.misfit = 0.0
+        self.U = []
+        self.C = []
         for ii, rhs in enumerate(self.RHS):
             self.solve_A(self.u.vector(), rhs)
             u_obs, noiselevel = self.ObsOp.obs(self.u)
@@ -173,7 +175,10 @@ class ObjectiveFunctional(LinearOperator):
 
         self.nbadjsolves += 1
         self.Nbsrc = len(self.UD)
-        if grad:    self.MG.vector()[:] = np.zeros(self.lenm)
+        if grad:    
+            self.MG.vector().zero()
+        self.E = []
+
         for ii, C in enumerate(self.C):
             self.ObsOp.assemble_rhsadj(self.U[ii], self.UD[ii], \
             self.rhs, self.bcadj)
@@ -181,6 +186,7 @@ class ObjectiveFunctional(LinearOperator):
             self.E.append(assemble(self.e))
             if grad:    
                 self.MG.vector().axpy(1.0/self.Nbsrc, C * self.p.vector())
+
         if grad:
             self.MG.vector().axpy(self.regparam, self.Regul.grad(self.m))
             self.solverM.solve(self.Grad.vector(), self.MG.vector())
@@ -327,7 +333,7 @@ class ObjectiveFunctional(LinearOperator):
         maxnbNewtiter = parameters['maxnbNewtiter']
         tolgrad = parameters['tolgrad']
         tolcost = parameters['tolcost']
-        maxtolcg = parameters['maxtolcg']
+        tolcg = parameters['maxtolcg']
         mpirank = MPI.rank(mpicomm)
 
         self.update_m(initial_medium)
@@ -359,7 +365,7 @@ class ObjectiveFunctional(LinearOperator):
                 break
 
             # Compute search direction:
-            tolcg = min(maxtolcg, np.sqrt(self.Gradnorm/gradnorm0))
+            tolcg = min(tolcg, np.sqrt(self.Gradnorm/gradnorm0))
             self.assemble_hessian() # for regularization
             cgiter, cgres, cgid, tolcg = compute_searchdirection(self, 'Newt', tolcg)
             self._plotsrchdir(myplot, str(it))
@@ -373,10 +379,10 @@ class ObjectiveFunctional(LinearOperator):
 
             if np.abs(self.cost-cost_old)/np.abs(cost_old) < tolcost:
                 if mpirank == 0:
-                    if maxtolcg < 1e-14:
+                    if tolcg < 1e-14:
                         print 'Cost function stagnates -- optimization aborted'
                         break
-                    maxtolcg = 0.001*tolcg
+                    tolcg = 0.001*tolcg
 
 
     def assemble_hessian(self):
@@ -417,6 +423,23 @@ class ObjFctalElliptic(ObjectiveFunctional):
 
     def _wkforme(self):
         self.e = inner(self.mtest*nabla_grad(self.p), nabla_grad(self.trial))*dx
+
+
+#class ObjFctalEllipticExp(ObjectiveFunctional):
+#    """
+#    Operator for elliptic equation div (m grad u)
+#    <exp(m) grad u, grad v>
+#    WARNING: NOT WORKING
+#    """
+#    def _wkforma(self):
+#        self.a = inner(exp(self.m)*nabla_grad(self.trial), nabla_grad(self.test))*dx
+#
+#    def _wkformc(self):
+#        self.c = inner(self.mtest*exp(self.m)*nabla_grad(self.u), nabla_grad(self.trial))*dx
+#
+#    def _wkforme(self):
+#        self.e = inner(self.mtest*nabla_grad(self.p), nabla_grad(self.trial))*dx
+
 
 #class OperatorHelmholtz(OperatorPDE):
 #    """

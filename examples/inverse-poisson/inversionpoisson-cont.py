@@ -36,7 +36,8 @@ mpisize = MPI.size(mpicomm)
 PLOT = False
 CHECK = False
 
-mesh = dl.UnitSquareMesh(150,150)
+nxy = 64
+mesh = dl.UnitSquareMesh(nxy, nxy)
 V = dl.FunctionSpace(mesh, 'Lagrange', 2)  # space for state and adjoint variables
 Vm = dl.FunctionSpace(mesh, 'Lagrange', 1) # space for medium parameter
 Vme = dl.FunctionSpace(mesh, 'Lagrange', 1)    # sp for target med param
@@ -47,7 +48,8 @@ u0 = dl.Constant("0.0")
 bc = dl.DirichletBC(V, u0, u0_boundary)
 
 mtrue_exp = \
-dl.Expression('1.0 + 3.0*(x[0]<=0.8)*(x[0]>=0.2)*(x[1]<=0.8)*(x[1]>=0.2)')
+Expression('2 + 7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.2)')
+#dl.Expression('1.0 + 3.0*(x[0]<=0.8)*(x[0]>=0.2)*(x[1]<=0.8)*(x[1]>=0.2)')
 mtrue = dl.interpolate(mtrue_exp, Vme) # target medium
 mtrueVm = dl.interpolate(mtrue_exp, Vm) # target medium
 minit_exp = dl.Expression('1.0 + 0.3*sin(pi*x[0])*sin(pi*x[1])')
@@ -75,63 +77,74 @@ goal.update_m(mtrue)
 goal.solvefwd()
 # noise
 np.random.seed(11)
-noisepercent = 0.2   # e.g., 0.02 = 2% noise level
+noisepercent = 0.01   # e.g., 0.02 = 2% noise level
 UD = goal.U[0]
 rndnb = np.random.randn(UD.size)
 rndnb = rndnb / np.linalg.norm(rndnb)
 noiseres = noisepercent*np.linalg.norm(UD)
 UDnoise = UD + rndnb*noiseres
-if mpirank == 0:    print 'noiseres={}'.format(MPI.sum(mpicomm, noiseres))
+if mpirank == 0:    print 'noiseres={}, rndnb*noiseres={}'.format(\
+MPI.sum(mpicomm, noiseres), MPI.sum(mpicomm, np.linalg.norm(rndnb*noiseres)))
 if PLOT:
     myplot.set_varname('u_target')
     myplot.plot_vtk(goal.u)
 
 # Define regularization:
 # Tikhonov
-#Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-1,'beta':1e-1, 'm0':1.0})
+Regul = LaplacianPrior({'Vm':Vm,'gamma':5e-2,'beta':1e-2, 'm0':1.0})
 # Total Variation
 #   full TV w/o primal-dual
-#Regul = TV({'Vm':Vm, 'eps':dl.Constant(1e-4), 'GNhessian':False})
+#Regul = TV({'Vm':Vm, 'eps':dl.Constant(1.0), 'GNhessian':False})
 #   GN Hessian for TV w/o primal-dual
 #Regul = TV({'Vm':Vm, 'eps':dl.Constant(1e-4), 'GNhessian':True})
 #   full TV w/ primal-dual
-Regul = TVPD({'Vm':Vm, 'eps':dl.Constant(1e-4)})
+#Regul = TVPD({'Vm':Vm, 'eps':dl.Constant(1.0)})
 
 ObsOp.noise = False
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, [UDnoise], Regul, [], False, mpicomm)
-InvPb.regparam = 1e-6
+InvPb.regparam = 1e-8
 InvPb.update_m(mtrueVm)
 InvPb.solvefwd_cost()
 if mpirank == 0:
-    print 'Objective at MAP point: residual={} ({:.2f}), regularization={}'.format(\
+    print 'Objective at MAP point: misfit={} ({:.2f}), regularization={}'.format(\
     InvPb.misfit, \
     np.sqrt(InvPb.misfit/ObsOp.costfct(InvPb.UD[0], np.zeros(InvPb.UD[0].shape))), \
     InvPb.regul)
 
 
 #### check gradient and Hessian against finite-difference ####
+nbcheck = 5
+MedPert = np.zeros((nbcheck, InvPb.m.vector().local_size()))
+for ii in range(nbcheck):
+    smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
+    smoothperturb_fn = dl.interpolate(smoothperturb, Vm)
+    MedPert[ii,:] = smoothperturb_fn.vector().array()
+
 if CHECK:
     if mpirank == 0:    print 'Check gradient and Hessian against finite-difference'
 
-    InvPb.update_m(mtrueVm)    #InvPb.update_m(1.0)
-    InvPb.Regul.update_Parameters({'Vm':Vm,'gamma':0.0,'beta':0.0, 'm0':1.0})
+    InvPb.update_m(mtrueVm)
+    #InvPb.update_m(1.0)
+    InvPb.regparam = 0.0
     InvPb.solvefwd_cost()
     InvPb.solveadj_constructgrad()
 
-    nbcheck = 5
-    MedPert = np.zeros((nbcheck, InvPb.m.vector().local_size()))
-    for ii in range(nbcheck):
-        smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
-        smoothperturb_fn = dl.interpolate(smoothperturb, Vm)
-        MedPert[ii,:] = smoothperturb_fn.vector().array()
-
     checkgradfd_med(InvPb, MedPert, 1e-6, [1e-4, 1e-5, 1e-6], True, mpicomm)
     print ''
-    checkhessfd_med(InvPb, MedPert, 1e-6, [1e-4, 1e-5, 1e-6], True, mpicomm)
+    checkhessfd_med(InvPb, MedPert, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4, 1e-5], False, mpicomm)
 
     sys.exit(0)
 
 
 #### Solve inverse problem
 if mpirank == 0:    print 'Solve inverse problem'
-InvPb.inversion(minit, mtrueVm, mpicomm, {'maxnbNewtiter':200}, myplot=myplot)
+InvPb.inversion(minit, mtrueVm, mpicomm, {'maxnbNewtiter':5000}, myplot=myplot)
+
+
+InvPb.regparam = 0.0
+InvPb.solvefwd_cost()
+InvPb.solveadj_constructgrad()
+
+checkgradfd_med(InvPb, MedPert, 1e-6, [1e-4, 1e-5, 1e-6], True, mpicomm)
+print ''
+checkhessfd_med(InvPb, MedPert, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4, 1e-5], False, mpicomm)
