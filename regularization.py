@@ -152,7 +152,7 @@ class TVPD():
         """ parameters must have key 'Vm' for parameter function space,
         key 'exact' run exact TV, w/o primal-dual; used to check w/ FD """
 
-        self.parameters = {'k':1.0, 'eps':Constant(1e-2), 'exact':False}
+        self.parameters = {'k':1.0, 'eps':1e-2, 'exact':False}
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
         Vm = self.parameters['Vm']
@@ -205,7 +205,6 @@ class TVPD():
         except:
             factM = k
         factM = 1e-2*factM
-        factM = Constant(1e-2)
         M = assemble(inner(testm, trialm)*dx)
         self.sMass = M*factM
 
