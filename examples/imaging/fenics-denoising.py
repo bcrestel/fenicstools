@@ -51,17 +51,29 @@ def run_continuation(denoise, PLOT=True, TEST=False):
 ########################################################################
 
 #denoise = ObjectiveImageDenoising(1, 'tikhonov', image='image2.dat')
-#denoise = ObjectiveImageDenoising(1, 'TV', parameters={'GNhessian':False})
-denoise = ObjectiveImageDenoising(1, 'TVPD', parameters={'eps':dl.Constant(1e-4)}, image='image.dat')
+
+#print 'k=1e-2'
+#denoise = ObjectiveImageDenoising(1, 'TV', parameters={'eps':1e-6, 'k':1e-2, 'GNhessian':False})
+#denoise = ObjectiveImageDenoising(1, 'TVPD', parameters={'eps':1e-4, 'k':1e-2})
+#denoise.alpha = 1.0
+
+print 'a=1e-2'
+#denoise = ObjectiveImageDenoising(1, 'TV', parameters={'eps':1e-0, 'GNhessian':False})
+denoise = ObjectiveImageDenoising(1, 'TVPD', parameters={'eps':1e-6})
+denoise.alpha = 1e-2
 
 
+
+denoise.solve()
+
+"""
 # choose test case
 # 0 = basic exple
 # 1 = continuation on eps
 testcase = 0
 
 # choose options
-PLOT = 1
+PLOT = 0
 FDCHECK = 0
 
 
@@ -83,4 +95,5 @@ if testcase == 0:
     run_exple(denoise, PLOT, FDCHECK)
 else:   
     run_continuation(denoise, PLOT, FDCHECK)
+"""
 
