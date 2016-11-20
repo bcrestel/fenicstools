@@ -38,6 +38,7 @@ class ObjectiveImageDenoising():
         noise_std_dev = 0.3
         noise = noise_std_dev * np.random.randn(data.shape[0], data.shape[1])
         print '||noise||={}'.format(np.linalg.norm(noise))
+        #mesh = dl.RectangleMesh(dl.Point(0,0), dl.Point(Lx,Ly), 1000, 500)
         mesh = dl.RectangleMesh(dl.Point(0,0), dl.Point(Lx,Ly), 200, 100)
         V = dl.FunctionSpace(mesh, 'Lagrange', CGdeg)
         trueImage = Image(Lx, Ly, data)
@@ -65,12 +66,12 @@ class ObjectiveImageDenoising():
         if self.regul == 'tikhonov':
             self.Regul = LaplacianPrior({'Vm':V, 'gamma':1.0, 'beta':0.0})
         elif self.regul == 'TV':
-            paramTV = {'Vm':V, 'k':dl.Constant(1.0), 'eps':dl.Constant(1e-4), 'GNhessian':True}
+            paramTV = {'Vm':V, 'k':1.0, 'eps':1e-4, 'GNhessian':True}
             paramTV.update(parameters)
             self.Regul = TV(paramTV)
             self.inexact = True
         elif self.regul == 'TVPD':
-            paramTV = {'Vm':V, 'k':dl.Constant(1.0), 'eps':dl.Constant(1e-4), 'exact':False}
+            paramTV = {'Vm':V, 'k':1.0, 'eps':1e-4, 'exact':False}
             paramTV.update(parameters)
             self.Regul = TVPD(paramTV)
             self.inexact = True
@@ -79,7 +80,7 @@ class ObjectiveImageDenoising():
         self.Hess = self.M
 
         self.parametersLS = {'alpha0':1.0, 'rho':0.5, 'c':5e-5, \
-        'max_backtrack':12, 'cgtol':0.5, 'maxiter':5000}
+        'max_backtrack':12, 'cgtol':0.5, 'maxiter':50000}
 
         filename, ext = os.path.splitext(sys.argv[0])
         #if os.path.isdir(filename + '/'):   shutil.rmtree(filename + '/')
@@ -157,7 +158,7 @@ class ObjectiveImageDenoising():
         else:
             H = self.Hess + self.Regul.H*self.alpha
 
-        if False:
+        if True:
             solver = dl.PETScKrylovSolver("cg", self.precond)
             solver.parameters['nonzero_initial_guess'] = False
             solver.parameters['relative_tolerance'] = cgtol
@@ -211,6 +212,7 @@ class ObjectiveImageDenoising():
         """ Solve image denoising pb """
 
         self.u.vector().zero()
+        normu_true = self.mediummisfit()
 
         cost, misfit, reg = self.costmisfitreg()
         costold = cost
@@ -219,8 +221,8 @@ class ObjectiveImageDenoising():
 
         print '\t{:12s} {:12s} {:12s} {:12s} {:12s} {:12s} {:12s}\t{:12s} {:12s}'.format(\
         'iter', 'cost', 'misfit', 'reg', '||G||', 'a_LS', 'medmisfit', 'tol_cg', 'n_cg')
-        print '{:12d} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12s} {:12.2e}'.format(\
-        0, cost, misfit, reg, normMG, '', self.mediummisfit())
+        print '{:12d} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12s} {:12.2e} ({:7.2f} %)'.format(\
+        0, cost, misfit, reg, normMG, '', self.mediummisfit(), 100.*self.mediummisfit()/normu_true)
 
         cgtol = self.parametersLS['cgtol']
         maxiter = self.parametersLS['maxiter']
@@ -233,9 +235,9 @@ class ObjectiveImageDenoising():
             cgiter, MGdu = self.searchdirection(MG, cgtol)
             success, alphaLS, cost, misfit, reg = self.linesearch(MG)
             MG, normMG = self.gradient()
-            print '{:12d} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12.2e} {:12.2e} {:12d}'.format(\
+            print '{:12d} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12.4e} {:12.2e} ({:7.2f} %) {:12.2e} {:12d}'.format(\
             ii+1, cost, misfit, reg, normMG, alphaLS, \
-            self.mediummisfit(), cgtol, cgiter)
+            self.mediummisfit(), 100.*self.mediummisfit()/normu_true, cgtol, cgiter)
 
             if normMG < min(1e-12, 1e-10*normMG0):
                 print 'gradient sufficiently reduced -- optimization converged'

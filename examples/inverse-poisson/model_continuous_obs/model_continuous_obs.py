@@ -224,10 +224,27 @@ class Poisson:
         
         return c, reg, misfit
     
-    def solveFwd(self, out, x, tol=1e-12):
+
+    def solveFwd(self, out, x, tol=1e-9):
         """
         Solve the forward problem.
         """
+        # return zero if medium parameter coefficient is too large or too small
+        # to avoid indefiniteness of matrix A
+        c_arr = x[PARAMETER].array()
+        bound = 25.
+        if min(c_arr) < -1.0*bound:
+            #c_cc = np.where(c_arr < -1.0*bound)[0]
+            #print '*** Warning: Found {} values of medium parameter less than {}'.format(len(c_cc), -1.0*bound)
+            out.zero()
+            return
+        if max(c_arr) > bound:
+            #c_cc = np.where(c_arr > bound)[0]
+            #print '*** Warning: Found {} values of medium parameter greater than {}'.format(len(c_cc), bound)
+            out.zero()
+            return
+#            x[PARAMETER][c_cc] = bound
+
         A, b = self.assembleA(x, assemble_rhs = True)
         A.init_vector(out, 1)
         solver = PETScKrylovSolver("cg", amg_method())
@@ -237,12 +254,16 @@ class Poisson:
 #        solver = PETScLUSolver()
 #        solver.parameters['symmetric'] = True
         solver.set_operator(A)
+
+        #np.save('matrixA', A.array())
+        #np.save('xPARAM', x[PARAMETER].array())
+        #np.save('vectorb', b.array())
+
         nit = solver.solve(out,b)
-        
 #        print "FWD", (self.A*out - b).norm("l2")/b.norm("l2"), nit
 
     
-    def solveAdj(self, out, x, tol=1e-12):
+    def solveAdj(self, out, x, tol=1e-9):
         """
         Solve the adjoint problem.
         """
@@ -309,6 +330,8 @@ class Poisson:
         solver = PETScKrylovSolver("cg", amg_method())
         solver.set_operator(self.A)
         solver.parameters["relative_tolerance"] = tol
+        solver.parameters["error_on_nonconvergence"] = True
+        solver.parameters["nonzero_initial_guess"] = False
         self.A.init_vector(sol,1)
         nit = solver.solve(sol,rhs)
 #        print "FwdInc", (self.A*sol-rhs).norm("l2")/rhs.norm("l2"), nit
@@ -320,6 +343,8 @@ class Poisson:
         solver = PETScKrylovSolver("cg", amg_method())
         solver.set_operator(self.At)
         solver.parameters["relative_tolerance"] = tol
+        solver.parameters["error_on_nonconvergence"] = True
+        solver.parameters["nonzero_initial_guess"] = False
         self.At.init_vector(sol,1)
         nit = solver.solve(sol, rhs)
 #        print "AdjInc", (self.At*sol-rhs).norm("l2")/rhs.norm("l2"), nit
@@ -354,8 +379,7 @@ class Poisson:
             
 if __name__ == "__main__":
     set_log_active(False)
-    nx, ny = 64, 64
-    #nx, ny = 120, 120
+    nx, ny = 320, 320
     mesh = UnitSquareMesh(nx, ny)
     
     rank = MPI.rank(mesh.mpi_comm())
@@ -369,12 +393,12 @@ if __name__ == "__main__":
     Vh = [Vh2, Vh1, Vh2]
     
     #Prior = ftp.LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-7, 'beta':1e-8})
-    Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1.0, 'GNhessian':False})
-    #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-2, 'GNhessian':False})
+    Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-2, 'GNhessian':False})
     model = Poisson(mesh, Vh, Prior)
         
     a0 = interpolate(Expression("sin(x[0])"), Vh[PARAMETER])
-    modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank==0))
+    #modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank==0))
+    #modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = False)
 
     a0 = interpolate(Expression("0.0"),Vh[PARAMETER])
     solver = ReducedSpaceNewtonCG(model)
@@ -384,6 +408,7 @@ if __name__ == "__main__":
     solver.parameters["c_armijo"] = 1e-4
     solver.parameters["GN_iter"] = 0
     solver.parameters["max_iter"] = 2000
+    solver.parameters["max_backtracking_iter"] = 12
     if rank != 0:
         solver.parameters["print_level"] = -1
     
@@ -399,13 +424,13 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
     
-    if nproc == 1:
-        xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
-        plot(xx[STATE], title = "State")
-        plot(exp(xx[PARAMETER]), title = "exp(Parameter)")
-        plot(xx[ADJOINT], title = "Adjoint")
-        plot(vector2Function(model.u_o, Vh[STATE]), title = "Observation")
-        interactive()
+#    if nproc == 1:
+#        xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
+#        plot(xx[STATE], title = "State")
+#        plot(exp(xx[PARAMETER]), title = "exp(Parameter)")
+#        plot(xx[ADJOINT], title = "Adjoint")
+#        plot(vector2Function(model.u_o, Vh[STATE]), title = "Observation")
+#        interactive()
     
 
 
