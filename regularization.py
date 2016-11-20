@@ -232,6 +232,8 @@ class TVPD():
         setfct(self.m, m)
         return assemble(self.wkformcost)
 
+    def costvect(self, m_in):   return self.cost(m_in)
+
 
     def _assemble_invMw(self):
         """ Assemble inverse of matrix Mw,
@@ -257,6 +259,8 @@ class TVPD():
 
         return self.Htv*(self.w.vector() - self.invMwd*self.gw.vector())
         #return assemble(self.Htvw) - self.Htv*(self.invMwd*self.gw.vector())
+
+    def gradvect(self, m_in):   return self.grad(m_in)
 
 
     def assemble_hessian(self, m):
