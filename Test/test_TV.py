@@ -26,8 +26,8 @@ V = dl.FunctionSpace(mesh, 'Lagrange', 1)
 #k = dl.interpolate(k_exp, V)
 #k = dl.Constant(1.0)
 m_in = dl.Function(V)
-TV1 = TV({'Vm':V, 'eps':1e-4, 'k':1.0, 'GNhessian':False})
-TV2 = TVPD({'Vm':V, 'eps':1e-4, 'k':1.0, 'exact':True})
+TV1 = TV({'Vm':V, 'eps':1e-4, 'k':1e-2, 'GNhessian':False})
+TV2 = TVPD({'Vm':V, 'eps':1e-4, 'k':1e-2, 'exact':True})
 
 #M_EXP = [dl.Expression('1.0'),\
 #dl.Expression('1.0 + (x[0]>=0.2)*(x[0]<=0.8)*(x[1]>=0.2)*(x[1]<=0.8)'), \
@@ -53,6 +53,9 @@ for ii, m_exp in enumerate(M_EXP):
             setfct(m_in, m)
             m_in.vector().axpy(h, dm.vector())
             cost1 = TV1.cost(m_in)
+            cost12 = TV2.cost(m_in)
+            print 'cost1={}, cost12={}, err={}'.format(cost1, cost12, \
+            np.abs(cost1-cost12)/np.abs(cost1))
 
             if sndorder:
                 setfct(m_in, m)
