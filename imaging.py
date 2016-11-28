@@ -17,7 +17,7 @@ from linalg.cgsolverSteihaug import CGSolverSteihaug
 
 class ObjectiveImageDenoising():
 
-    def __init__(self, CGdeg, regularizationtype, parameters=[], image='image.dat'):
+    def __init__(self, CGdeg, regularizationtype, h=1.0, parameters=[], image='image.dat'):
 
 
         class Image(dl.Expression):
@@ -34,7 +34,7 @@ class ObjectiveImageDenoising():
         data = np.loadtxt(image, delimiter=',')
         #Lx, Ly = float(data.shape[1])/float(data.shape[0]), 1.
         Lx, Ly = 2., 1.
-        scaling = 100.  # 1.0 => h~0.01
+        scaling = 100.*h  # =1.0 => h~0.01
         Lx, Ly = scaling*Lx, scaling*Ly
         np.random.seed(seed=1)
         noise_std_dev = 0.3
@@ -73,12 +73,12 @@ class ObjectiveImageDenoising():
             paramTV = {'Vm':V, 'k':1.0, 'eps':1e-4, 'GNhessian':True}
             paramTV.update(parameters)
             self.Regul = TV(paramTV)
-            self.inexact = True
+            self.inexact = False
         elif self.regul == 'TVPD':
             paramTV = {'Vm':V, 'k':1.0, 'eps':1e-4, 'exact':False}
             paramTV.update(parameters)
             self.Regul = TVPD(paramTV)
-            self.inexact = True
+            self.inexact = False
         self.alpha = 1.0
 
         self.Hess = self.M
