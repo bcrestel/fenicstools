@@ -15,7 +15,6 @@ from linalg.cgsolverSteihaug import CGSolverSteihaug
 
 
 
-
 class ObjectiveImageDenoising():
 
     def __init__(self, CGdeg, regularizationtype, parameters=[], image='image.dat'):
@@ -33,13 +32,18 @@ class ObjectiveImageDenoising():
                 values[0] = self.data[i,j]
 
         data = np.loadtxt(image, delimiter=',')
-        Lx, Ly = float(data.shape[1])/float(data.shape[0]), 1.
+        #Lx, Ly = float(data.shape[1])/float(data.shape[0]), 1.
+        Lx, Ly = 2., 1.
+        scaling = 100.  # 1.0 => h~0.01
+        Lx, Ly = scaling*Lx, scaling*Ly
         np.random.seed(seed=1)
         noise_std_dev = 0.3
         noise = noise_std_dev * np.random.randn(data.shape[0], data.shape[1])
         print '||noise||={}'.format(np.linalg.norm(noise))
         #mesh = dl.RectangleMesh(dl.Point(0,0), dl.Point(Lx,Ly), 1000, 500)
         mesh = dl.RectangleMesh(dl.Point(0,0), dl.Point(Lx,Ly), 200, 100)
+        mcoord = mesh.coordinates()
+        print 'hx={}, hy={}'.format((mcoord[-1][0]-mcoord[0][0])/200., (mcoord[-1][1]-mcoord[0][1])/100.)
         V = dl.FunctionSpace(mesh, 'Lagrange', CGdeg)
         trueImage = Image(Lx, Ly, data)
         noisyImage = Image(Lx, Ly, data+noise)
