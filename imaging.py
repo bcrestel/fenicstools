@@ -40,7 +40,6 @@ class ObjectiveImageDenoising():
         noise_std_dev = 0.3
         noise = noise_std_dev * np.random.randn(data.shape[0], data.shape[1])
         print '||noise||={}'.format(np.linalg.norm(noise))
-        #mesh = dl.RectangleMesh(dl.Point(0,0), dl.Point(Lx,Ly), 1000, 500)
         mesh = dl.RectangleMesh(dl.Point(0,0), dl.Point(Lx,Ly), 200, 100)
         mcoord = mesh.coordinates()
         print 'hx={}, hy={}'.format((mcoord[-1][0]-mcoord[0][0])/200., (mcoord[-1][1]-mcoord[0][1])/100.)
@@ -254,7 +253,7 @@ class ObjectiveImageDenoising():
             if not success:
                 print 'Line search failed -- optimization aborted'
                 break
-            if np.abs(cost-costold)/costold < 1e-10:
+            if np.abs(cost-costold)/costold < 1e-14:
                 if cgtol < 1e-10:
                     print 'cost functional stagnates -- optimization aborted'
                     break
