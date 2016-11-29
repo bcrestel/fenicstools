@@ -218,6 +218,11 @@ class ObjectiveImageDenoising():
         self.u.vector().zero()
         normu_true = self.mediummisfit()
 
+        # initial state = noisy image
+        setfct(self.u, self.u_0)
+        print 'min(u)={}, max(u)={}'.format(\
+        np.amin(self.u.vector().array()), np.amax(self.u.vector().array()))
+
         cost, misfit, reg = self.costmisfitreg()
         costold = cost
         MG, normMG = self.gradient()
@@ -257,6 +262,9 @@ class ObjectiveImageDenoising():
                     cgtol *= 1e-3
 
             costold = cost
+
+        print 'min(u)={}, max(u)={}'.format(\
+        np.amin(self.u.vector().array()), np.amax(self.u.vector().array()))
 
 
     def plot(self, index=0, add=''):

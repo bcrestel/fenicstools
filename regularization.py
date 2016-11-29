@@ -288,6 +288,8 @@ class TVPD():
         """ update dual variable in direction what 
         and update re-scaled version """
 
+        rescaledradiusdual = 1.0    # 1.0: checked empirically to be max radius acceptable
+
         self.what.vector().zero()
         self.what.vector().axpy(1.0, self.invMwd*(self.A*mhat - self.gw.vector()))
         print '|what|={}'.format(np.linalg.norm(self.what.vector().array()))
@@ -298,8 +300,10 @@ class TVPD():
         wx, wy = self.w.split(deepcopy=True)
         wxa, wya = wx.vector().array(), wy.vector().array()
         normw = np.sqrt(wxa**2 + wya**2)
-        factorw = [max(1.0, ii) for ii in normw]
-        print 'min(factorw)={}, max(factorw)={}'.format(min(factorw), max(factorw))
+        factorw = [max(1.0, ii/rescaledradiusdual) for ii in normw]
+        nbrescaled = [1.0*(ii > rescaledradiusdual) for ii in normw]
+        print 'perc. dual entries rescaled={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
+        100.*sum(nbrescaled)/len(nbrescaled), min(factorw), max(factorw))
         setfct(wx, wxa/factorw)
         setfct(wy, wya/factorw)
         assign(self.wrs.sub(0), wx)
