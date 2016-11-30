@@ -19,7 +19,7 @@ import sys
 sys.path.append( "../../" )
 from hippylib import *
 import fenicstools.prior as ftp
-from fenicstools.regularization import TV
+from fenicstools.regularization import TV, TVPD
 
 
 def u_boundary(x, on_boundary):
@@ -379,7 +379,7 @@ class Poisson:
             
 if __name__ == "__main__":
     set_log_active(False)
-    nx, ny = 320, 320
+    nx, ny = 64, 64 
     mesh = UnitSquareMesh(nx, ny)
     
     rank = MPI.rank(mesh.mpi_comm())
@@ -393,7 +393,8 @@ if __name__ == "__main__":
     Vh = [Vh2, Vh1, Vh2]
     
     #Prior = ftp.LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-7, 'beta':1e-8})
-    Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-2, 'GNhessian':False})
+    #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-4, 'GNhessian':False})
+    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-2})
     model = Poisson(mesh, Vh, Prior)
         
     a0 = interpolate(Expression("sin(x[0])"), Vh[PARAMETER])

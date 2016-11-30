@@ -18,11 +18,10 @@ def run_exple(denoise, PLOT=True, TEST=False):
     # testcase == 0
     print 'Run basic example -- PLOT={}. TEST={}'.format(PLOT, TEST)
     # Solve
-    #ALPHAS = 10**(-np.linspace(0.,4.,5))
-    ALPHAS = [1e-2]
-    #ALPHAS = [1.0]
+    ALPHAS = 10**(np.linspace(2.,-2.,5))
+    #ALPHAS = [1e-2]
     for aa in ALPHAS:
-        print '\tRegularization parameter={:f}'.format(aa)
+        print '\n\tRegularization parameter={:f}'.format(aa)
         denoise.alpha = aa
         denoise.solve()
         if PLOT:    denoise.plot(2,'-'+str(aa))
@@ -52,17 +51,16 @@ def run_continuation(denoise, PLOT=True, TEST=False):
 
 #denoise = ObjectiveImageDenoising(1, 'tikhonov', image='image2.dat')
 
-#print 'k=1e-2'
-#denoise = ObjectiveImageDenoising(1, 'TV', parameters={'eps':1e-6, 'k':1e-2, 'GNhessian':False})
-#denoise = ObjectiveImageDenoising(1, 'TVPD', parameters={'eps':1e-4, 'k':1e-2})
-#denoise.alpha = 1.0
+#denoise = ObjectiveImageDenoising(1, 'TV', parameters={'eps':1e-2, 'k':1.0, 'GNhessian':False})
+#denoise = ObjectiveImageDenoising(1, 'TVPD', parameters={'eps':1e-6, 'k':1e-2})
 
-print 'a=1e-2'
-#denoise = ObjectiveImageDenoising(1, 'TV', parameters={'eps':1e-0, 'GNhessian':False})
-denoise = ObjectiveImageDenoising(1, 'TVPD', parameters={'eps':1e-6})
-denoise.alpha = 1e-2
+#denoise = ObjectiveImageDenoising(1, 'TV', h=1.00, parameters={'eps':1e-10, 'k':1.0, 'GNhessian':False})
+denoise = ObjectiveImageDenoising(1, 'TVPD', h=1.00, parameters={'eps':1e-6, 'k':1.0})
 
+denoise.alpha = 1.0
 
+print 'a={}, k={}, eps={}'.format(\
+denoise.alpha, denoise.Regul.parameters['k'], denoise.Regul.parameters['eps'])
 
 denoise.solve()
 
@@ -75,7 +73,6 @@ testcase = 0
 # choose options
 PLOT = 0
 FDCHECK = 0
-
 
 # plot
 if PLOT:
