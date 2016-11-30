@@ -18,7 +18,7 @@ import matplotlib.pyplot as plt
 import sys
 sys.path.append( "../../" )
 from hippylib import *
-import fenicstools.prior as ftp
+from fenicstools.prior import LaplacianPrior
 from fenicstools.regularization import TV, TVPD
 
 
@@ -392,9 +392,9 @@ if __name__ == "__main__":
     Vh1 = FunctionSpace(mesh, 'Lagrange', 1)
     Vh = [Vh2, Vh1, Vh2]
     
-    #Prior = ftp.LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-7, 'beta':1e-8})
-    #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-4, 'GNhessian':False})
-    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-2})
+    #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-7, 'beta':1e-8})
+    Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-2, 'GNhessian':False})
+    #Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-2})
     model = Poisson(mesh, Vh, Prior)
         
     a0 = interpolate(Expression("sin(x[0])"), Vh[PARAMETER])
@@ -413,7 +413,9 @@ if __name__ == "__main__":
     if rank != 0:
         solver.parameters["print_level"] = -1
     
-    x = solver.solve(a0.vector())
+    InexactCG = False
+    GN_AMG = True
+    x = solver.solve(a0.vector(), InexactCG, GN_AMG)
     
     if rank == 0:
         if solver.converged:

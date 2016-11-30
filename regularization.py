@@ -74,7 +74,6 @@ class TV():
             solver = PETScKrylovSolver('cg', 'ml_amg')
             self.precond = 'ml_amg'
         except:
-            print '*** WARNING: ML not installed -- using petsc_amg instead'
             self.precond = 'petsc_amg'
 
 
@@ -218,7 +217,6 @@ class TVPD():
             solver = PETScKrylovSolver('cg', 'ml_amg')
             self.precond = 'ml_amg'
         except:
-            print '*** WARNING: ML not installed -- using petsc_amg instead'
             self.precond = 'petsc_amg'
 
 
