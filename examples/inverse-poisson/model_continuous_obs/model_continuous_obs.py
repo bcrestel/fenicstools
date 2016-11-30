@@ -26,7 +26,7 @@ def u_boundary(x, on_boundary):
     return on_boundary
 
 class Poisson:
-    def __init__(self, mesh, Vh, Prior):
+    def __init__(self, mesh, Vh, Prior, alphareg=1.0):
         """
         Construct a model by proving
         - the mesh
@@ -49,6 +49,8 @@ class Poisson:
         # Assemble constant matrices      
         self.Prior = Prior
         self.Wuu = self.assembleWuu()
+
+        self.alphareg = alphareg
         
         self.computeObservation(self.u_o)
                 
@@ -57,6 +59,7 @@ class Poisson:
         self.C = []
         self.Raa = []
         self.Wau = []
+
         
     def generate_vector(self, component="ALL"):
         """
@@ -175,6 +178,8 @@ class Poisson:
         Compute the syntetic observation
         """
         self.at = interpolate(self.atrue, Vh[PARAMETER])
+        print 'min(atrue)={}, max(atrue)={}'.format(\
+        np.amin(self.at.vector().array()), np.amax(self.at.vector().array()))
         x = [self.generate_vector(STATE), self.at.vector(), None]
         A, b = self.assembleA(x, assemble_rhs = True)
         
@@ -220,7 +225,7 @@ class Poisson:
 #        reg = .5 * x[PARAMETER].inner(Rx)
         reg = self.Prior.costvect(x[PARAMETER])
         
-        c = misfit + reg
+        c = misfit + self.alphareg*reg
         
         return c, reg, misfit
     
@@ -299,7 +304,7 @@ class Poisson:
 #        self.Prior.init_vector(Rx,0)
 #        self.Prior.R.mult(x[PARAMETER], Rx)   
 #        mg.axpy(1., Rx)
-        mg.axpy(1.0, self.Prior.gradvect(x[PARAMETER]))
+        mg.axpy(self.alphareg, self.Prior.gradvect(x[PARAMETER]))
         
         g = Vector()
         self.Prior.init_vector(g,1)
@@ -368,7 +373,7 @@ class Poisson:
     def applyR(self, da, out):
         #self.Prior.R.mult(da, out)
         out.zero()
-        out.axpy(1.0, self.Prior.hessian(da))
+        out.axpy(self.alphareg, self.Prior.hessian(da))
         
     def Rsolver(self):        
         return self.Prior.getprecond()
@@ -377,6 +382,7 @@ class Poisson:
     def applyRaa(self, da, out):
         self.Raa.mult(da, out)
             
+
 if __name__ == "__main__":
     set_log_active(False)
     nx, ny = 64, 64 
@@ -393,11 +399,15 @@ if __name__ == "__main__":
     Vh = [Vh2, Vh1, Vh2]
     
     #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-7, 'beta':1e-8})
-    Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-2, 'GNhessian':False})
+    Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e+1, 'GNhessian':False})
     #Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-2})
-    model = Poisson(mesh, Vh, Prior)
+
+    model = Poisson(mesh, Vh, Prior, 1.0)
         
-    a0 = interpolate(Expression("sin(x[0])"), Vh[PARAMETER])
+    print 'TV parameters: k={}, eps={}, alphareg={}'.format(\
+    Prior.parameters['k'], Prior.parameters['eps'], model.alphareg)
+
+    #a0 = interpolate(Expression("sin(x[0])"), Vh[PARAMETER])
     #modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank==0))
     #modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = False)
 
@@ -406,17 +416,19 @@ if __name__ == "__main__":
     solver.parameters["rel_tolerance"] = 1e-10
     solver.parameters["abs_tolerance"] = 1e-12
     solver.parameters["inner_rel_tolerance"] = 1e-15
-    solver.parameters["c_armijo"] = 1e-4
+    solver.parameters["c_armijo"] = 5e-5
+    solver.parameters["max_backtracking_iter"] = 12
     solver.parameters["GN_iter"] = 0
     solver.parameters["max_iter"] = 2000
-    solver.parameters["max_backtracking_iter"] = 12
     if rank != 0:
         solver.parameters["print_level"] = -1
     
     InexactCG = False
-    GN_AMG = True
-    x = solver.solve(a0.vector(), InexactCG, GN_AMG)
-    
+    GN = False
+    x = solver.solve(a0.vector(), InexactCG, GN)
+
+    print 'min(af)={}, max(af)={}'.format(\
+    np.amin(x[PARAMETER].array()), np.amax(x[PARAMETER].array()))
     if rank == 0:
         if solver.converged:
             print "\nConverged in ", solver.it, " iterations."
@@ -427,30 +439,11 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
     
-#    if nproc == 1:
-#        xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
-#        plot(xx[STATE], title = "State")
-#        plot(exp(xx[PARAMETER]), title = "exp(Parameter)")
-#        plot(xx[ADJOINT], title = "Adjoint")
-#        plot(vector2Function(model.u_o, Vh[STATE]), title = "Observation")
-#        interactive()
-    
+    if nproc == 1 and True:
+        xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
+        plot(xx[STATE], title = "State")
+        plot(exp(xx[PARAMETER]), title = "exp(Parameter)")
+        plot(xx[ADJOINT], title = "Adjoint")
+        plot(vector2Function(model.u_o, Vh[STATE]), title = "Observation")
+        interactive()
 
-
-
-#    model.setPointForHessianEvaluations(x)
-#    Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
-#    p = 50
-#    k = min( 250, Vh[PARAMETER].dim()-p)
-#    Omega = MultiVector(x[PARAMETER], k+p)
-#    for i in range(k+p):
-#        Random.normal(Omega[i], 1., True)
-#
-#    d, U = doublePassG(Hmisfit, Prior.R, Prior.Rsolver, Omega, k, s=1, check=False)
-#
-#    if rank == 0:
-#        plt.figure()
-#        plt.plot(range(0,k), d, 'b*',range(0,k), np.ones(k), '-r')
-#        plt.yscale('log')
-#        plt.show()
-#    
