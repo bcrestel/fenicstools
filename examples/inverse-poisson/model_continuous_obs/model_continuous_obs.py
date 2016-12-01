@@ -34,6 +34,7 @@ class Poisson:
         - the Prior information
         """
         self.mesh = mesh
+        rank = MPI.rank(self.mesh.mpi_comm())
         self.Vh = Vh
         
         # Initialize Expressions
@@ -52,7 +53,7 @@ class Poisson:
 
         self.alphareg = alphareg
         
-        self.computeObservation(self.u_o)
+        self.computeObservation(self.u_o, mesh.mpi_comm())
                 
         self.A = []
         self.At = []
@@ -173,13 +174,16 @@ class Poisson:
         return assemble(varf)
 
         
-    def computeObservation(self, u_o):
+    def computeObservation(self, u_o, mpi_comm):
         """
         Compute the syntetic observation
         """
         self.at = interpolate(self.atrue, Vh[PARAMETER])
-        print 'min(atrue)={}, max(atrue)={}'.format(\
-        np.amin(self.at.vector().array()), np.amax(self.at.vector().array()))
+        rank = MPI.rank(mpi_comm)
+        minatrue = MPI.min(mpi_comm, np.amin(self.at.vector().array()))
+        maxatrue = MPI.max(mpi_comm, np.amax(self.at.vector().array()))
+        if rank == 0:
+            print 'min(atrue)={}, max(atrue)={}'.format(minatrue, maxatrue)
         x = [self.generate_vector(STATE), self.at.vector(), None]
         A, b = self.assembleA(x, assemble_rhs = True)
         
@@ -191,7 +195,8 @@ class Poisson:
         randn_perturb(u_o, .01 * MAX)
 
         c, r, m = self.cost(x)
-        print 'Cost @ MAP: cost={}, misfit={}, reg={}'.format(c, m, r)
+        if rank == 0:
+            print 'Cost @ MAP: cost={}, misfit={}, reg={}'.format(c, m, r)
 
 
     def mediummisfit(self, m):
@@ -399,13 +404,14 @@ if __name__ == "__main__":
     Vh = [Vh2, Vh1, Vh2]
     
     #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-7, 'beta':1e-8})
-    Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e+1, 'GNhessian':False})
-    #Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-2})
+    #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-7, 'GNhessian':False})
+    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-7})
 
     model = Poisson(mesh, Vh, Prior, 1.0)
         
-    print 'TV parameters: k={}, eps={}, alphareg={}'.format(\
-    Prior.parameters['k'], Prior.parameters['eps'], model.alphareg)
+    if rank == 0:
+        print 'TV parameters: k={}, eps={}, alphareg={}'.format(\
+        Prior.parameters['k'], Prior.parameters['eps'], model.alphareg)
 
     #a0 = interpolate(Expression("sin(x[0])"), Vh[PARAMETER])
     #modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank==0))
@@ -418,18 +424,19 @@ if __name__ == "__main__":
     solver.parameters["inner_rel_tolerance"] = 1e-15
     solver.parameters["c_armijo"] = 5e-5
     solver.parameters["max_backtracking_iter"] = 12
-    solver.parameters["GN_iter"] = 0
+    solver.parameters["GN_iter"] = 5
     solver.parameters["max_iter"] = 2000
     if rank != 0:
         solver.parameters["print_level"] = -1
     
     InexactCG = False
-    GN = False
+    GN = True
     x = solver.solve(a0.vector(), InexactCG, GN)
 
-    print 'min(af)={}, max(af)={}'.format(\
-    np.amin(x[PARAMETER].array()), np.amax(x[PARAMETER].array()))
+    minaf = MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
+    maxaf = MPI.max(mesh.mpi_comm(), np.amax(x[PARAMETER].array()))
     if rank == 0:
+        print 'min(af)={}, max(af)={}'.format(minaf, maxaf)
         if solver.converged:
             print "\nConverged in ", solver.it, " iterations."
         else:
@@ -439,7 +446,7 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
     
-    if nproc == 1 and True:
+    if nproc == 1 and False:
         xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
         plot(xx[STATE], title = "State")
         plot(exp(xx[PARAMETER]), title = "exp(Parameter)")
