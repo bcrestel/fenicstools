@@ -20,6 +20,7 @@ sys.path.append( "../../" )
 from hippylib import *
 from fenicstools.prior import LaplacianPrior
 from fenicstools.regularization import TV, TVPD
+from fenicstools.plotfenics import PlotFenics
 
 
 def u_boundary(x, on_boundary):
@@ -396,6 +397,9 @@ if __name__ == "__main__":
     Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-2, 'GNhessian':False})
     #Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-2})
     model = Poisson(mesh, Vh, Prior)
+    PltFen = PlotFenics()
+    PltFen.set_varname('truemedparm')
+    PltFen.plot_vtk(model.at)
         
     a0 = interpolate(Expression("sin(x[0])"), Vh[PARAMETER])
     #modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank==0))

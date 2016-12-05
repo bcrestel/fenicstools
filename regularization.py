@@ -464,7 +464,7 @@ class TVPD():
 #        setfct(self.dm, dm)
 #        b = assemble(self.rhswwk)
 #        solve(self.Mw, self.dw.vector(), b)
-#        #TODO: Compute self.dw in a pointwise sense, where
+#        # Compute self.dw in a pointwise sense, where
 #        # self.dw is defined at the quadrature nodes, and
 #        # the values of nabla_grad(self.m) and nabla_grad(self.dm) are
 #        # also read the quadrature nodes
