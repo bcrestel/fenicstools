@@ -409,9 +409,9 @@ if __name__ == "__main__":
     Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-7})
 
     model = Poisson(mesh, Vh, Prior, 1.0)
-    PltFen = PlotFenics()
-    PltFen.set_varname('truemedparm')
-    PltFen.plot_vtk(model.at)
+#    PltFen = PlotFenics()
+#    PltFen.set_varname('truemedparm')
+#    PltFen.plot_vtk(model.at)
         
     if rank == 0:
         print 'TV parameters: k={}, eps={}, alphareg={}'.format(\
@@ -433,7 +433,7 @@ if __name__ == "__main__":
     if rank != 0:
         solver.parameters["print_level"] = -1
     
-    InexactCG = False
+    InexactCG = True
     GN = True
     x = solver.solve(a0.vector(), InexactCG, GN)
 
