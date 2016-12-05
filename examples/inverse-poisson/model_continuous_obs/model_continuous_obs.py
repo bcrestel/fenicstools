@@ -27,7 +27,7 @@ def u_boundary(x, on_boundary):
     return on_boundary
 
 class Poisson:
-    def __init__(self, mesh, Vh, Prior):
+    def __init__(self, mesh, Vh, Prior, alphareg=1.0):
         """
         Construct a model by proving
         - the mesh
@@ -35,6 +35,7 @@ class Poisson:
         - the Prior information
         """
         self.mesh = mesh
+        rank = MPI.rank(self.mesh.mpi_comm())
         self.Vh = Vh
         
         # Initialize Expressions
@@ -50,14 +51,17 @@ class Poisson:
         # Assemble constant matrices      
         self.Prior = Prior
         self.Wuu = self.assembleWuu()
+
+        self.alphareg = alphareg
         
-        self.computeObservation(self.u_o)
+        self.computeObservation(self.u_o, mesh.mpi_comm())
                 
         self.A = []
         self.At = []
         self.C = []
         self.Raa = []
         self.Wau = []
+
         
     def generate_vector(self, component="ALL"):
         """
@@ -171,11 +175,16 @@ class Poisson:
         return assemble(varf)
 
         
-    def computeObservation(self, u_o):
+    def computeObservation(self, u_o, mpi_comm):
         """
         Compute the syntetic observation
         """
         self.at = interpolate(self.atrue, Vh[PARAMETER])
+        rank = MPI.rank(mpi_comm)
+        minatrue = MPI.min(mpi_comm, np.amin(self.at.vector().array()))
+        maxatrue = MPI.max(mpi_comm, np.amax(self.at.vector().array()))
+        if rank == 0:
+            print 'min(atrue)={}, max(atrue)={}'.format(minatrue, maxatrue)
         x = [self.generate_vector(STATE), self.at.vector(), None]
         A, b = self.assembleA(x, assemble_rhs = True)
         
@@ -187,7 +196,8 @@ class Poisson:
         randn_perturb(u_o, .01 * MAX)
 
         c, r, m = self.cost(x)
-        print 'Cost @ MAP: cost={}, misfit={}, reg={}'.format(c, m, r)
+        if rank == 0:
+            print 'Cost @ MAP: cost={}, misfit={}, reg={}'.format(c, m, r)
 
 
     def mediummisfit(self, m):
@@ -221,7 +231,7 @@ class Poisson:
 #        reg = .5 * x[PARAMETER].inner(Rx)
         reg = self.Prior.costvect(x[PARAMETER])
         
-        c = misfit + reg
+        c = misfit + self.alphareg*reg
         
         return c, reg, misfit
     
@@ -300,7 +310,7 @@ class Poisson:
 #        self.Prior.init_vector(Rx,0)
 #        self.Prior.R.mult(x[PARAMETER], Rx)   
 #        mg.axpy(1., Rx)
-        mg.axpy(1.0, self.Prior.gradvect(x[PARAMETER]))
+        mg.axpy(self.alphareg, self.Prior.gradvect(x[PARAMETER]))
         
         g = Vector()
         self.Prior.init_vector(g,1)
@@ -369,7 +379,7 @@ class Poisson:
     def applyR(self, da, out):
         #self.Prior.R.mult(da, out)
         out.zero()
-        out.axpy(1.0, self.Prior.hessian(da))
+        out.axpy(self.alphareg, self.Prior.hessian(da))
         
     def Rsolver(self):        
         return self.Prior.getprecond()
@@ -378,6 +388,7 @@ class Poisson:
     def applyRaa(self, da, out):
         self.Raa.mult(da, out)
             
+
 if __name__ == "__main__":
     set_log_active(False)
     nx, ny = 64, 64 
@@ -394,14 +405,19 @@ if __name__ == "__main__":
     Vh = [Vh2, Vh1, Vh2]
     
     #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-7, 'beta':1e-8})
-    Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-2, 'GNhessian':False})
-    #Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-2})
-    model = Poisson(mesh, Vh, Prior)
+    #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-7, 'GNhessian':False})
+    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-7})
+
+    model = Poisson(mesh, Vh, Prior, 1.0)
     PltFen = PlotFenics()
     PltFen.set_varname('truemedparm')
     PltFen.plot_vtk(model.at)
         
-    a0 = interpolate(Expression("sin(x[0])"), Vh[PARAMETER])
+    if rank == 0:
+        print 'TV parameters: k={}, eps={}, alphareg={}'.format(\
+        Prior.parameters['k'], Prior.parameters['eps'], model.alphareg)
+
+    #a0 = interpolate(Expression("sin(x[0])"), Vh[PARAMETER])
     #modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = (rank==0))
     #modelVerify(model, a0.vector(), 1e-12, is_quadratic = False, verbose = False)
 
@@ -410,18 +426,21 @@ if __name__ == "__main__":
     solver.parameters["rel_tolerance"] = 1e-10
     solver.parameters["abs_tolerance"] = 1e-12
     solver.parameters["inner_rel_tolerance"] = 1e-15
-    solver.parameters["c_armijo"] = 1e-4
-    solver.parameters["GN_iter"] = 0
-    solver.parameters["max_iter"] = 2000
+    solver.parameters["c_armijo"] = 5e-5
     solver.parameters["max_backtracking_iter"] = 12
+    solver.parameters["GN_iter"] = 5
+    solver.parameters["max_iter"] = 2000
     if rank != 0:
         solver.parameters["print_level"] = -1
     
     InexactCG = False
-    GN_AMG = True
-    x = solver.solve(a0.vector(), InexactCG, GN_AMG)
-    
+    GN = True
+    x = solver.solve(a0.vector(), InexactCG, GN)
+
+    minaf = MPI.min(mesh.mpi_comm(), np.amin(x[PARAMETER].array()))
+    maxaf = MPI.max(mesh.mpi_comm(), np.amax(x[PARAMETER].array()))
     if rank == 0:
+        print 'min(af)={}, max(af)={}'.format(minaf, maxaf)
         if solver.converged:
             print "\nConverged in ", solver.it, " iterations."
         else:
@@ -431,30 +450,11 @@ if __name__ == "__main__":
         print "Final gradient norm: ", solver.final_grad_norm
         print "Final cost: ", solver.final_cost
     
-#    if nproc == 1:
-#        xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
-#        plot(xx[STATE], title = "State")
-#        plot(exp(xx[PARAMETER]), title = "exp(Parameter)")
-#        plot(xx[ADJOINT], title = "Adjoint")
-#        plot(vector2Function(model.u_o, Vh[STATE]), title = "Observation")
-#        interactive()
-    
+    if nproc == 1 and False:
+        xx = [vector2Function(x[i], Vh[i]) for i in range(len(Vh))]
+        plot(xx[STATE], title = "State")
+        plot(exp(xx[PARAMETER]), title = "exp(Parameter)")
+        plot(xx[ADJOINT], title = "Adjoint")
+        plot(vector2Function(model.u_o, Vh[STATE]), title = "Observation")
+        interactive()
 
-
-
-#    model.setPointForHessianEvaluations(x)
-#    Hmisfit = ReducedHessian(model, solver.parameters["inner_rel_tolerance"], gauss_newton_approx=False, misfit_only=True)
-#    p = 50
-#    k = min( 250, Vh[PARAMETER].dim()-p)
-#    Omega = MultiVector(x[PARAMETER], k+p)
-#    for i in range(k+p):
-#        Random.normal(Omega[i], 1., True)
-#
-#    d, U = doublePassG(Hmisfit, Prior.R, Prior.Rsolver, Omega, k, s=1, check=False)
-#
-#    if rank == 0:
-#        plt.figure()
-#        plt.plot(range(0,k), d, 'b*',range(0,k), np.ones(k), '-r')
-#        plt.yscale('log')
-#        plt.show()
-#    
