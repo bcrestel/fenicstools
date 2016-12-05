@@ -282,18 +282,24 @@ class TVPD():
         #return self.H * mhat
 
 
-    def update_w(self, mhat, alphaLS):
-        """ update dual variable in direction what 
-        and update re-scaled version """
-
-        rescaledradiusdual = 1.0    # 1.0: checked empirically to be max radius acceptable
+    def compute_what(self, mhat):
+        """ Compute update direction for what, given mhat """
 
         self.what.vector().zero()
         self.what.vector().axpy(1.0, self.invMwd*(self.A*mhat - self.gw.vector()))
         print '|what|={}'.format(np.linalg.norm(self.what.vector().array()))
 
+
+    def update_w(self, mhat, alphaLS, compute_what=True):
+        """ update dual variable in direction what 
+        and update re-scaled version """
+
+        if compute_what:    self.compute_what(mhat)
+
         self.w.vector().axpy(alphaLS, self.what.vector())
         #self.w.vector().axpy(1.0, self.what.vector())
+
+        rescaledradiusdual = 1.0    # 1.0: checked empirically to be max radius acceptable
 
         wx, wy = self.w.split(deepcopy=True)
         wxa, wya = wx.vector().array(), wy.vector().array()
