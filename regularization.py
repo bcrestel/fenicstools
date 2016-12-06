@@ -120,17 +120,17 @@ class TV():
     def getprecond(self):
         """ Precondition by inverting the TV Hessian """
 
-#        solver = PETScKrylovSolver('cg', self.precond)
-#        solver.parameters["maximum_iterations"] = 1000
-#        solver.parameters["relative_tolerance"] = 1e-12
-#        solver.parameters["absolute_tolerance"] = 1e-24
-#        solver.parameters["error_on_nonconvergence"] = True 
-#        solver.parameters["nonzero_initial_guess"] = False 
+        solver = PETScKrylovSolver('cg', self.precond)
+        solver.parameters["maximum_iterations"] = 1000
+        solver.parameters["relative_tolerance"] = 1e-24
+        solver.parameters["absolute_tolerance"] = 1e-24
+        solver.parameters["error_on_nonconvergence"] = True 
+        solver.parameters["nonzero_initial_guess"] = False 
 
         # used to compare iterative application of preconditioner 
         # with exact application of preconditioner:
-        solver = PETScLUSolver("petsc")
-        solver.parameters['symmetric'] = True
+        #solver = PETScLUSolver("petsc")
+        #solver.parameters['symmetric'] = True
         #solver.parameters['reuse_factorization'] = True
 
         solver.set_operator(self.H + self.sMass)
@@ -317,17 +317,17 @@ class TVPD():
     def getprecond(self):
         """ Precondition by inverting the TV Hessian """
 
-#        solver = PETScKrylovSolver('cg', self.precond)
-#        solver.parameters["maximum_iterations"] = 1000
-#        solver.parameters["relative_tolerance"] = 1e-12
-#        solver.parameters["absolute_tolerance"] = 1e-24
-#        solver.parameters["error_on_nonconvergence"] = True 
-#        solver.parameters["nonzero_initial_guess"] = False 
+        solver = PETScKrylovSolver('cg', self.precond)
+        solver.parameters["maximum_iterations"] = 1000
+        solver.parameters["relative_tolerance"] = 1e-24
+        solver.parameters["absolute_tolerance"] = 1e-24
+        solver.parameters["error_on_nonconvergence"] = True 
+        solver.parameters["nonzero_initial_guess"] = False 
 
         # used to compare iterative application of preconditioner 
         # with exact application of preconditioner:
-        solver = PETScLUSolver("petsc")
-        solver.parameters['symmetric'] = True
+        #solver = PETScLUSolver("petsc")
+        #solver.parameters['symmetric'] = True
         #solver.parameters['reuse_factorization'] = True
 
         solver.set_operator(self.Hrs + self.sMass)
