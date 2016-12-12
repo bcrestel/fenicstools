@@ -121,7 +121,7 @@ class TV():
         """ Precondition by inverting the TV Hessian """
 
         solver = PETScKrylovSolver('cg', self.precond)
-        solver.parameters["maximum_iterations"] = 1000
+        solver.parameters["maximum_iterations"] = 2000
         solver.parameters["relative_tolerance"] = 1e-24
         solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["error_on_nonconvergence"] = True 
@@ -318,7 +318,7 @@ class TVPD():
         """ Precondition by inverting the TV Hessian """
 
         solver = PETScKrylovSolver('cg', self.precond)
-        solver.parameters["maximum_iterations"] = 1000
+        solver.parameters["maximum_iterations"] = 2000
         solver.parameters["relative_tolerance"] = 1e-24
         solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["error_on_nonconvergence"] = True 

@@ -405,8 +405,8 @@ if __name__ == "__main__":
     Vh = [Vh2, Vh1, Vh2]
     
     #Prior = LaplacianPrior({'Vm':Vh[PARAMETER], 'gamma':1e-7, 'beta':1e-8})
-    #Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-7, 'GNhessian':False})
-    Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-7})
+    Prior = TV({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-5, 'GNhessian':False})
+    #Prior = TVPD({'Vm':Vh[PARAMETER], 'k':1e-8, 'eps':1e-7})
 
     model = Poisson(mesh, Vh, Prior, 1.0)
 #    PltFen = PlotFenics()
@@ -433,7 +433,7 @@ if __name__ == "__main__":
     if rank != 0:
         solver.parameters["print_level"] = -1
     
-    InexactCG = True
+    InexactCG = 0
     GN = True
     x = solver.solve(a0.vector(), InexactCG, GN)
 
