@@ -72,9 +72,9 @@ class TV():
 
         try:
             solver = PETScKrylovSolver('cg', 'ml_amg')
-            self.precond = 'ml_amg'
+            self.amgprecond = 'ml_amg'
         except:
-            self.precond = 'petsc_amg'
+            self.amgprecond = 'petsc_amg'
 
 
     def isTV(self): return True
@@ -103,6 +103,7 @@ class TV():
         """ Assemble the Hessian of TV at m_in """
         setfct(self.m, m_in)
         self.H = assemble(self.wkformhess)
+        self.precond = self.H + self.sMass
 
     def assemble_GNhessian(self, m_in):
         """ Assemble the Gauss-Newton Hessian at m_in 
@@ -110,6 +111,7 @@ class TV():
         Left here for back-compatibility """
         setfct(self.m, m_in)
         self.H = assemble(self.wkformGNhess)
+        self.precond = self.H + self.sMass
 
     def hessian(self, mhat):
         """ returns the Hessian applied along a direction mhat """
@@ -120,7 +122,7 @@ class TV():
     def getprecond(self):
         """ Precondition by inverting the TV Hessian """
 
-        solver = PETScKrylovSolver('cg', self.precond)
+        solver = PETScKrylovSolver('cg', self.amgprecond)
         solver.parameters["maximum_iterations"] = 2000
         solver.parameters["relative_tolerance"] = 1e-24
         solver.parameters["absolute_tolerance"] = 1e-24
@@ -133,7 +135,7 @@ class TV():
         #solver.parameters['symmetric'] = True
         #solver.parameters['reuse_factorization'] = True
 
-        solver.set_operator(self.H + self.sMass)
+        solver.set_operator(self.precond)
         return solver
 
 
@@ -215,9 +217,9 @@ class TVPD():
         print 'TV regularization -- primal-dual method'
         try:
             solver = PETScKrylovSolver('cg', 'ml_amg')
-            self.precond = 'ml_amg'
+            self.amgprecond = 'ml_amg'
         except:
-            self.precond = 'petsc_amg'
+            self.amgprecond = 'petsc_amg'
 
 
     def isTV(self): return True
@@ -276,6 +278,8 @@ class TVPD():
         Hrsasym = MatMatMult(self.Htv, MatMatMult(self.invMwMat, Ars))
         self.Hrs = (Hrsasym + Transpose(Hrsasym)) * 0.5
 
+        self.precond = self.Hrs + self.sMass
+
 
     def hessian(self, mhat):
         return self.Hrs * mhat
@@ -317,7 +321,7 @@ class TVPD():
     def getprecond(self):
         """ Precondition by inverting the TV Hessian """
 
-        solver = PETScKrylovSolver('cg', self.precond)
+        solver = PETScKrylovSolver('cg', self.amgprecond)
         solver.parameters["maximum_iterations"] = 2000
         solver.parameters["relative_tolerance"] = 1e-24
         solver.parameters["absolute_tolerance"] = 1e-24
@@ -330,7 +334,7 @@ class TVPD():
         #solver.parameters['symmetric'] = True
         #solver.parameters['reuse_factorization'] = True
 
-        solver.set_operator(self.Hrs + self.sMass)
+        solver.set_operator(self.precond)
 
         return solver
 
