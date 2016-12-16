@@ -45,7 +45,8 @@ class GaussianPrior():
         """
         solver = PETScKrylovSolver("cg", "amg")
         solver.parameters["maximum_iterations"] = 1000
-        solver.parameters["relative_tolerance"] = 1e-12
+        solver.parameters["relative_tolerance"] = 1e-24
+        solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["error_on_nonconvergence"] = True 
         solver.parameters["nonzero_initial_guess"] = False 
         solver.set_operator(self.precond)
