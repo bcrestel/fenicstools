@@ -18,6 +18,9 @@ class SumRegularization():
         """ regul1, regul2 = regularization/prior objects for medium 1 and 2
         coeff_cg = regularization constant for cross-gradient term; if 0.0, no
         cross-gradient (independent reconstructions) """
+
+        assert id(regul1) != id(regul2), "Need to define two distinct regul objects"
+
         self.regul1 = regul1
         self.regul2 = regul2
         self.coeff_cg = coeff_cg
@@ -67,7 +70,7 @@ class SumRegularization():
         assign(grad.sub(0), self.a)
         assign(grad.sub(1), self.b)
         if self.coeff_cg > 0.0:
-            grad.vector().axpy(self.coeff_cg, self.crossgrad.gradab(m1, m2)
+            grad.vector().axpy(self.coeff_cg, self.crossgrad.gradab(m1, m2))
 
         return grad.vector()
 
@@ -83,7 +86,7 @@ class SumRegularization():
         assign(grad.sub(0), self.a)
         assign(grad.sub(1), self.b)
         if self.coeff_cg > 0.0:
-            grad.vector().axpy(self.coeff_cg, self.crossgrad.gradab(m1, m2)
+            grad.vector().axpy(self.coeff_cg, self.crossgrad.gradab(m1, m2))
 
         return grad.vector()
 
@@ -98,8 +101,8 @@ class SumRegularization():
     def assemble_hessianab(self, m1, m2):
         self.regul1.assemble_hessian(m1)
         self.regul2.assemble_hessian(m2)
-        if self.cgparam > 0.0:
-            self.cg.assemble_hessianab(a, b)
+        if self.coeff_cg > 0.0:
+            self.crossgrad.assemble_hessianab(a, b)
             self.precond = self._blockdiagprecond() \
             + self.crossgrad.Hdiag*self.coeff_cg
         else:
@@ -115,7 +118,7 @@ class SumRegularization():
         assign(Hx.sub(0), self.a)
         assign(Hx.sub(1), self.b)
         if self.coeff_cg > 0.0:
-            Hx.vector().axpy(self.coeff_cg, self.crossgrad.hessianab(m1, m2)
+            Hx.vector().axpy(self.coeff_cg, self.crossgrad.hessianab(m1, m2))
 
         return Hx.vector()
 
@@ -135,6 +138,7 @@ class SumRegularization():
 #----------------------------------------------------------------------
 #----------------------------------------------------------------------
 # Tikhonov-type regularization
+#TODO: DO NOT USE! Replaced by SumRegularization with LaplacianPrior
 class Tikhonovab():
     """ Define Tikhonov regularization for a and b parameters """
 
@@ -226,7 +230,8 @@ class Tikhonovab():
     def getprecond(self):
         solver = PETScKrylovSolver("cg", "amg")
         solver.parameters["maximum_iterations"] = 1000
-        solver.parameters["relative_tolerance"] = 1e-12
+        solver.parameters["relative_tolerance"] = 1e-24
+        solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["error_on_nonconvergence"] = True 
         solver.parameters["nonzero_initial_guess"] = False 
         """
