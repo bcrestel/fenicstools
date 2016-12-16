@@ -6,8 +6,135 @@ from dolfin import inner, nabla_grad, dx, \
 Function, TestFunction, TrialFunction, assemble, \
 PETScKrylovSolver, assign, sqrt, Constant
 from miscfenics import setfct
+from linalg.splitandassign import BlockDiagonal
 
 
+
+class SumRegularization():
+    """ Sum of independent regularizations for each med. param, 
+    potentially connected by cross-gradient """
+
+    def __init__(self, regul1, regul2, mpicomm, coeff_cg=0.0):
+        """ regul1, regul2 = regularization/prior objects for medium 1 and 2
+        coeff_cg = regularization constant for cross-gradient term; if 0.0, no
+        cross-gradient (independent reconstructions) """
+        self.regul1 = regul1
+        self.regul2 = regul2
+        self.coeff_cg = coeff_cg
+
+        V1 = self.regul1.Vm
+        V2 = self.regul2.Vm
+        self.V1V2 = V1*V2
+        self.a, self.b = Function(V1), Function(V2)
+        self.bd = BlockDiagonal(V1, V2, mpicomm)
+
+        if self.coeff_cg > 0.0:
+            self.crossgrad = crossgradient(self.V1V2)
+
+        try:
+            solver = PETScKrylovSolver('cg', 'ml_amg')
+            self.amgprecond = 'ml_amg'
+        except:
+            self.amgprecond = 'petsc_amg'
+
+
+    def isTV(self):
+        return self.regul1.isTV() * self.regul2.isTV()
+    def isPD(self):
+        return self.regul1.isPD() * self.regul2.isPD()
+
+
+    def costab(self, m1, m2):
+        cost = self.regul1.cost(m1) + self.regul2.cost(m2)
+        if self.coeff_cg > 0.0:
+            cost += self.coeff_cg*self.crossgrad.costab(m1, m2)
+        return cost
+
+    def costabvect(self, m1, m2):
+        cost = self.regul1.costvect(m1) + self.regul2.costvect(m2)
+        if self.coeff_cg > 0.0:
+            cost += self.coeff_cg*self.crossgrad.costab(m1, m2)
+        return cost
+
+
+    def gradab(self, m1, m2):
+        self.a.vector().zero()
+        self.b.vector().zero()
+        grad = Function(self.V1V2)
+
+        setfct(self.a, self.regul1.grad(m1))
+        setfct(self.b, self.regul2.grad(m2))
+        assign(grad.sub(0), self.a)
+        assign(grad.sub(1), self.b)
+        if self.coeff_cg > 0.0:
+            grad.vector().axpy(self.coeff_cg, self.crossgrad.gradab(m1, m2)
+
+        return grad.vector()
+
+    def gradabvect(self, m1, m2):
+        """ relies on gradvect metod from regularization instead of grad
+        gradvect takes a Vector() as input argument """
+        self.a.vector().zero()
+        self.b.vector().zero()
+        grad = Function(self.V1V2)
+
+        setfct(self.a, self.regul1.gradvect(m1))
+        setfct(self.b, self.regul2.gradvect(m2))
+        assign(grad.sub(0), self.a)
+        assign(grad.sub(1), self.b)
+        if self.coeff_cg > 0.0:
+            grad.vector().axpy(self.coeff_cg, self.crossgrad.gradab(m1, m2)
+
+        return grad.vector()
+
+
+    def _blockdiagprecond(self):
+        """ assemble a block-diagonal preconditioner
+        with preconditioners for each regularization term """
+        R1 = self.regul1.precond
+        R2 = self.regul2.precond
+        return self.bd.assemble(R1, R2)
+
+    def assemble_hessianab(self, m1, m2):
+        self.regul1.assemble_hessian(m1)
+        self.regul2.assemble_hessian(m2)
+        if self.cgparam > 0.0:
+            self.cg.assemble_hessianab(a, b)
+            self.precond = self._blockdiagprecond() \
+            + self.crossgrad.Hdiag*self.coeff_cg
+        else:
+            self.precond = self._blockdiagprecond()
+
+    def hessianab(self, m1, m2):
+        self.a.vector().zero()
+        self.b.vector().zero()
+        Hx = Function(self.V1V2)
+
+        setfct(self.a, self.regul1.hessian(m1))
+        setfct(self.b, self.regul2.hessian(m2))
+        assign(Hx.sub(0), self.a)
+        assign(Hx.sub(1), self.b)
+        if self.coeff_cg > 0.0:
+            Hx.vector().axpy(self.coeff_cg, self.crossgrad.hessianab(m1, m2)
+
+        return Hx.vector()
+
+
+    def getprecond(self):
+        solver = PETScKrylovSolver("cg", self.amgprecond)
+        solver.parameters["maximum_iterations"] = 1000
+        solver.parameters["absolute_tolerance"] = 1e-24
+        solver.parameters["relative_tolerance"] = 1e-24
+        solver.parameters["error_on_nonconvergence"] = True 
+        solver.parameters["nonzero_initial_guess"] = False 
+        solver.set_operator(self.precond)
+        return solver
+
+
+
+#----------------------------------------------------------------------
+#----------------------------------------------------------------------
+# Tikhonov-type regularization
 class Tikhonovab():
     """ Define Tikhonov regularization for a and b parameters """
 
@@ -44,7 +171,7 @@ class Tikhonovab():
         self.ab = Function(VV)
         self.abv = self.ab.vector()
         if parameters.has_key('cg'):
-            self.cg = crossgradient({'Vm':V})
+            self.cg = crossgradient(V)
             self.cgparam = parameters['cg']
         else:   self.cgparam = -1.0
 
@@ -114,20 +241,18 @@ class Tikhonovab():
 
 class crossgradient():
     """ Define cross-gradient joint regularization """
-    def __init__(self, parameters):
-        V = parameters['Vm']
-        VV = V*V
+    def __init__(self, VV):
         self.ab = Function(VV)
         self.abv = self.ab.vector()
         self.MG = Function(VV)
         # cost
-        self.a, self.b = Function(V), Function(V)
+        self.a, self.b = self.ab.split(deepcopy=True)
         self.cost = 0.5*( inner(nabla_grad(self.a), nabla_grad(self.a))*\
         inner(nabla_grad(self.b), nabla_grad(self.b))*dx - \
         inner(nabla_grad(self.a), nabla_grad(self.b))*\
         inner(nabla_grad(self.a), nabla_grad(self.b))*dx )
         # gradient
-        testa, testb = TestFunction(V*V)
+        testa, testb = TestFunction(VV)
         grada = inner( nabla_grad(testa), \
         inner(nabla_grad(self.b), nabla_grad(self.b))*nabla_grad(self.a) - \
         inner(nabla_grad(self.a), nabla_grad(self.b))*nabla_grad(self.b) )*dx
@@ -136,10 +261,10 @@ class crossgradient():
         inner(nabla_grad(self.a), nabla_grad(self.b))*nabla_grad(self.a) )*dx
         self.grad = grada + gradb
         # Hessian
-        self.ahat, self.bhat = Function(V), Function(V)
-        self.abhat = Function(V*V)
-        at, bt = TestFunction(V*V)
-        ah, bh = TrialFunction(V*V)
+        self.ahat, self.bhat = self.ab.split(deepcopy=True)
+        self.abhat = Function(VV)
+        at, bt = TestFunction(VV)
+        ah, bh = TrialFunction(VV)
         wkform11 = inner( nabla_grad(at), \
         inner(nabla_grad(self.b), nabla_grad(self.b))*nabla_grad(ah) - \
         inner(nabla_grad(ah), nabla_grad(self.b))*nabla_grad(self.b) )*dx
@@ -192,6 +317,7 @@ class crossgradient():
 
 #----------------------------------------------------------------------
 #----------------------------------------------------------------------
+# TV-type regularization
 #TODO: needs to be checked against finite-difference
 class VTV():
     """ Define Vectorial Total Variation regularization for 2 parameters """
