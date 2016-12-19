@@ -4,27 +4,54 @@ import numpy as np
 from fenicstools.jointregularization import crossgradient
 from fenicstools.miscfenics import setfct
 
+print 'Check exact results (cost only):'
+print 'Test 1'
+err = 1.0
+N = 10
+while err > 1e-6:
+    N = 2*N
+    mesh = dl.UnitSquareMesh(N, N)
+    V = dl.FunctionSpace(mesh,'Lagrange', 1)
+    cg = crossgradient(V*V)
+    a = dl.interpolate(dl.Expression('x[0]'), V)
+    b = dl.interpolate(dl.Expression('x[1]'), V)
+    cgc = cg.costab(a,b)
+    err = np.abs(cgc-0.5)/0.5
+    print 'N={}, x*y={:.6f}, err={:.3e}'.format(N, cgc, err)
+print 'Test 2'
+err = 1.0
+N = 20
+while err > 1e-6:
+    N = 2*N
+    mesh = dl.UnitSquareMesh(N, N)
+    V = dl.FunctionSpace(mesh,'Lagrange', 2)
+    cg = crossgradient(V*V)
+    a = dl.interpolate(dl.Expression('x[0]*x[0]'), V)
+    b = dl.interpolate(dl.Expression('x[1]*x[1]'), V)
+    cgc = cg.costab(a,b)
+    err = np.abs(cgc-8./9.)/(8./9.)
+    print 'N={}, x^2*y^2={:.6f}, err={:.3e}'.format(N, cgc, err)
+print 'Test 3'
+err = 1.0
+N = 40
+while err > 1e-6:
+    N = 2*N
+    mesh = dl.UnitSquareMesh(N, N)
+    V = dl.FunctionSpace(mesh,'Lagrange', 3)
+    cg = crossgradient(V*V)
+    a = dl.interpolate(dl.Expression('x[0]*x[1]'), V)
+    b = dl.interpolate(dl.Expression('x[0]*x[0]*x[1]*x[1]'), V)
+    cgc = cg.costab(a,b)
+    err = np.abs(cgc)
+    print 'N={}, xy*x^2y^2={:.6f}, err={:.3e}'.format(N, cgc, err)
+
+
+#############################################################
 mesh = dl.UnitSquareMesh(20, 20)
 V = dl.FunctionSpace(mesh,'Lagrange', 1)
-cg = crossgradient({'Vm':V})
+cg = crossgradient(V*V)
 
-a = dl.interpolate(dl.Expression('x[0]'), V)
-b = dl.interpolate(dl.Expression('x[1]'), V)
-cgc = cg.costab(a,b)
-err = np.abs(cgc-0.5)/0.5
-print 'x x y = {:.6f}, err = {:.3e}'.format(cgc, err)
-a = dl.interpolate(dl.Expression('x[0]*x[0]'), V)
-b = dl.interpolate(dl.Expression('x[1]*x[1]'), V)
-cgc = cg.costab(a,b)
-err = np.abs(cgc-8./9.)/(8./9.)
-print 'x^2 x y^2 = {:.6f}, err = {:.3e}'.format(cgc, err)
-a = dl.interpolate(dl.Expression('x[0]*x[1]'), V)
-b = dl.interpolate(dl.Expression('x[0]*x[0]*x[1]*x[1]'), V)
-cgc = cg.costab(a,b)
-err = np.abs(cgc)
-print 'xy x x^2y^2 = {:.6f}, err = {:.3e}'.format(cgc, err)
-
-print 'sinusoidal cross-gradients'
+print '\nsinusoidal cross-gradients'
 for ii in range(5):
     a = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii), V)
     for jj in range(5):
@@ -32,7 +59,8 @@ for ii in range(5):
         print cg.costab(a, b),
     print ''
 
-print 'check gradient'
+#############################################################
+print '\ncheck gradient'
 ak, bk = dl.Function(V), dl.Function(V)
 directab = dl.Function(V*V)
 h = 1e-5
@@ -71,12 +99,12 @@ for ii in range(5):
     print 'ii={}'.format(ii)
     a = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii), V)
     b = dl.interpolate(dl.Expression('pow(x[0], n)*pow(x[1], n)', n=ii), V)
-    cg.assemble_hessianab(a, b)
     for jj in range(5):
         directa = dl.interpolate(dl.Expression('pow(x[0], n)*pow(x[1], n)', n=jj+1), V)
         directb = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=jj+1), V)
         dl.assign(directab.sub(0), directa)
         dl.assign(directab.sub(1), directb)
+        cg.assemble_hessianab(a, b)
         Hxdir = cg.hessianab(directa, directb)
         setfct(ak, a)
         setfct(bk, b)
