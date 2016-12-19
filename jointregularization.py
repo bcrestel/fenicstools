@@ -102,7 +102,7 @@ class SumRegularization():
         self.regul1.assemble_hessian(m1)
         self.regul2.assemble_hessian(m2)
         if self.coeff_cg > 0.0:
-            self.crossgrad.assemble_hessianab(a, b)
+            self.crossgrad.assemble_hessianab(m1, m2)
             self.precond = self._blockdiagprecond() \
             + self.crossgrad.Hdiag*self.coeff_cg
         else:
@@ -252,7 +252,10 @@ class Tikhonovab():
 
 class crossgradient():
     """ Define cross-gradient joint regularization """
+
     def __init__(self, VV):
+        """ Input argument:
+        VV = MixedFunctionSpace for both inversion parameters """
         self.ab = Function(VV)
         self.abv = self.ab.vector()
         self.MG = Function(VV)
@@ -308,7 +311,7 @@ class crossgradient():
         """ ma_in, mb_in = Function(V) """
         setfct(self.a, ma_in)
         setfct(self.b, mb_in)
-        self.H = None
+        #self.H = None
         return assemble(self.grad)
 
     def assemble_hessianab(self, a, b):
