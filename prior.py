@@ -59,7 +59,9 @@ class GaussianPrior():
         return 0.5 * self.Minvpriordot(diff).inner(diff)
 
     def costvect(self, m_in):
-            return 0.5 * self.Minvpriordot(m_in).inner(m_in)
+        diff = m_in - self.m0.vector()
+        return 0.5 * self.Minvpriordot(diff).inner(diff)
+
 
     def grad(self, m_in):
         isFunction(m_in)
@@ -67,7 +69,9 @@ class GaussianPrior():
         return self.Minvpriordot(diff)
 
     def gradvect(self, m_in):
-        return self.Minvpriordot(m_in)
+        diff = m_in - self.m0.vector()
+        return self.Minvpriordot(diff)
+
 
     def assemble_hessian(self, m_in):
         pass

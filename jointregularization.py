@@ -138,8 +138,8 @@ class SumRegularization():
 #----------------------------------------------------------------------
 #----------------------------------------------------------------------
 # Tikhonov-type regularization
-#TODO: DO NOT USE! Replaced by SumRegularization with LaplacianPrior
 class Tikhonovab():
+#TODO: DO NOT USE! Replaced by SumRegularization with LaplacianPrior
     """ Define Tikhonov regularization for a and b parameters """
 
     def __init__(self, parameters):
@@ -196,6 +196,9 @@ class Tikhonovab():
             cost += self.cgparam*self.cg.costab(ma_in, mb_in)
         return cost
 
+    def costabvect(self, ma_in, mb_in):    return self.costab(ma_in, mb_in)
+
+
     def gradab(self, ma_in, mb_in):
         """ ma_in, mb_in = Function(V) """
         setfct(self.a, ma_in)
@@ -208,6 +211,9 @@ class Tikhonovab():
         if self.cgparam > 0.0:
             grad.axpy(self.cgparam, self.cg.gradab(ma_in, mb_in))
         return grad # this is local
+
+    def gradabvect(self, ma_in, mb_in): return self.gradab(ma_in, mb_in)
+
 
     def assemble_hessianab(self, a, b):
         if self.cgparam > 0.0:
