@@ -340,6 +340,9 @@ class VTV():
         """ Vm = FunctionSpace for the parameters (m1, m2) """
 
         self.parameters = {'k':1.0, 'eps':1e-2}
+        self.parameters.update(parameters)
+        k = self.parameters['k']
+        eps = self.parameters['eps']
 
         self.m1 = Function(Vm)
         self.m2 = Function(Vm)
@@ -352,36 +355,28 @@ class VTV():
         # cost function
         normm1 = inner(nabla_grad(self.m1), nabla_grad(self.m1))
         normm2 = inner(nabla_grad(self.m2), nabla_grad(self.m2))
-        TVnormsq = normm1 + normm2 + Constant(self.eps)
+        TVnormsq = normm1 + normm2 + Constant(eps)
         TVnorm = sqrt(TVnormsq)
-        self.wkformcost = self.k * TVnorm * dx
+        self.wkformcost = Constant(k) * TVnorm * dx
 
         # gradient
-        gradm1 = self.k/TVnorm*inner(nabla_grad(self.m1), nabla_grad(testm1))*dx
-        gradm2 = self.k/TVnorm*inner(nabla_grad(self.m2), nabla_grad(testm2))*dx
+        gradm1 = Constant(k)/TVnorm*inner(nabla_grad(self.m1), nabla_grad(testm1))*dx
+        gradm2 = Constant(k)/TVnorm*inner(nabla_grad(self.m2), nabla_grad(testm2))*dx
         self.gradm = gradm1 + gradm2
 
         # Hessian
-        H11 = self.k/TVnorm*(inner(nabla_grad(trialm1), nabla_grad(testm1)) - \
+        H11 = Constant(k)/TVnorm*(inner(nabla_grad(trialm1), nabla_grad(testm1)) - \
         inner(nabla_grad(testm1),nabla_grad(self.m1))* \
         inner(nabla_grad(self.m1), nabla_grad(trialm1))/TVnormsq)*dx
-        H12 = -self.k/(TVnorm*TVnormsq)*(inner(nabla_grad(testm1),nabla_grad(self.m1))* \
+        H12 = -Constant(k)/(TVnorm*TVnormsq)*(inner(nabla_grad(testm1),nabla_grad(self.m1))* \
         inner(nabla_grad(self.m2), nabla_grad(trialm2)))*dx
-        H21 = -self.k/(TVnorm*TVnormsq)*(inner(nabla_grad(testm2),nabla_grad(self.m2))* \
+        H21 = -Constant(k)/(TVnorm*TVnormsq)*(inner(nabla_grad(testm2),nabla_grad(self.m2))* \
         inner(nabla_grad(self.m1), nabla_grad(trialm1)))*dx
-        H22 = self.k/TVnorm*(inner(nabla_grad(trialm2), nabla_grad(testm2)) - \
+        H22 = Constant(k)/TVnorm*(inner(nabla_grad(trialm2), nabla_grad(testm2)) - \
         inner(nabla_grad(testm2),nabla_grad(self.m2))* \
         inner(nabla_grad(self.m2), nabla_grad(trialm2))/TVnormsq)*dx
         self.hessian = H11 + H12 + H21 + H22
         #TODO: need a preconditioner for Hessian
-
-
-    def update(self, parameters=[]):
-        """ Update parameters of regularization """
-
-        self.parameters.update(parameters)
-        self.k = self.parameters['k']
-        self.eps = self.parameters['eps']
 
 
     def costab(self, m1, m2):
