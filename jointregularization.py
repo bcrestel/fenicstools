@@ -332,7 +332,6 @@ class crossgradient():
 #----------------------------------------------------------------------
 #----------------------------------------------------------------------
 # TV-type regularization
-#TODO: needs to be checked against finite-difference
 class VTV():
     """ Define Vectorial Total Variation regularization for 2 parameters """
 
