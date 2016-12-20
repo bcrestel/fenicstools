@@ -337,7 +337,6 @@ class VTV():
 
     def __init__(self, Vm, parameters=[]):
         """ Vm = FunctionSpace for the parameters (m1, m2) """
-
         self.parameters = {'k':1.0, 'eps':1e-2}
         self.parameters.update(parameters)
         k = self.parameters['k']
@@ -348,8 +347,10 @@ class VTV():
         self.m1h = Function(Vm)
         self.m2h = Function(Vm)
         self.m12h = Function(Vm*Vm)
-        testm1, testm2 = TestFunction(Vm*Vm)
-        trialm1, trialm2 = TrialFunction(Vm*Vm)
+        testm = TestFunction(Vm*Vm)
+        testm1, testm2 = testm
+        trialm = TrialFunction(Vm*Vm)
+        trialm1, trialm2 = trialm
 
         # cost function
         normm1 = inner(nabla_grad(self.m1), nabla_grad(self.m1))
@@ -375,12 +376,15 @@ class VTV():
         inner(nabla_grad(testm2),nabla_grad(self.m2))* \
         inner(nabla_grad(self.m2), nabla_grad(trialm2))/TVnormsq)*dx
         self.hessian = H11 + H12 + H21 + H22
-        #TODO: need a preconditioner for Hessian
+
+        # for preconditioning
+        M = assemble(inner(testm, trialm)*dx)
+        factM = 1e-2*k
+        self.sMass = M*factM
 
 
     def costab(self, m1, m2):
         """ Compute value of cost function at (m1,m2) """
-
         setfct(self.m1, m1)
         setfct(self.m2, m2)
         self.H = None
@@ -389,7 +393,6 @@ class VTV():
 
     def gradab(self, m1, m2):
         """ returns gradient at (m1,m2) as a vector """
-
         setfct(self.m1, m1)
         setfct(self.m2, m2)
         self.H = None
@@ -398,7 +401,6 @@ class VTV():
 
     def assemble_hessianab(self, m1, m2):
         """ Assemble Hessian matrix for regularization """
-
         setfct(self.m1, m1)
         setfct(self.m2, m2)
         self.H = assemble(self.hessian)
@@ -406,9 +408,20 @@ class VTV():
 
     def hessianab(self, m1h, m2h):
         """ m1h, m2h = Vector(V) """
-
         setfct(self.m1h, m1h)
         setfct(self.m2h, m2h)
         assign(self.m12h.sub(0), self.m1h)
         assign(self.m12h.sub(1), self.m2h)
         return self.H * self.m12h.vector()
+
+
+    def getprecond(self):
+        """ precondition by TV + small fraction of mass matrix """
+        solver = PETScKrylovSolver('cg', self.amgprecond)
+        solver.parameters["maximum_iterations"] = 2000
+        solver.parameters["relative_tolerance"] = 1e-24
+        solver.parameters["absolute_tolerance"] = 1e-24
+        solver.parameters["error_on_nonconvergence"] = True 
+        solver.parameters["nonzero_initial_guess"] = False 
+        solver.set_operator(self.H + self.sMass)
+        return solver
