@@ -80,7 +80,6 @@ class TV():
     def cost(self, m_in):
         """ returns the cost functional for self.m=m_in """
         setfct(self.m, m_in)
-        #self.H = None
         return assemble(self.wkformcost)
 
     def costvect(self, m_in):   return self.cost(m_in)
@@ -89,7 +88,6 @@ class TV():
     def grad(self, m_in):
         """ returns the gradient (in vector format) evaluated at self.m = m_in """
         setfct(self.m, m_in)
-        #self.H = None
         return assemble(self.wkformgrad)
 
     def gradvect(self, m_in):   return self.grad(m_in)

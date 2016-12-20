@@ -336,7 +336,7 @@ class VTV():
     """ Define Vectorial Total Variation regularization for 2 parameters """
 
     def __init__(self, Vm, parameters=[]):
-        """ Vm = FunctionSpace for the parameters (m1, m2) """
+        """ Vm = FunctionSpace for the parameters m1, and m2 """
         self.parameters = {'k':1.0, 'eps':1e-2}
         self.parameters.update(parameters)
         k = self.parameters['k']
@@ -378,25 +378,36 @@ class VTV():
         self.hessian = H11 + H12 + H21 + H22
 
         # for preconditioning
+        try:
+            solver = PETScKrylovSolver('cg', 'ml_amg')
+            self.amgprecond = 'ml_amg'
+        except:
+            self.amgprecond = 'petsc_amg'
         M = assemble(inner(testm, trialm)*dx)
         factM = 1e-2*k
         self.sMass = M*factM
+
+
+    def isTV(self): return True
+    def isPD(self): return False
 
 
     def costab(self, m1, m2):
         """ Compute value of cost function at (m1,m2) """
         setfct(self.m1, m1)
         setfct(self.m2, m2)
-        self.H = None
         return assemble(self.wkformcost)
+
+    def costabvect(self, m1, m2):   return self.costab(m1, m2)
 
 
     def gradab(self, m1, m2):
         """ returns gradient at (m1,m2) as a vector """
         setfct(self.m1, m1)
         setfct(self.m2, m2)
-        self.H = None
         return assemble(self.gradm)
+
+    def gradabvect(self, m1, m2):   return self.gradab(m1, m2)
 
 
     def assemble_hessianab(self, m1, m2):
