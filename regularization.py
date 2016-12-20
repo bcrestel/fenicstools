@@ -34,15 +34,11 @@ class TV():
         GN = self.parameters['GNhessian']
         self.Vm = self.parameters['Vm']
         eps = self.parameters['eps']
-        self.k = self.parameters['k']
+        k = self.parameters['k']
 
         self.m = Function(self.Vm)
         test, trial = TestFunction(self.Vm), TrialFunction(self.Vm)
-        try:
-            factM = self.k.vector().min()
-        except:
-            factM = self.k
-        factM = 1e-2*factM
+        factM = 1e-2*k
         M = assemble(inner(test, trial)*dx)
         self.sMass = M*factM
 
@@ -52,9 +48,9 @@ class TV():
         self.Msolver.set_operator(M)
 
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + Constant(eps)
-        self.kovsq = Constant(self.k) / sqrt(self.fTV)
+        self.kovsq = Constant(k) / sqrt(self.fTV)
 
-        self.wkformcost = Constant(self.k) * sqrt(self.fTV) * dx
+        self.wkformcost = Constant(k) * sqrt(self.fTV) * dx
 
         self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(test))*dx
 
@@ -201,11 +197,7 @@ class TVPD():
         self.wkformArs = inner(testw, nabla_grad(trialm) - \
         self.wrs * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
 
-        try:
-            factM = k.vector().min()
-        except:
-            factM = k
-        factM = 1e-2*factM
+        factM = 1e-2*k
         M = assemble(inner(testm, trialm)*dx)
         self.sMass = M*factM
 
