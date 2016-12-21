@@ -4,10 +4,10 @@ Define joint regularization terms
 
 from dolfin import inner, nabla_grad, dx, \
 Function, TestFunction, TrialFunction, assemble, \
-PETScKrylovSolver, assign, sqrt, Constant
+PETScKrylovSolver, assign, sqrt, Constant, FunctionSpace
 from miscfenics import setfct
 from linalg.splitandassign import BlockDiagonal
-from regularization import TV
+from regularization import TV, TVPD
 
 
 
@@ -30,6 +30,7 @@ class SumRegularization():
         V2 = self.regul2.Vm
         self.V1V2 = V1*V2
         self.a, self.b = Function(V1), Function(V2)
+        self.ab = Function(self.V1V2)
         self.bd = BlockDiagonal(V1, V2, mpicomm)
 
         if self.coeff_cg > 0.0:
@@ -133,6 +134,16 @@ class SumRegularization():
         solver.parameters["nonzero_initial_guess"] = False 
         solver.set_operator(self.precond)
         return solver
+
+
+    def update_w(self, mhat, alphaLS, compute_what=True):
+        """ update dual variable in direction what 
+        and update re-scaled version """
+        setfct(self.ab, mhat)
+        mhat1, mhat2 = self.ab.split(deepcopy=True)
+
+        self.regul1.update_w(mhat1.vector(), alphaLS, compute_what)
+        self.regul2.update_w(mhat2.vector(), alphaLS, compute_what)
 
 
 
@@ -482,8 +493,10 @@ class V_TV():
 
 
     def assemble_hessianab(self, m1, m2):
-        assign(self.m.sub(0), m1)
-        assign(self.m.sub(1), m2)
+        setfct(self.m1, m1)
+        setfct(self.m2, m2)
+        assign(self.m.sub(0), self.m1)
+        assign(self.m.sub(1), self.m2)
         self.regTV.assemble_hessian(self.m)
         #self.H = self.regTV.H
         #self.precond = self.regTV.precond
@@ -500,3 +513,112 @@ class V_TV():
 
     def getprecond(self):
         return self.regTV.getprecond()
+
+
+
+class V_TVPD():
+    """ Definite Vectorial Total Variation regularization from Total Variation class """
+
+    def __init__(self, Vm, parameters=[]):
+        """ Vm = FunctionSpace for the parameters m1, and m2 """
+        self.parameters = {'k':1.0, 'eps':1e-2}
+        self.parameters.update(parameters)
+        VmVm = Vm*Vm
+        self.parameters['Vm'] = VmVm
+        Vw = FunctionSpce(Vm.mesh(), 'DG', 0)
+        VwVw = Vw*Vw
+        self.parameters['Vw'] = VwVw
+
+        self.regTV = TVPD(self.parameters)
+
+        self.m1, self.m2 = Function(Vm), Function(Vm)
+        self.m = Function(VmVm)
+
+
+    def isTV(self): return True
+    def isPD(self): return True
+
+
+    def costab(self, m1, m2):
+        assign(self.m.sub(0), m1)
+        assign(self.m.sub(1), m2)
+        return self.regTV.cost(self.m)
+
+    def costabvect(self, m1, m2):
+        setfct(self.m1, m1)
+        setfct(self.m2, m2)
+        return self.costab(self.m1, self.m2)
+
+
+    def gradab(self, m1, m2):
+        assign(self.m.sub(0), m1)
+        assign(self.m.sub(1), m2)
+        return self.regTV.grad(self.m)
+
+    def gradabvect(self, m1, m2):
+        setfct(self.m1, m1)
+        setfct(self.m2, m2)
+        return self.gradab(self.m1, self.m2)
+
+
+    def assemble_hessianab(self, m1, m2):
+        assign(self.m.sub(0), m1)
+        assign(self.m.sub(1), m2)
+        self.regTV.assemble_hessian(self.m)
+
+
+    def hessianab(self, m1h, m2h):
+        """ m1h, m2h = Vector(V) """
+        setfct(self.m1, m1h)
+        setfct(self.m2, m2h)
+        assign(self.m.sub(0), self.m1)
+        assign(self.m.sub(1), self.m2)
+        return self.regTV.hessian(self.m.vector())
+
+
+    def getprecond(self):
+        return self.regTV.getprecond()
+
+
+    def compute_what(self, mhat):
+        self.regTV.compute_what(mhat)
+
+    def update_w(self, mhat, alphaLS, compute_what=True):
+        """ update dual variable in direction what 
+        and update re-scaled version """
+
+        if compute_what:    self.compute_what(mhat)
+
+        self.regTV.w.vector().axpy(alphaLS, self.regTV.what.vector())
+
+
+        rescaledradiusdual = 1.0    # 1.0: checked empirically to be max radius acceptable
+
+        w1, w2 = self.regTV.w.split(deepcopy=True)
+
+        w1x, w1y = w1.split(deepcopy=True)
+        wxa, wya = w1x.vector().array(), w1y.vector().array()
+        normw = np.sqrt(wxa**2 + wya**2)
+        factorw = [max(1.0, ii/rescaledradiusdual) for ii in normw]
+        nbrescaled = [1.0*(ii > rescaledradiusdual) for ii in normw]
+        print 'perc. dual entries rescaled in w1={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
+        100.*sum(nbrescaled)/len(nbrescaled), min(factorw), max(factorw))
+        setfct(w1x, wxa/factorw)
+        setfct(w1y, wya/factorw)
+        assign(w1.sub(0), w1x)
+        assign(w1.sub(1), w1y)
+
+        w2x, w2y = w2.split(deepcopy=True)
+        wxa, wya = w2x.vector().array(), w2y.vector().array()
+        normw = np.sqrt(wxa**2 + wya**2)
+        factorw = [max(1.0, ii/rescaledradiusdual) for ii in normw]
+        nbrescaled = [1.0*(ii > rescaledradiusdual) for ii in normw]
+        print 'perc. dual entries rescaled in w2={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
+        100.*sum(nbrescaled)/len(nbrescaled), min(factorw), max(factorw))
+        setfct(w2x, wxa/factorw)
+        setfct(w2y, wya/factorw)
+        assign(w2.sub(0), w2x)
+        assign(w2.sub(1), w2y)
+
+        assign(self.regTV.wrs.sub(0), w1)
+        assign(self.regTV.wrs.sub(1), w2)

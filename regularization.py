@@ -150,18 +150,21 @@ class TVPD():
         self.parameters = {'k':1.0, 'eps':1e-2, 'exact':False}
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
-        Vm = self.parameters['Vm']
+        self.Vm = self.parameters['Vm']
         k = self.parameters['k']
         eps = self.parameters['eps']
         exact = self.parameters['exact']
 
-        self.m = Function(Vm)
-        testm = TestFunction(Vm)
-        trialm = TrialFunction(Vm)
+        self.m = Function(self.Vm)
+        testm = TestFunction(self.Vm)
+        trialm = TrialFunction(self.Vm)
 
         # WARNING: should not be changed.
         # As it is, code only works with DG0
-        Vw = FunctionSpace(Vm.mesh(), 'DG', 0)
+        if self.parameters.has_key('Vw'):
+            Vw = self.parameters['Vw']
+        else:
+            Vw = FunctionSpace(self.Vm.mesh(), 'DG', 0)
         self.w = Function(Vw*Vw)
         self.wrs = Function(Vw*Vw)   # re-scaled dual variable
         self.what = Function(Vw*Vw)
