@@ -6,7 +6,7 @@ import dolfin as dl
 
 from fenicstools.miscfenics import setfct
 from fenicstools.regularization import TV
-from fenicstools.jointregularization import VTV
+from fenicstools.jointregularization import VTV, V_TV
 
 
 print 'Check VTV against TV (cost)'
@@ -14,7 +14,8 @@ mesh = dl.UnitSquareMesh(20,20)
 V = dl.FunctionSpace(mesh, 'Lagrange', 1)
 
 regTV = TV({'Vm':V, 'k':1.0, 'eps':1e-6})
-regVTV = VTV(V, {'k':1.0, 'eps':1e-6})
+#regVTV = VTV(V, {'k':1.0, 'eps':1e-6})
+regVTV = V_TV(V, {'k':1.0, 'eps':1e-6})
 
 m = dl.interpolate(dl.Expression("1.0"), V)
 m1 = m

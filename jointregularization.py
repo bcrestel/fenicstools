@@ -7,6 +7,7 @@ Function, TestFunction, TrialFunction, assemble, \
 PETScKrylovSolver, assign, sqrt, Constant
 from miscfenics import setfct
 from linalg.splitandassign import BlockDiagonal
+from regularization import TV
 
 
 
@@ -436,3 +437,66 @@ class VTV():
         solver.parameters["nonzero_initial_guess"] = False 
         solver.set_operator(self.H + self.sMass)
         return solver
+
+
+class V_TV():
+    """ Definite Vectorial Total Variation regularization from Total Variation class """
+
+    def __init__(self, Vm, parameters=[]):
+        """ Vm = FunctionSpace for the parameters m1, and m2 """
+        self.parameters = {'k':1.0, 'eps':1e-2}
+        self.parameters.update(parameters)
+        VmVm = Vm*Vm
+        self.parameters['Vm'] = VmVm
+
+        self.regTV = TV(self.parameters)
+
+        self.m1, self.m2 = Function(Vm), Function(Vm)
+        self.m = Function(VmVm)
+
+
+    def isTV(self): return True
+    def isPD(self): return False
+
+
+    def costab(self, m1, m2):
+        assign(self.m.sub(0), m1)
+        assign(self.m.sub(1), m2)
+        return self.regTV.cost(self.m)
+
+    def costabvect(self, m1, m2):
+        setfct(self.m1, m1)
+        setfct(self.m2, m2)
+        return self.costab(self.m1, self.m2)
+
+
+    def gradab(self, m1, m2):
+        assign(self.m.sub(0), m1)
+        assign(self.m.sub(1), m2)
+        return self.regTV.grad(self.m)
+
+    def gradabvect(self, m1, m2):
+        setfct(self.m1, m1)
+        setfct(self.m2, m2)
+        return self.gradab(self.m1, self.m2)
+
+
+    def assemble_hessianab(self, m1, m2):
+        assign(self.m.sub(0), m1)
+        assign(self.m.sub(1), m2)
+        self.regTV.assemble_hessian(self.m)
+        #self.H = self.regTV.H
+        #self.precond = self.regTV.precond
+
+
+    def hessianab(self, m1h, m2h):
+        """ m1h, m2h = Vector(V) """
+        setfct(self.m1, m1h)
+        setfct(self.m2, m2h)
+        assign(self.m.sub(0), self.m1)
+        assign(self.m.sub(1), self.m2)
+        return self.regTV.hessian(self.m.vector())
+
+
+    def getprecond(self):
+        return self.regTV.getprecond()
