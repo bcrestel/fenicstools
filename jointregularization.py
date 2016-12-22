@@ -525,7 +525,7 @@ class V_TVPD():
         self.parameters.update(parameters)
         VmVm = Vm*Vm
         self.parameters['Vm'] = VmVm
-        Vw = FunctionSpce(Vm.mesh(), 'DG', 0)
+        Vw = FunctionSpace(Vm.mesh(), 'DG', 0)
         VwVw = Vw*Vw
         self.parameters['Vw'] = VwVw
 
