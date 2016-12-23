@@ -142,6 +142,10 @@ class TV():
 #----------------------------------------------------------------------
 class TVPD():
     """ Total variation using primal-dual Newton """
+    #TODO: split w into wx and wy -- see Test/test_partialderivative for
+    # how to do that
+    # goal is to make TVPD use-able with Vm (and Vw) defined 
+    # as mixed function space
 
     def __init__(self, parameters, mpicomm=PETSc.COMM_WORLD):
         """ parameters must have key 'Vm' for parameter function space,
