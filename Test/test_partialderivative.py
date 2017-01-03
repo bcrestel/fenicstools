@@ -32,12 +32,12 @@ for ii in range(10):
 
 print 'Test 2'
 test = TestFunction(VwVw)
+testx, testy = TestFunctions(VwVw)
 m = Function(V)
 for ii in range(10):
     m.vector()[:] = np.random.randn(V.dim())
     v1 = assemble(inner(test, nabla_grad(m))*dx)
     v1n = v1.norm('l2')
-    testx, testy = test
     v2 = assemble(inner(testx, m.dx(0))*dx + inner(testy, m.dx(1))*dx)
     v2n = v2.norm('l2')
     err = (v1-v2).norm('l2')/v1n
