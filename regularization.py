@@ -142,15 +142,10 @@ class TV():
 #----------------------------------------------------------------------
 class TVPD():
     """ Total variation using primal-dual Newton """
-    #TODO: split w into wx and wy -- see Test/test_partialderivative for
-    # how to do that
-    # goal is to make TVPD use-able with Vm (and Vw) defined 
-    # as mixed function space
 
     def __init__(self, parameters, mpicomm=PETSc.COMM_WORLD):
         """ parameters must have key 'Vm' for parameter function space,
         key 'exact' run exact TV, w/o primal-dual; used to check w/ FD """
-
         self.parameters = {'k':1.0, 'eps':1e-2, 'exact':False}
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
@@ -169,26 +164,35 @@ class TVPD():
             Vw = self.parameters['Vw']
         else:
             Vw = FunctionSpace(self.Vm.mesh(), 'DG', 0)
-        self.w = Function(Vw*Vw)
-        self.wrs = Function(Vw*Vw)   # re-scaled dual variable
-        self.what = Function(Vw*Vw)
-        self.gw = Function(Vw*Vw)
-        testw = TestFunction(Vw*Vw)
-        trialw = TrialFunction(Vw*Vw)
+        self.wx = Function(Vw)
+        self.wxrs = Function(Vw)   # re-scaled dual variable
+        self.wxhat = Function(Vw)
+        self.gwx = Function(Vw)
+        self.wy = Function(Vw)
+        self.wyrs = Function(Vw)   # re-scaled dual variable
+        self.wyhat = Function(Vw)
+        self.gwy = Function(Vw)
+        testw = TestFunction(Vw)
+        trialw = TrialFunction(Vw)
 
         normm = inner(nabla_grad(self.m), nabla_grad(self.m))
         TVnormsq = normm + Constant(eps)
         TVnorm = sqrt(TVnormsq)
-        self.wkformcost = Constant(k) * TVnorm * dx
-        if exact:   
-            self.w = nabla_grad(self.m)/TVnorm # full Hessian
-            self.Htvw = inner(Constant(k) * nabla_grad(testm), self.w) * dx
+        self.wkformcost = Constant(k)*TVnorm*dx
+        if exact:
+            sys.exit(1)
+#            self.w = nabla_grad(self.m)/TVnorm # full Hessian
+#            self.Htvw = inner(Constant(k) * nabla_grad(testm), self.w) * dx
 
-        self.misfitw = inner(testw, self.w*TVnorm - nabla_grad(self.m)) * dx
-        self.Htv = assemble(inner(Constant(k) * nabla_grad(testm), trialw) * dx)
+        self.misfitwx = inner(testw, self.wx*TVnorm - self.m.dx(0))*dx
+        self.misfitwy = inner(testw, self.wy*TVnorm - self.m.dx(1))*dx
 
-        self.massw = inner(TVnorm*testw, trialw) * dx
-        invMwMat, VDM, VDM = setupPETScmatrix(Vw*Vw, Vw*Vw, 'aij', mpicomm)
+        self.Htvx = assemble(inner(Constant(k)*testm.dx(0), trialw)*dx)
+        self.Htvy = assemble(inner(Constant(k)*testm.dx(1), trialw)*dx)
+
+        self.massw = inner(TVnorm*testw, trialw)*dx
+
+        invMwMat, VDM, VDM = setupPETScmatrix(Vw, Vw, 'aij', mpicomm)
         for ii in VDM.dofs():
             invMwMat[ii, ii] = 1.0
         invMwMat.assemblyBegin()
@@ -197,10 +201,14 @@ class TVPD():
         self.invMwd = Vector()
         self.invMwMat.init_vector(self.invMwd, 0)
 
-        self.wkformA = inner(testw, nabla_grad(trialm) - \
-        self.w * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
-        self.wkformArs = inner(testw, nabla_grad(trialm) - \
-        self.wrs * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
+        self.wkformAx = inner(testw, trialm.dx(0) - \
+        self.wx * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
+        self.wkformAxrs = inner(testw, trialm.dx(0) - \
+        self.wxrs * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
+        self.wkformAy = inner(testw, trialm.dx(1) - \
+        self.wy * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
+        self.wkformAyrs = inner(testw, trialm.dx(1) - \
+        self.wyrs * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
 
         factM = 1e-2*k
         M = assemble(inner(testm, trialm)*dx)
@@ -225,7 +233,6 @@ class TVPD():
     
     def cost(self, m):
         """ evaluate the cost functional at m """
-
         setfct(self.m, m)
         return assemble(self.wkformcost)
 
@@ -235,26 +242,30 @@ class TVPD():
     def _assemble_invMw(self):
         """ Assemble inverse of matrix Mw,
         weighted mass matrix in dual space """
-
         # WARNING: only works if Mw is diagonal (e.g, DG0)
         Mw = assemble(self.massw)
         Mwd = get_diagonal(Mw)
         self.invMwd[:] = 1./Mwd.array()
-
         self.invMwMat.set_diagonal(self.invMwd)
 
 
     def grad(self, m):
-        """ compute the gradient at m (and what2) """
-
+        """ compute the gradient at m """
         setfct(self.m, m)
         self._assemble_invMw()
 
-        self.gw.vector().zero()
-        self.gw.vector().axpy(1.0, assemble(self.misfitw))
-        print '|gw|={}'.format(np.linalg.norm(self.gw.vector().array()))
+        self.gwx.vector().zero()
+        self.gwx.vector().axpy(1.0, assemble(self.misfitwx))
+        normgwx = np.linalg.norm(self.gwx.vector().array())
 
-        return self.Htv*(self.w.vector() - self.invMwd*self.gw.vector())
+        self.gwy.vector().zero()
+        self.gwy.vector().axpy(1.0, assemble(self.misfitwy))
+        normgwy = np.linalg.norm(self.gwy.vector().array())
+
+        print '|gw|={}'.format(np.sqrt(normgwx**2 + normgwy**2))
+
+        return self.Htvx*(self.wx.vector() - self.invMwd*self.gwx.vector()) \
+        + self.Htvy*(self.wy.vector() - self.invMwd*self.gwy.vector())
         #return assemble(self.Htvw) - self.Htv*(self.invMwd*self.gw.vector())
 
     def gradvect(self, m_in):   return self.grad(m_in)
@@ -262,18 +273,25 @@ class TVPD():
 
     def assemble_hessian(self, m):
         """ build Hessian matrix at given point m """
-
         setfct(self.m, m)
         self._assemble_invMw()
 
-        Ars = assemble(self.wkformArs)
-        self.A = assemble(self.wkformA)
+        self.Ax = assemble(self.wkformAx)
+        Hxasym = MatMatMult(self.Htvx, MatMatMult(self.invMwMat, self.Ax))
+        Hx = (Hxasym + Transpose(Hxasym)) * 0.5
+        Axrs = assemble(self.wkformAxrs)
+        Hxrsasym = MatMatMult(self.Htvx, MatMatMult(self.invMwMat, Axrs))
+        Hxrs = (Hxrsasym + Transpose(Hxrsasym)) * 0.5
 
-        Hasym = MatMatMult(self.Htv, MatMatMult(self.invMwMat, self.A))
-        self.H = (Hasym + Transpose(Hasym)) * 0.5
+        self.Ay = assemble(self.wkformAy)
+        Hyasym = MatMatMult(self.Htvy, MatMatMult(self.invMwMat, self.Ay))
+        Hy = (Hyasym + Transpose(Hyasym)) * 0.5
+        Ayrs = assemble(self.wkformAyrs)
+        Hyrsasym = MatMatMult(self.Htvy, MatMatMult(self.invMwMat, Ayrs))
+        Hyrs = (Hyrsasym + Transpose(Hyrsasym)) * 0.5
 
-        Hrsasym = MatMatMult(self.Htv, MatMatMult(self.invMwMat, Ars))
-        self.Hrs = (Hrsasym + Transpose(Hrsasym)) * 0.5
+        self.H = Hx + Hy
+        self.Hrs = Hxrs + Hyrs
 
         self.precond = self.Hrs + self.sMass
 
@@ -285,34 +303,33 @@ class TVPD():
 
     def compute_what(self, mhat):
         """ Compute update direction for what, given mhat """
+        self.wxhat.vector().zero()
+        self.wxhat.vector().axpy(1.0, self.invMwd*(self.Ax*mhat - self.gwx.vector()))
+        normwxhat = np.linalg.norm(self.wxhat.vector().array())
 
-        self.what.vector().zero()
-        self.what.vector().axpy(1.0, self.invMwd*(self.A*mhat - self.gw.vector()))
-        print '|what|={}'.format(np.linalg.norm(self.what.vector().array()))
+        self.wyhat.vector().zero()
+        self.wyhat.vector().axpy(1.0, self.invMwd*(self.Ay*mhat - self.gwy.vector()))
+        normwyhat = np.linalg.norm(self.wyhat.vector().array())
+
+        print '|what|={}'.format(np.sqrt(normwxhat**2 + normwyhat**2))
 
 
     def update_w(self, mhat, alphaLS, compute_what=True):
         """ update dual variable in direction what 
         and update re-scaled version """
-
         if compute_what:    self.compute_what(mhat)
-
-        self.w.vector().axpy(alphaLS, self.what.vector())
-        #self.w.vector().axpy(1.0, self.what.vector())
+        self.wx.vector().axpy(alphaLS, self.wxhat.vector())
+        self.wy.vector().axpy(alphaLS, self.wyhat.vector())
 
         rescaledradiusdual = 1.0    # 1.0: checked empirically to be max radius acceptable
-
-        wx, wy = self.w.split(deepcopy=True)
-        wxa, wya = wx.vector().array(), wy.vector().array()
+        wxa, wya = self.wx.vector().array(), self.wy.vector().array()
         normw = np.sqrt(wxa**2 + wya**2)
         factorw = [max(1.0, ii/rescaledradiusdual) for ii in normw]
         nbrescaled = [1.0*(ii > rescaledradiusdual) for ii in normw]
         print 'perc. dual entries rescaled={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
         100.*sum(nbrescaled)/len(nbrescaled), min(factorw), max(factorw))
-        setfct(wx, wxa/factorw)
-        setfct(wy, wya/factorw)
-        assign(self.wrs.sub(0), wx)
-        assign(self.wrs.sub(1), wy)
+        setfct(self.wxrs, wxa/factorw)
+        setfct(self.wyrs, wya/factorw)
         
 
     def getprecond(self):
