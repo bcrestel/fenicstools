@@ -6,7 +6,7 @@ Function, TestFunction, TrialFunction, Vector, assemble, solve, \
 Constant, plot, interactive, assign, FunctionSpace, \
 PETScKrylovSolver, PETScLUSolver, mpi_comm_world, PETScMatrix
 from miscfenics import isVector, setfct
-from linalg.miscroutines import get_diagonal, setupPETScmatrix
+from linalg.miscroutines import get_diagonal, setupPETScmatrix, compute_eigfenics
 from hippylib.linalg import MatMatMult, Transpose
 
 import petsc4py, sys
@@ -146,7 +146,7 @@ class TVPD():
     def __init__(self, parameters, mpicomm=PETSc.COMM_WORLD):
         """ parameters must have key 'Vm' for parameter function space,
         key 'exact' run exact TV, w/o primal-dual; used to check w/ FD """
-        self.parameters = {'k':1.0, 'eps':1e-2, 'exact':False}
+        self.parameters = {'k':1.0, 'eps':1e-2, 'rescaledradiusdual':1.0, 'exact':False}
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
         self.Vm = self.parameters['Vm']
@@ -292,8 +292,19 @@ class TVPD():
 
         self.H = Hx + Hy
         self.Hrs = Hxrs + Hyrs
+        #TODO: tmp check
+        #a,b = np.where(np.isnan(self.H.array())==True)
+        #print 'len(a)={}, len(b)={}'.format(len(a), len(b))
+        #a,b = np.where(np.isnan(self.Hrs.array())==True)
+        #print 'len(a)={}, len(b)={}'.format(len(a), len(b))
+        #compute_eigfenics(self.H, 'eigH.txt')
+        #compute_eigfenics(self.Hrs, 'eigHrs.txt')
 
         self.precond = self.Hrs + self.sMass
+        #TODO: tmp check
+        #a,b = np.where(np.isnan(self.precond.array())==True)
+        #print 'len(a)={}, len(b)={}'.format(len(a), len(b))
+        #compute_eigfenics(self.precond, 'eigprecond.txt')
 
 
     def hessian(self, mhat):
@@ -312,6 +323,10 @@ class TVPD():
         normwyhat = np.linalg.norm(self.wyhat.vector().array())
 
         print '|what|={}'.format(np.sqrt(normwxhat**2 + normwyhat**2))
+        #TODO: tmp check
+        #print '{}<wxhat<{}, {}<wyhat<{}'.format(\
+        #min(self.wxhat.vector().array()), max(self.wxhat.vector().array()),\
+        #min(self.wyhat.vector().array()), max(self.wyhat.vector().array()))
 
 
     def update_w(self, mhat, alphaLS, compute_what=True):
@@ -320,8 +335,13 @@ class TVPD():
         if compute_what:    self.compute_what(mhat)
         self.wx.vector().axpy(alphaLS, self.wxhat.vector())
         self.wy.vector().axpy(alphaLS, self.wyhat.vector())
+        #TODO: tmp check
+        #print '{}<wx<{}, {}<wy<{}'.format(\
+        #min(self.wx.vector().array()), max(self.wx.vector().array()),\
+        #min(self.wy.vector().array()), max(self.wy.vector().array()))
 
-        rescaledradiusdual = 1.0    # 1.0: checked empirically to be max radius acceptable
+        # 1.0: checked empirically to be max radius acceptable
+        rescaledradiusdual = self.parameters['rescaledradiusdual']    
         wxa, wya = self.wx.vector().array(), self.wy.vector().array()
         normw = np.sqrt(wxa**2 + wya**2)
         factorw = [max(1.0, ii/rescaledradiusdual) for ii in normw]
