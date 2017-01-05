@@ -292,24 +292,12 @@ class TVPD():
 
         self.H = Hx + Hy
         self.Hrs = Hxrs + Hyrs
-        #TODO: tmp check
-        #a,b = np.where(np.isnan(self.H.array())==True)
-        #print 'len(a)={}, len(b)={}'.format(len(a), len(b))
-        #a,b = np.where(np.isnan(self.Hrs.array())==True)
-        #print 'len(a)={}, len(b)={}'.format(len(a), len(b))
-        #compute_eigfenics(self.H, 'eigH.txt')
-        #compute_eigfenics(self.Hrs, 'eigHrs.txt')
 
         self.precond = self.Hrs + self.sMass
-        #TODO: tmp check
-        #a,b = np.where(np.isnan(self.precond.array())==True)
-        #print 'len(a)={}, len(b)={}'.format(len(a), len(b))
-        #compute_eigfenics(self.precond, 'eigprecond.txt')
 
 
     def hessian(self, mhat):
         return self.Hrs * mhat
-        #return self.H * mhat
 
 
     def compute_what(self, mhat):
@@ -323,10 +311,6 @@ class TVPD():
         normwyhat = np.linalg.norm(self.wyhat.vector().array())
 
         print '|what|={}'.format(np.sqrt(normwxhat**2 + normwyhat**2))
-        #TODO: tmp check
-        #print '{}<wxhat<{}, {}<wyhat<{}'.format(\
-        #min(self.wxhat.vector().array()), max(self.wxhat.vector().array()),\
-        #min(self.wyhat.vector().array()), max(self.wyhat.vector().array()))
 
 
     def update_w(self, mhat, alphaLS, compute_what=True):
@@ -335,12 +319,8 @@ class TVPD():
         if compute_what:    self.compute_what(mhat)
         self.wx.vector().axpy(alphaLS, self.wxhat.vector())
         self.wy.vector().axpy(alphaLS, self.wyhat.vector())
-        #TODO: tmp check
-        #print '{}<wx<{}, {}<wy<{}'.format(\
-        #min(self.wx.vector().array()), max(self.wx.vector().array()),\
-        #min(self.wy.vector().array()), max(self.wy.vector().array()))
 
-        # 1.0: checked empirically to be max radius acceptable
+        # rescaledradiusdual=1.0: checked empirically to be max radius acceptable
         rescaledradiusdual = self.parameters['rescaledradiusdual']    
         wxa, wya = self.wx.vector().array(), self.wy.vector().array()
         normw = np.sqrt(wxa**2 + wya**2)
