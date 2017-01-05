@@ -1,7 +1,7 @@
 """
 Define joint regularization terms
 """
-
+import numpy as np
 from dolfin import inner, nabla_grad, dx, \
 Function, TestFunction, TrialFunction, assemble, \
 PETScKrylovSolver, assign, sqrt, Constant, FunctionSpace
@@ -582,46 +582,37 @@ class V_TVPD():
         return self.regTV.getprecond()
 
 
-#    def compute_what(self, mhat):
-#        self.regTV.compute_what(mhat)
+    def compute_what(self, mhat):
+        self.regTV.compute_what(mhat)
+
 
     def update_w(self, mhat, alphaLS, compute_what=True):
         """ update dual variable in direction what 
         and update re-scaled version """
-        self.regTV.update_w(mhat, alphaLS, compute_what)
+        # Update wx and wy
+        if compute_what:    self.compute_what(mhat)
+        self.regTV.wx.vector().axpy(alphaLS, self.regTV.wxhat.vector())
+        self.regTV.wy.vector().axpy(alphaLS, self.regTV.wyhat.vector())
 
-#        if compute_what:    self.compute_what(mhat)
-#
-#        self.regTV.w.vector().axpy(alphaLS, self.regTV.what.vector())
-#
-#
-#        rescaledradiusdual = 1.0    # 1.0: checked empirically to be max radius acceptable
-#
-#        w1, w2 = self.regTV.w.split(deepcopy=True)
-#
-#        w1x, w1y = w1.split(deepcopy=True)
-#        wxa, wya = w1x.vector().array(), w1y.vector().array()
-#        normw = np.sqrt(wxa**2 + wya**2)
-#        factorw = [max(1.0, ii/rescaledradiusdual) for ii in normw]
-#        nbrescaled = [1.0*(ii > rescaledradiusdual) for ii in normw]
-#        print 'perc. dual entries rescaled in w1={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
-#        100.*sum(nbrescaled)/len(nbrescaled), min(factorw), max(factorw))
-#        setfct(w1x, wxa/factorw)
-#        setfct(w1y, wya/factorw)
-#        assign(w1.sub(0), w1x)
-#        assign(w1.sub(1), w1y)
-#
-#        w2x, w2y = w2.split(deepcopy=True)
-#        wxa, wya = w2x.vector().array(), w2y.vector().array()
-#        normw = np.sqrt(wxa**2 + wya**2)
-#        factorw = [max(1.0, ii/rescaledradiusdual) for ii in normw]
-#        nbrescaled = [1.0*(ii > rescaledradiusdual) for ii in normw]
-#        print 'perc. dual entries rescaled in w2={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
-#        100.*sum(nbrescaled)/len(nbrescaled), min(factorw), max(factorw))
-#        setfct(w2x, wxa/factorw)
-#        setfct(w2y, wya/factorw)
-#        assign(w2.sub(0), w2x)
-#        assign(w2.sub(1), w2y)
-#
-#        assign(self.regTV.wrs.sub(0), w1)
-#        assign(self.regTV.wrs.sub(1), w2)
+        # Update rescaled variables
+        rescaledradiusdual = self.parameters['rescaledradiusdual']    
+        w1x, w2x = self.regTV.wx.split(deepcopy=True)
+        w1y, w2y = self.regTV.wy.split(deepcopy=True)
+        w1xa, w1ya = w1x.vector().array(), w1y.vector().array()
+        normw1sq = w1xa**2 + w1ya**2
+        w2xa, w2ya = w2x.vector().array(), w2y.vector().array()
+        normw2sq = w2xa**2 + w2ya**2
+        normw = np.sqrt(normw1sq + normw2sq)
+        factorw = [max(1.0, ii/rescaledradiusdual) for ii in normw]
+        nbrescaled = [1.0*(ii > rescaledradiusdual) for ii in normw]
+        print 'perc. dual entries rescaled={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
+        100.*sum(nbrescaled)/len(nbrescaled), min(factorw), max(factorw))
+
+        setfct(w1x, w1xa/factorw)
+        setfct(w1y, w1ya/factorw)
+        assign(self.regTV.wxrs.sub(0), w1x)
+        assign(self.regTV.wyrs.sub(0), w1y)
+        setfct(w2x, w2xa/factorw)
+        setfct(w2y, w2ya/factorw)
+        assign(self.regTV.wxrs.sub(1), w2x)
+        assign(self.regTV.wyrs.sub(1), w2y)
