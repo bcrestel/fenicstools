@@ -13,18 +13,21 @@ from regularization import TV, TVPD
 
 class SumRegularization():
     """ Sum of independent regularizations for each med. param, 
-    potentially connected by cross-gradient """
+    potentially connected by cross-gradient or VTV """
 
-    def __init__(self, regul1, regul2, mpicomm, coeff_cg=0.0):
+    def __init__(self, regul1, regul2, mpicomm, \
+    coeff_cg=0.0, coeff_vtv=0.0, parameters_vtv=[]):
         """ regul1, regul2 = regularization/prior objects for medium 1 and 2
         coeff_cg = regularization constant for cross-gradient term; if 0.0, no
-        cross-gradient (independent reconstructions) """
-
+        cross-gradient
+        coeff_vtv = regularization constant for VTV term; if 0.0, no VTV
+        """
         assert id(regul1) != id(regul2), "Need to define two distinct regul objects"
 
         self.regul1 = regul1
         self.regul2 = regul2
         self.coeff_cg = coeff_cg
+        self.coeff_vtv = coeff_vtv
 
         V1 = self.regul1.Vm
         V2 = self.regul2.Vm
@@ -35,6 +38,9 @@ class SumRegularization():
 
         if self.coeff_cg > 0.0:
             self.crossgrad = crossgradient(self.V1V2)
+        if self.coeff_vtv > 0.0:
+            assert self.regul1.Vm is self.regul2.Vm
+            self.vtv = V_TVPD(V1, parameters_vtv)
 
         try:
             solver = PETScKrylovSolver('cg', 'ml_amg')
@@ -53,12 +59,16 @@ class SumRegularization():
         cost = self.regul1.cost(m1) + self.regul2.cost(m2)
         if self.coeff_cg > 0.0:
             cost += self.coeff_cg*self.crossgrad.costab(m1, m2)
+        if self.coeff_vtv > 0.0:
+            cost += self.coeff_vtv*self.vtv.costab(m1, m2)
         return cost
 
     def costabvect(self, m1, m2):
         cost = self.regul1.costvect(m1) + self.regul2.costvect(m2)
         if self.coeff_cg > 0.0:
             cost += self.coeff_cg*self.crossgrad.costab(m1, m2)
+        if self.coeff_vtv > 0.0:
+            cost += self.coeff_vtv*self.vtv.costabvect(m1, m2)
         return cost
 
 
@@ -73,7 +83,8 @@ class SumRegularization():
         assign(grad.sub(1), self.b)
         if self.coeff_cg > 0.0:
             grad.vector().axpy(self.coeff_cg, self.crossgrad.gradab(m1, m2))
-
+        if self.coeff_vtv > 0.0:
+            grad.vector().axpy(self.coeff_vtv, self.vtv.gradab(m1, m2))
         return grad.vector()
 
     def gradabvect(self, m1, m2):
@@ -89,7 +100,8 @@ class SumRegularization():
         assign(grad.sub(1), self.b)
         if self.coeff_cg > 0.0:
             grad.vector().axpy(self.coeff_cg, self.crossgrad.gradab(m1, m2))
-
+        if self.coeff_vtv > 0.0:
+            grad.vector().axpy(self.coeff_vtv, self.vtv.gradabvect(m1, m2))
         return grad.vector()
 
 
@@ -103,12 +115,13 @@ class SumRegularization():
     def assemble_hessianab(self, m1, m2):
         self.regul1.assemble_hessian(m1)
         self.regul2.assemble_hessian(m2)
+        self.precond = self._blockdiagprecond()
         if self.coeff_cg > 0.0:
             self.crossgrad.assemble_hessianab(m1, m2)
-            self.precond = self._blockdiagprecond() \
-            + self.crossgrad.Hdiag*self.coeff_cg
-        else:
-            self.precond = self._blockdiagprecond()
+            self.precond += self.crossgrad.Hdiag*self.coeff_cg
+        if self.coeff_vtv > 0.0:
+            self.vtv.assemble_hessianab(m1, m2)
+            self.precond += self.vtv.regTV.precond*self.coeff_vtv
 
     def hessianab(self, m1, m2):
         self.a.vector().zero()
@@ -121,13 +134,14 @@ class SumRegularization():
         assign(Hx.sub(1), self.b)
         if self.coeff_cg > 0.0:
             Hx.vector().axpy(self.coeff_cg, self.crossgrad.hessianab(m1, m2))
-
+        if self.coeff_vtv > 0.0:
+            Hx.vector().axpy(self.coeff_vtv, self.vtv.hessianab(m1, m2))
         return Hx.vector()
 
 
     def getprecond(self):
         solver = PETScKrylovSolver("cg", self.amgprecond)
-        solver.parameters["maximum_iterations"] = 1000
+        solver.parameters["maximum_iterations"] = 2000
         solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["relative_tolerance"] = 1e-24
         solver.parameters["error_on_nonconvergence"] = True 
@@ -144,6 +158,8 @@ class SumRegularization():
 
         self.regul1.update_w(mhat1.vector(), alphaLS, compute_what)
         self.regul2.update_w(mhat2.vector(), alphaLS, compute_what)
+        if self.coeff_vtv > 0.0:
+            self.vtv.update_w(mhat, alphaLS, compute_what)
 
 
 
@@ -247,7 +263,7 @@ class Tikhonovab():
 
     def getprecond(self):
         solver = PETScKrylovSolver("cg", "amg")
-        solver.parameters["maximum_iterations"] = 1000
+        solver.parameters["maximum_iterations"] = 2000
         solver.parameters["relative_tolerance"] = 1e-24
         solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["error_on_nonconvergence"] = True 
