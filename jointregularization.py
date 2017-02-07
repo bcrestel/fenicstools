@@ -1,7 +1,7 @@
 """
 Define joint regularization terms
 """
-
+import numpy as np
 from dolfin import inner, nabla_grad, dx, \
 Function, TestFunction, TrialFunction, assemble, \
 PETScKrylovSolver, assign, sqrt, Constant, FunctionSpace
@@ -14,18 +14,21 @@ from regularization import TV, TVPD
 
 class SumRegularization():
     """ Sum of independent regularizations for each med. param, 
-    potentially connected by cross-gradient """
+    potentially connected by cross-gradient or VTV """
 
-    def __init__(self, regul1, regul2, mpicomm, coeff_cg=0.0):
+    def __init__(self, regul1, regul2, mpicomm, \
+    coeff_cg=0.0, coeff_vtv=0.0, parameters_vtv=[]):
         """ regul1, regul2 = regularization/prior objects for medium 1 and 2
         coeff_cg = regularization constant for cross-gradient term; if 0.0, no
-        cross-gradient (independent reconstructions) """
-
+        cross-gradient
+        coeff_vtv = regularization constant for VTV term; if 0.0, no VTV
+        """
         assert id(regul1) != id(regul2), "Need to define two distinct regul objects"
 
         self.regul1 = regul1
         self.regul2 = regul2
         self.coeff_cg = coeff_cg
+        self.coeff_vtv = coeff_vtv
 
         V1 = self.regul1.Vm
         V2 = self.regul2.Vm
@@ -36,6 +39,9 @@ class SumRegularization():
 
         if self.coeff_cg > 0.0:
             self.crossgrad = crossgradient(self.V1V2)
+        if self.coeff_vtv > 0.0:
+            assert self.regul1.Vm is self.regul2.Vm
+            self.vtv = V_TVPD(V1, parameters_vtv)
 
         try:
             solver = PETScKrylovSolver('cg', 'ml_amg')
@@ -54,12 +60,16 @@ class SumRegularization():
         cost = self.regul1.cost(m1) + self.regul2.cost(m2)
         if self.coeff_cg > 0.0:
             cost += self.coeff_cg*self.crossgrad.costab(m1, m2)
+        if self.coeff_vtv > 0.0:
+            cost += self.coeff_vtv*self.vtv.costab(m1, m2)
         return cost
 
     def costabvect(self, m1, m2):
         cost = self.regul1.costvect(m1) + self.regul2.costvect(m2)
         if self.coeff_cg > 0.0:
             cost += self.coeff_cg*self.crossgrad.costab(m1, m2)
+        if self.coeff_vtv > 0.0:
+            cost += self.coeff_vtv*self.vtv.costabvect(m1, m2)
         return cost
 
 
@@ -74,7 +84,8 @@ class SumRegularization():
         assign(grad.sub(1), self.b)
         if self.coeff_cg > 0.0:
             grad.vector().axpy(self.coeff_cg, self.crossgrad.gradab(m1, m2))
-
+        if self.coeff_vtv > 0.0:
+            grad.vector().axpy(self.coeff_vtv, self.vtv.gradab(m1, m2))
         return grad.vector()
 
     def gradabvect(self, m1, m2):
@@ -90,7 +101,8 @@ class SumRegularization():
         assign(grad.sub(1), self.b)
         if self.coeff_cg > 0.0:
             grad.vector().axpy(self.coeff_cg, self.crossgrad.gradab(m1, m2))
-
+        if self.coeff_vtv > 0.0:
+            grad.vector().axpy(self.coeff_vtv, self.vtv.gradabvect(m1, m2))
         return grad.vector()
 
 
@@ -104,12 +116,13 @@ class SumRegularization():
     def assemble_hessianab(self, m1, m2):
         self.regul1.assemble_hessian(m1)
         self.regul2.assemble_hessian(m2)
+        self.precond = self._blockdiagprecond()
         if self.coeff_cg > 0.0:
             self.crossgrad.assemble_hessianab(m1, m2)
-            self.precond = self._blockdiagprecond() \
-            + self.crossgrad.Hdiag*self.coeff_cg
-        else:
-            self.precond = self._blockdiagprecond()
+            self.precond += self.crossgrad.Hdiag*self.coeff_cg
+        if self.coeff_vtv > 0.0:
+            self.vtv.assemble_hessianab(m1, m2)
+            self.precond += self.vtv.regTV.precond*self.coeff_vtv
 
     def hessianab(self, m1, m2):
         self.a.vector().zero()
@@ -122,13 +135,14 @@ class SumRegularization():
         assign(Hx.sub(1), self.b)
         if self.coeff_cg > 0.0:
             Hx.vector().axpy(self.coeff_cg, self.crossgrad.hessianab(m1, m2))
-
+        if self.coeff_vtv > 0.0:
+            Hx.vector().axpy(self.coeff_vtv, self.vtv.hessianab(m1, m2))
         return Hx.vector()
 
 
     def getprecond(self):
         solver = PETScKrylovSolver("cg", self.amgprecond)
-        solver.parameters["maximum_iterations"] = 1000
+        solver.parameters["maximum_iterations"] = 2000
         solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["relative_tolerance"] = 1e-24
         solver.parameters["error_on_nonconvergence"] = True 
@@ -145,6 +159,8 @@ class SumRegularization():
 
         self.regul1.update_w(mhat1.vector(), alphaLS, compute_what)
         self.regul2.update_w(mhat2.vector(), alphaLS, compute_what)
+        if self.coeff_vtv > 0.0:
+            self.vtv.update_w(mhat, alphaLS, compute_what)
 
 
 
@@ -248,7 +264,7 @@ class Tikhonovab():
 
     def getprecond(self):
         solver = PETScKrylovSolver("cg", "amg")
-        solver.parameters["maximum_iterations"] = 1000
+        solver.parameters["maximum_iterations"] = 2000
         solver.parameters["relative_tolerance"] = 1e-24
         solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["error_on_nonconvergence"] = True 
@@ -523,7 +539,7 @@ class V_TVPD():
 
     def __init__(self, Vm, parameters=[]):
         """ Vm = FunctionSpace for the parameters m1, and m2 """
-        self.parameters = {'k':1.0, 'eps':1e-2}
+        self.parameters = {'k':1.0, 'eps':1e-2, 'rescaledradiusdual':1.0}
         self.parameters.update(parameters)
         VmVm = Vm*Vm
         self.parameters['Vm'] = VmVm
@@ -564,8 +580,10 @@ class V_TVPD():
 
 
     def assemble_hessianab(self, m1, m2):
-        assign(self.m.sub(0), m1)
-        assign(self.m.sub(1), m2)
+        setfct(self.m1, m1)
+        setfct(self.m2, m2)
+        assign(self.m.sub(0), self.m1)
+        assign(self.m.sub(1), self.m2)
         self.regTV.assemble_hessian(self.m)
 
 
@@ -585,42 +603,34 @@ class V_TVPD():
     def compute_what(self, mhat):
         self.regTV.compute_what(mhat)
 
+
     def update_w(self, mhat, alphaLS, compute_what=True):
         """ update dual variable in direction what 
         and update re-scaled version """
-
+        # Update wx and wy
         if compute_what:    self.compute_what(mhat)
+        self.regTV.wx.vector().axpy(alphaLS, self.regTV.wxhat.vector())
+        self.regTV.wy.vector().axpy(alphaLS, self.regTV.wyhat.vector())
 
-        self.regTV.w.vector().axpy(alphaLS, self.regTV.what.vector())
-
-
-        rescaledradiusdual = 1.0    # 1.0: checked empirically to be max radius acceptable
-
-        w1, w2 = self.regTV.w.split(deepcopy=True)
-
-        w1x, w1y = w1.split(deepcopy=True)
-        wxa, wya = w1x.vector().array(), w1y.vector().array()
-        normw = np.sqrt(wxa**2 + wya**2)
+        # Update rescaled variables
+        rescaledradiusdual = self.parameters['rescaledradiusdual']    
+        w1x, w2x = self.regTV.wx.split(deepcopy=True)
+        w1y, w2y = self.regTV.wy.split(deepcopy=True)
+        w1xa, w1ya = w1x.vector().array(), w1y.vector().array()
+        normw1sq = w1xa**2 + w1ya**2
+        w2xa, w2ya = w2x.vector().array(), w2y.vector().array()
+        normw2sq = w2xa**2 + w2ya**2
+        normw = np.sqrt(normw1sq + normw2sq)
         factorw = [max(1.0, ii/rescaledradiusdual) for ii in normw]
         nbrescaled = [1.0*(ii > rescaledradiusdual) for ii in normw]
-        print 'perc. dual entries rescaled in w1={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
+        print 'perc. dual entries rescaled={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
         100.*sum(nbrescaled)/len(nbrescaled), min(factorw), max(factorw))
-        setfct(w1x, wxa/factorw)
-        setfct(w1y, wya/factorw)
-        assign(w1.sub(0), w1x)
-        assign(w1.sub(1), w1y)
 
-        w2x, w2y = w2.split(deepcopy=True)
-        wxa, wya = w2x.vector().array(), w2y.vector().array()
-        normw = np.sqrt(wxa**2 + wya**2)
-        factorw = [max(1.0, ii/rescaledradiusdual) for ii in normw]
-        nbrescaled = [1.0*(ii > rescaledradiusdual) for ii in normw]
-        print 'perc. dual entries rescaled in w2={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
-        100.*sum(nbrescaled)/len(nbrescaled), min(factorw), max(factorw))
-        setfct(w2x, wxa/factorw)
-        setfct(w2y, wya/factorw)
-        assign(w2.sub(0), w2x)
-        assign(w2.sub(1), w2y)
-
-        assign(self.regTV.wrs.sub(0), w1)
-        assign(self.regTV.wrs.sub(1), w2)
+        setfct(w1x, w1xa/factorw)
+        setfct(w1y, w1ya/factorw)
+        assign(self.regTV.wxrs.sub(0), w1x)
+        assign(self.regTV.wyrs.sub(0), w1y)
+        setfct(w2x, w2xa/factorw)
+        setfct(w2y, w2ya/factorw)
+        assign(self.regTV.wxrs.sub(1), w2x)
+        assign(self.regTV.wyrs.sub(1), w2y)

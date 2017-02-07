@@ -3,7 +3,7 @@ the linear algebra backend """
 
 import numpy as np
 import matplotlib.pyplot as plt
-from dolfin import as_backend_type, PETScVector, PETScMatrix
+from dolfin import as_backend_type, PETScVector, PETScMatrix, SLEPcEigenSolver
 
 import petsc4py, sys
 petsc4py.init(sys.argv)
@@ -112,3 +112,21 @@ def gathermatrixrows(Matrix, filenames, rows, mpicomm, mattype):
             Matrix[r,:] = mm[r,:]
     Matrix.assemblyBegin()
     Matrix.assemblyEnd()
+
+
+
+def compute_eig(M, filename):
+    """ Compute eigenvalues of a PETScMatrix M,
+    and print to filename """
+    eigsolver = SLEPcEigenSolver(M)
+    eigsolver.solve()
+    eig = []
+    for ii in range(eigsolver.get_number_converged()):
+        eig.append(eigsolver.get_eigenvalue(ii)[0])
+    eig.sort()
+    np.savetxt(filename, np.array(eig))
+
+def compute_eigfenics(M, filename):
+    """ Compute eigenvalues of a Fenics matrix M,
+    and print to filename """
+    compute_eig(as_backend_type(M), filename)
