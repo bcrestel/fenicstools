@@ -10,6 +10,7 @@ from linalg.splitandassign import BlockDiagonal
 from regularization import TV, TVPD
 
 
+#TODO: test in parallel
 
 class SumRegularization():
     """ Sum of independent regularizations for each med. param, 
@@ -264,6 +265,7 @@ class Tikhonovab():
 
 class crossgradient():
     """ Define cross-gradient joint regularization """
+    #TODO: introduce constant eps
 
     def __init__(self, VV):
         """ Input argument:
