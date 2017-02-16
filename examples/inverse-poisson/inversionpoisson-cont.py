@@ -26,6 +26,7 @@ from fenicstools.prior import LaplacianPrior
 from fenicstools.regularization import TV, TVPD
 from fenicstools.observationoperator import ObsEntireDomain
 from fenicstools.optimsolver import checkgradfd_med, checkhessfd_med
+from fenicstools.miscfenics import setfct
 
 mpicomm = mpi_comm_world()
 mpirank = MPI.rank(mpicomm)
@@ -33,7 +34,7 @@ mpisize = MPI.size(mpicomm)
 
 
 #### Set-up
-PLOT = False
+PLOT = True
 CHECK = False
 
 nxy = 64
@@ -48,7 +49,7 @@ u0 = dl.Constant("0.0")
 bc = dl.DirichletBC(V, u0, u0_boundary)
 
 mtrue_exp = \
-Expression('2 + 7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.2)')
+dl.Expression('2 + 7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.2)')
 #dl.Expression('1.0 + 3.0*(x[0]<=0.8)*(x[0]>=0.2)*(x[1]<=0.8)*(x[1]>=0.2)')
 mtrue = dl.interpolate(mtrue_exp, Vme) # target medium
 mtrueVm = dl.interpolate(mtrue_exp, Vm) # target medium
@@ -77,7 +78,7 @@ goal.update_m(mtrue)
 goal.solvefwd()
 # noise
 np.random.seed(11)
-noisepercent = 0.01   # e.g., 0.02 = 2% noise level
+noisepercent = 0.1   # e.g., 0.02 = 2% noise level
 UD = goal.U[0]
 rndnb = np.random.randn(UD.size)
 rndnb = rndnb / np.linalg.norm(rndnb)
@@ -88,10 +89,13 @@ MPI.sum(mpicomm, noiseres), MPI.sum(mpicomm, np.linalg.norm(rndnb*noiseres)))
 if PLOT:
     myplot.set_varname('u_target')
     myplot.plot_vtk(goal.u)
+    setfct(goal.u, UDnoise)
+    myplot.set_varname('d_target')
+    myplot.plot_vtk(goal.u)
 
 # Define regularization:
 # Tikhonov
-Regul = LaplacianPrior({'Vm':Vm,'gamma':5e-2,'beta':1e-2, 'm0':1.0})
+Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-10,'beta':1e-10, 'm0':9.0})
 # Total Variation
 #   full TV w/o primal-dual
 #Regul = TV({'Vm':Vm, 'eps':dl.Constant(1.0), 'GNhessian':False})
@@ -102,7 +106,7 @@ Regul = LaplacianPrior({'Vm':Vm,'gamma':5e-2,'beta':1e-2, 'm0':1.0})
 
 ObsOp.noise = False
 InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, [UDnoise], Regul, [], False, mpicomm)
-InvPb.regparam = 1e-8
+InvPb.regparam = 1.0
 InvPb.update_m(mtrueVm)
 InvPb.solvefwd_cost()
 if mpirank == 0:
@@ -123,15 +127,17 @@ for ii in range(nbcheck):
 if CHECK:
     if mpirank == 0:    print 'Check gradient and Hessian against finite-difference'
 
-    InvPb.update_m(mtrueVm)
+    #InvPb.update_m(mtrueVm)
     #InvPb.update_m(1.0)
+    InvPb.update_m(dl.interpolate(dl.Expression("sin(x[0])*sin(x[1])"), Vm))
     InvPb.regparam = 0.0
     InvPb.solvefwd_cost()
     InvPb.solveadj_constructgrad()
 
     checkgradfd_med(InvPb, MedPert, 1e-6, [1e-4, 1e-5, 1e-6], True, mpicomm)
     print ''
-    checkhessfd_med(InvPb, MedPert, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4, 1e-5], False, mpicomm)
+    #checkhessfd_med(InvPb, MedPert, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4, 1e-5], False, mpicomm)
+    checkhessfd_med(InvPb, MedPert, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8], False, mpicomm)
 
     sys.exit(0)
 
