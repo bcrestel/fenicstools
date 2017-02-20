@@ -5,10 +5,12 @@ import numpy as np
 
 from dolfin import TrialFunction, TestFunction, Function, Vector, \
 PETScKrylovSolver, LUSolver, set_log_active, LinearOperator, Expression, \
-assemble, inner, nabla_grad, dx, MPI, exp
+assemble, inner, nabla_grad, dx, MPI, exp, Constant, GenericVector
 from exceptionsfenics import WrongInstanceError
 from plotfenics import PlotFenics
 from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
+from fenicstools.sourceterms import PointSources
+from fenicstools.linalg.miscroutines import compute_eigfenics
 
 
 class ObjectiveFunctional(LinearOperator):
@@ -41,16 +43,16 @@ class ObjectiveFunctional(LinearOperator):
         self.ud = Function(V)
         self.diff = Function(V)
         self.p = Function(V)
-        # Define weak forms to assemble A, C and E
-        self._wkforma()
-        self._wkformc()
-        self._wkforme()
         # Store other info:
         self.ObsOp = ObsOp
         self.UD = UD
         self.reset()    # Initialize U, C and E to []
         self.Data = Data
         self.GN = 1.0   # GN = 0.0 => GN Hessian; = 1.0 => full Hessian
+        # Define weak forms to assemble A, C and E
+        self._wkforma()
+        self._wkformc()
+        self._wkforme()
         # Operators and bc
         LinearOperator.__init__(self, self.delta_m.vector(), \
         self.delta_m.vector()) 
@@ -91,15 +93,16 @@ class ObjectiveFunctional(LinearOperator):
         y[:] = np.zeros(self.lenm)
 
         for C, E in zip(self.C, self.E):
-
             C.transpmult(mhat, self.rhs.vector())
-            self.bcadj.apply(self.rhs.vector())
+            if self.bcadj is not None:
+                self.bcadj.apply(self.rhs.vector())
             self.solve_A(self.u.vector(), -self.rhs.vector())
 
             E.transpmult(mhat, self.rhs.vector())
             Etmhat = self.rhs.vector().array()
             self.rhs.vector().axpy(1.0, self.ObsOp.incradj(self.u))
-            self.bcadj.apply(self.rhs.vector())
+            if self.bcadj is not None:
+                self.bcadj.apply(self.rhs.vector())
             self.solve_A(self.p.vector(), -self.rhs.vector())
 
             y.axpy(1.0/N, C * self.p.vector())
@@ -203,7 +206,9 @@ class ObjectiveFunctional(LinearOperator):
         """Assemble operator A(m)"""
 
         self.A = assemble(self.a)
-        self.bc.apply(self.A)
+        if self.bc is not None:
+            self.bc.apply(self.A)
+        compute_eigfenics(self.A, 'eigA.txt')
         self.set_solver()
 
 
@@ -225,9 +230,13 @@ class ObjectiveFunctional(LinearOperator):
                 if isinstance(rhs, Expression):
                     L = rhs*self.test*dx
                     b = assemble(L)
-                    self.bc.apply(b)
+                    if self.bc is not None:
+                        self.bc.apply(b)
                     self.RHS.append(b)
-                else:   raise WrongInstanceError("rhs should be Expression")
+                elif isinstance(rhs, GenericVector):
+                    self.RHS.append(rhs)
+                else:
+                    raise WrongInstanceError("rhs should be an Expression or a GenericVector")
 
 
     def _assemble_solverM(self, Vm):
@@ -441,14 +450,18 @@ class ObjFctalElliptic(ObjectiveFunctional):
 #        self.e = inner(self.mtest*nabla_grad(self.p), nabla_grad(self.trial))*dx
 
 
-#class OperatorHelmholtz(OperatorPDE):
-#    """
-#    Operator for Helmholtz equation
-#    <grad u, grad v> - k^2 m u v
-#    """
-#    def _wkforma(self):
-#        kk = self.Data['k']
-#        self.a = inner(nabla_grad(self.trial), nabla_grad(self.test))*dx -\
-#        inner(kk**2*(self.m)*(self.trial), self.test)*dx
+class ObjFctalHelmholtz(ObjectiveFunctional):
+    """
+    Operator for Helmholtz equation
+    <grad u, grad v> - k^2 m u v
+    """
+    def _wkforma(self):
+        self.kk2 = Constant(self.Data['k']**2)
+        self.a = inner(nabla_grad(self.trial), nabla_grad(self.test))*dx -\
+        inner(self.kk2*(self.m)*(self.trial), self.test)*dx
 
+    def _wkformc(self):
+        self.c = inner(-self.kk2*self.mtest*self.u, self.trial)*dx
 
+    def _wkforme(self):
+        self.e = inner(-self.kk2*self.mtest*self.p, self.trial)*dx
