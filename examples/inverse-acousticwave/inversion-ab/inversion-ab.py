@@ -17,7 +17,10 @@ dl.set_log_active(False)
 
 from fenicstools.plotfenics import PlotFenics, plotobservations
 from fenicstools.objectiveacoustic import ObjectiveAcoustic
-from fenicstools.jointregularization import Tikhonovab
+from fenicstools.prior import LaplacianPrior
+from fenicstools.regularization import TV, TVPD
+from fenicstools.jointregularization import \
+SumRegularization, Tikhonovab, VTV, V_TV, V_TVPD
 from fenicstools.miscfenics import checkdt
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
@@ -29,7 +32,7 @@ mpisize = MPI.size(mpicomm)
 
 # Data = freq, Nxy, Dt, t0tf
 Data={'0.5': [0.5, 20, 2.5e-3, [0.0, 0.5, 6.0, 6.5]],\
-'1.0': [1.0, 50, 1e-3, [0.0, 0.5, 2.5, 3.0]], \
+'1.0': [1.0, 50, 1e-3, [0.0, 0.3, 2.7, 3.0]], \
 #'1.0': [1.0, 40, 1e-3, [0.0, 0.2, 3.0, 3.2]], \
 '2.0': [2.0, 60, 1e-3, [0.0, 0.1, 2.0, 2.1]], \
 '4.0': [4.0, 120, 5e-4, [0.0, 0.05, 1.6, 1.65]]
@@ -37,8 +40,8 @@ Data={'0.5': [0.5, 20, 2.5e-3, [0.0, 0.5, 6.0, 6.5]],\
 
 
 # Input data:
-PLOT = False
-freq, Nxy, Dt, t0tf = Data['1.0']
+PLOT = True
+freq, Nxy, Dt, t0tf = Data['2.0']
 t0, t1, t2, tf = t0tf
 skip = int(0.1/Dt)
 checkdt(Dt, 1./Nxy, 2, np.sqrt(2.0), True)
@@ -73,9 +76,9 @@ wavepde.update({'a':a_target_fn, 'b':b_target_fn, \
 # set up plots:
 if PLOT:
     filename, ext = splitext(sys.argv[0])
-    if mpirank == 0 and isdir(filename + '/'):   
-        rmtree(filename + '/')
-    MPI.barrier(mpicomm)
+#    if mpirank == 0 and isdir(filename + '/'):   
+#        rmtree(filename + '/')
+#    MPI.barrier(mpicomm)
     myplot = PlotFenics(filename)
     MPI.barrier(mpicomm)
     myplot.set_varname('b_target')
@@ -105,12 +108,24 @@ mysrc = [Ricker, Pt, srcv]
 # Tikhonov + cross-gradient
 #regul = Tikhonovab({'Vm':Vm,'gamma':5e-4,'beta':1e-4, 'm0':[1.0,1.0], 'cg':1.0})
 # Tikhonov w/o similarity term
-regul = Tikhonovab({'Vm':Vm,'gamma':5e-4,'beta':1e-8, 'm0':[1.0,1.0]})
-#regul = Tikhonovab({'Vm':Vm,'gamma':5e-4,'beta':1e-4, 'm0':[1.0,1.0]})
+#regul = Tikhonovab({'Vm':Vm,'gamma':5e-4,'beta':1e-8, 'm0':[1.0,1.0]})
+############ Regularization #############
+#reg1 = LaplacianPrior({'Vm':Vm, 'gamma':5e-4, 'beta':1e-4, 'm0':1.0})
+#reg2 = LaplacianPrior({'Vm':Vm, 'gamma':5e-4, 'beta':1e-4, 'm0':1.0})
+
+#reg1 = TVPD({'Vm':Vm, 'eps':1e-3, 'k':5e-5, 'rescaledradiusdual':1.0})
+#reg2 = TVPD({'Vm':Vm, 'eps':1e-3, 'k':5e-5, 'rescaledradiusdual':1.0})
+
+#jointregul = SumRegularization(reg1, reg2, mesh.mpi_comm(), coeff_cg=0.0, coeff_vtv=0.0, \
+#parameters_vtv={'eps':1e-3, 'k':5e-9, 'rescaledradiusdual':1.0})
+#jointregul = VTV(Vm, {'eps':1e-1, 'k':1e-4})
+jointregul = V_TVPD(Vm, {'eps':1e-1, 'k':5e-5, 'rescaledradiusdual':1.0})
+#########################################
+plot_suffix = '2Hz-VTVPD-e1e-1-k5e-5'
 
 # define objective function:
 if mpirank == 0:    print 'Define objective function'
-waveobj = ObjectiveAcoustic(wavepde, mysrc, 'ab', regul)
+waveobj = ObjectiveAcoustic(wavepde, mysrc, 'ab', jointregul)
 waveobj.obsop = obsop
 
 # noisy data
@@ -129,15 +144,15 @@ waveobj.solvefwd_cost()
 if mpirank == 0:
     print 'noise misfit={}, regul cost={}, ratio={}'.format(waveobj.cost_misfit, \
     waveobj.cost_reg, waveobj.cost_misfit/waveobj.cost_reg)
-if PLOT:
-    for ii, solfwd in enumerate(waveobj.solfwd):
-        myplot.plot_timeseries(solfwd, 'pd'+str(ii), 0, skip, dl.Function(V))
-    if mpirank == 0:
-        ii = 0
-        for Bp, dd in zip(waveobj.Bp, waveobj.dd):
-            fig = plotobservations(waveobj.PDE.times, Bp, dd)
-            fig.savefig(filename + '/observations0' + '-' + str(ii) + '.eps')
-            ii += 1
+#if PLOT:
+#    for ii, solfwd in enumerate(waveobj.solfwd):
+#        myplot.plot_timeseries(solfwd, 'pd'+str(ii), 0, skip, dl.Function(V))
+#    if mpirank == 0:
+#        ii = 0
+#        for Bp, dd in zip(waveobj.Bp, waveobj.dd):
+#            fig = plotobservations(waveobj.PDE.times, Bp, dd)
+#            fig.savefig(filename + '/observations0' + '-' + str(ii) + '.eps')
+#            ii += 1
 
 # Solve inverse problem
 ab_target_fn = dl.Function(Vm*Vm)
@@ -147,13 +162,19 @@ ab_init_fn = dl.Function(Vm*Vm)
 dl.assign(ab_init_fn.sub(0), a_initial_fn)
 dl.assign(ab_init_fn.sub(1), b_initial_fn)
 if mpirank == 0:    print 'Solve inverse problem'
-waveobj.inversion(ab_init_fn, ab_target_fn, mpicomm, myplot=myplot)
+waveobj.inversion(ab_init_fn, ab_target_fn, mpicomm, \
+tolgrad=1e-12, tolcost=1e-24, maxnbNewtiter=1000)
+#tolcost=1e-20, myplot=myplot)
 if PLOT:
-    for ii, solfwd in enumerate(waveobj.solfwd):
-        myplot.plot_timeseries(solfwd, 'pMAP'+str(ii), 0, skip, dl.Function(V))
-    if mpirank == 0:
-        ii = 0
-        for Bp, dd in zip(waveobj.Bp, waveobj.dd):
-            fig = plotobservations(waveobj.PDE.times, Bp, dd)
-            fig.savefig(filename + '/observationsMAP' + '-' + str(ii) + '.eps')
-            ii += 1
+    myplot.set_varname(plot_suffix + 'a_MAP')
+    myplot.plot_vtk(waveobj.PDE.a)
+    myplot.set_varname(plot_suffix + 'b_MAP')
+    myplot.plot_vtk(waveobj.PDE.b)
+#    for ii, solfwd in enumerate(waveobj.solfwd):
+#        myplot.plot_timeseries(solfwd, 'pMAP'+str(ii), 0, skip, dl.Function(V))
+#    if mpirank == 0:
+#        ii = 0
+#        for Bp, dd in zip(waveobj.Bp, waveobj.dd):
+#            fig = plotobservations(waveobj.PDE.times, Bp, dd)
+#            fig.savefig(filename + '/observationsMAP' + '-' + str(ii) + '.eps')
+#            ii += 1
