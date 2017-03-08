@@ -499,7 +499,8 @@ class ObjectiveAcoustic(LinearOperator):
             assign(self.ab.sub(1), ybF)
             y.axpy(1.0/len(self.Bp), self.ab.vector())
             # add regularization term
-            y.axpy(self.alpha_reg, self.regularization.hessianab(self.ahat, self.bhat))
+            y.axpy(self.alpha_reg, \
+            self.regularization.hessianab(self.ahat.vector(), self.bhat.vector()))
         elif self.invparam == 'a':
             y.axpy(1.0/len(self.Bp), ya)
             # add regularization term
@@ -602,6 +603,7 @@ class ObjectiveAcoustic(LinearOperator):
     tolgrad=1e-10, tolcost=1e-14, maxnbNewtiter=50, myplot=None):
         """ solve inverse problem with that objective function """
 
+        tolcg = 0.5
         mpirank = MPI.rank(mpicomm)
         if mpirank == 0:
             print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t{:10s} {:12s} {:12s}'.format(\
@@ -645,12 +647,11 @@ class ObjectiveAcoustic(LinearOperator):
                     print '\nGradient sufficiently reduced -- optimization stopped'
                 break
             # compute search direction and plot
-            tolcg = min(0.5, np.sqrt(gradnorm/gradnorm0))
+            #tolcg = min(0.5, np.sqrt(gradnorm/gradnorm0))
+            tolcg = min(tolcg, np.sqrt(gradnorm/gradnorm0))
             self.assemble_hessian() # for nonlinear regularization functionals
             cgiter, cgres, cgid, tolcg = compute_searchdirection(self, 'Newt', tolcg)
             self._plotsrchdir(myplot, str(it))
-            # compute search direction for dual variable (TV-PD):
-            if self.PD: self.regularization.compute_dw(self.srchdir)
             # perform line search
             cost_old = self.cost
             statusLS, LScount, alpha = bcktrcklinesearch(self, 12)
@@ -658,7 +659,7 @@ class ObjectiveAcoustic(LinearOperator):
             if mpirank == 0:
                 print '{:11.3f} {:12.2e} {:10d}'.format(alpha, tolcg, cgiter)
             # perform line search for dual variable (TV-PD):
-            if self.PD: self.regularization.update_w(alpha, not mpirank)
+            if self.PD: self.regularization.update_w(self.srchdir.vector(), alpha)
             # stopping criterion (cost)
             if np.abs(cost-cost_old)/np.abs(cost_old) < tolcost:
                 if mpirank == 0:
