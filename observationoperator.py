@@ -173,7 +173,8 @@ class ObsEntireDomain(ObservationOperator):
         isFunction(outp)
         self.diffv[:] = uin - udin
         outp.vector()[:] = - (self.W * self.diffv).array()
-        bc.apply(outp.vector())
+        if bc is not None:
+            bc.apply(outp.vector())
 
     def incradj(self, uin):
         isFunction(uin)
@@ -285,7 +286,8 @@ class ObsPointwise(ObservationOperator):
         isFunction(outp)
         diff = uin - udin
         outp.vector()[:] = -1.0 * self.BTdot(diff)
-        bc.apply(outp.vector())
+        if bc is not None:
+            bc.apply(outp.vector())
 
     def incradj(self, uin):
         """Compute the observation part of the incremental adjoint equation, i.e,

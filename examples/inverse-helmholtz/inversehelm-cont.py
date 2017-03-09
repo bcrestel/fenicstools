@@ -20,13 +20,14 @@ import dolfin as dl
 from dolfin import MPI, mpi_comm_world
 dl.set_log_active(False)
 
-from fenicstools.objectivefunctional import ObjFctalElliptic
+from fenicstools.objectivefunctional import ObjFctalHelmholtz
 from fenicstools.plotfenics import PlotFenics
 from fenicstools.prior import LaplacianPrior
 from fenicstools.regularization import TV, TVPD
 from fenicstools.observationoperator import ObsEntireDomain
 from fenicstools.optimsolver import checkgradfd_med, checkhessfd_med
 from fenicstools.miscfenics import setfct
+from fenicstools.sourceterms import PointSources
 
 mpicomm = mpi_comm_world()
 mpirank = MPI.rank(mpicomm)
@@ -37,7 +38,7 @@ mpisize = MPI.size(mpicomm)
 PLOT = True
 CHECK = False
 
-nxy = 64
+nxy = 100 
 mesh = dl.UnitSquareMesh(nxy, nxy)
 V = dl.FunctionSpace(mesh, 'Lagrange', 2)  # space for state and adjoint variables
 Vm = dl.FunctionSpace(mesh, 'Lagrange', 1) # space for medium parameter
@@ -47,15 +48,16 @@ def u0_boundary(x, on_boundary):
     return on_boundary
 u0 = dl.Constant("0.0")
 bc = dl.DirichletBC(V, u0, u0_boundary)
+#bc = None
 
-mtrue_exp = \
-dl.Expression('2 + 7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.2)')
-#dl.Expression('1.0 + 3.0*(x[0]<=0.8)*(x[0]>=0.2)*(x[1]<=0.8)*(x[1]>=0.2)')
+#mtrue_exp = dl.Expression('2 + 7*(pow(pow(x[0] - 0.5,2) + pow(x[1] - 0.5,2),0.5) > 0.25)')
+mtrue_exp = dl.Expression('1.0')
 mtrue = dl.interpolate(mtrue_exp, Vme) # target medium
 mtrueVm = dl.interpolate(mtrue_exp, Vm) # target medium
-minit_exp = dl.Expression('1.0 + 0.3*sin(pi*x[0])*sin(pi*x[1])')
-minit = dl.interpolate(minit_exp, Vm) # target medium
-f = dl.Expression("1.0")   # source term
+minit_exp = dl.Expression('1.0')
+minit = dl.interpolate(minit_exp, Vm) 
+#f = [dl.Expression("1.0")]   # source term
+f = PointSources(V, [[0.5, 0.5]]).PtSrc
 
 if PLOT:
     filename, ext = splitext(sys.argv[0])
@@ -73,12 +75,12 @@ else:   myplot = None
 if mpirank == 0:    print 'Compute noisy data'
 ObsOp = ObsEntireDomain({'V': V}, mpicomm)
 ObsOp.noise = False
-goal = ObjFctalElliptic(V, Vme, bc, bc, [f], ObsOp, [], [], [], False, mpicomm)
+goal = ObjFctalHelmholtz(V, Vme, bc, bc, f, ObsOp, Data={'k':1.0}, plot=False, mycomm=mpicomm)
 goal.update_m(mtrue)
 goal.solvefwd()
 # noise
 np.random.seed(11)
-noisepercent = 0.1   # e.g., 0.02 = 2% noise level
+noisepercent = 0.02   # e.g., 0.02 = 2% noise level
 UD = goal.U[0]
 rndnb = np.random.randn(UD.size)
 rndnb = rndnb / np.linalg.norm(rndnb)
@@ -95,7 +97,7 @@ if PLOT:
 
 # Define regularization:
 # Tikhonov
-Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-10,'beta':1e-10, 'm0':9.0})
+Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-2,'beta':1e-2, 'm0':9.0})
 # Total Variation
 #   full TV w/o primal-dual
 #Regul = TV({'Vm':Vm, 'eps':dl.Constant(1.0), 'GNhessian':False})
@@ -105,7 +107,7 @@ Regul = LaplacianPrior({'Vm':Vm,'gamma':1e-10,'beta':1e-10, 'm0':9.0})
 #Regul = TVPD({'Vm':Vm, 'eps':dl.Constant(1.0)})
 
 ObsOp.noise = False
-InvPb = ObjFctalElliptic(V, Vm, bc, bc, [f], ObsOp, [UDnoise], Regul, [], False, mpicomm)
+InvPb = ObjFctalHelmholtz(V, Vm, bc, bc, f, ObsOp, [UDnoise], Regul, {'k':1.0}, False, mpicomm)
 InvPb.regparam = 1.0
 InvPb.update_m(mtrueVm)
 InvPb.solvefwd_cost()
@@ -134,7 +136,7 @@ if CHECK:
     InvPb.solvefwd_cost()
     InvPb.solveadj_constructgrad()
 
-    checkgradfd_med(InvPb, MedPert, 1e-6, [1e-4, 1e-5, 1e-6], True, mpicomm)
+    checkgradfd_med(InvPb, MedPert, 1e-6, [1e-2, 1e-3, 1e-4, 1e-5, 1e-6], True, mpicomm)
     print ''
     #checkhessfd_med(InvPb, MedPert, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4, 1e-5], False, mpicomm)
     checkhessfd_med(InvPb, MedPert, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6, 1e-7, 1e-8], False, mpicomm)
@@ -146,7 +148,7 @@ if CHECK:
 if mpirank == 0:    print 'Solve inverse problem'
 InvPb.inversion(minit, mtrueVm, mpicomm, {'maxnbNewtiter':5000}, myplot=myplot)
 
-
+"""
 InvPb.regparam = 0.0
 InvPb.solvefwd_cost()
 InvPb.solveadj_constructgrad()
@@ -154,3 +156,5 @@ InvPb.solveadj_constructgrad()
 checkgradfd_med(InvPb, MedPert, 1e-6, [1e-4, 1e-5, 1e-6], True, mpicomm)
 print ''
 checkhessfd_med(InvPb, MedPert, 1e-6, [1e-1, 1e-2, 1e-3, 1e-4, 1e-5], False, mpicomm)
+"""
+

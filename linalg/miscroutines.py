@@ -105,14 +105,12 @@ def gathermatrixrows(Matrix, filenames, rows, mpicomm, mattype):
         rows = list of indices of the rows corresponding to each *.dat files
         mattype = string defining mattype of matrix
     """
-
     for ff, rr in zip(filenames, rows):
         mm = loadPETScmatrixfromfile(ff, mpicomm, mattype)
         for r in rr:
             Matrix[r,:] = mm[r,:]
     Matrix.assemblyBegin()
     Matrix.assemblyEnd()
-
 
 
 def compute_eig(M, filename):
@@ -130,3 +128,4 @@ def compute_eigfenics(M, filename):
     """ Compute eigenvalues of a Fenics matrix M,
     and print to filename """
     compute_eig(as_backend_type(M), filename)
+
