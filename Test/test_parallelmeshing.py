@@ -28,13 +28,15 @@ Parallel 16 cores (ccgo1):
 import dolfin as dl
 from mshr import Rectangle, generate_mesh
 
-#mesh = dl.UnitSquareMesh(1000, 1000)
+mesh = dl.UnitSquareMesh(20, 20)
+
 #mesh = dl.RectangleMesh(dl.Point(0.,0.), dl.Point(1.,1.), 1000, 1000)
-domain= Rectangle(dl.Point(0.,0.), dl.Point(1.,1.))
-mesh = generate_mesh(domain, 893)
+
+#domain= Rectangle(dl.Point(0.,0.), dl.Point(1.,1.))
+#mesh = generate_mesh(domain, 893)
 
 V = dl.FunctionSpace(mesh, 'Lagrange', 3)
 test, trial = dl.TestFunction(V), dl.TrialFunction(V)
 u = dl.interpolate(dl.Expression('x[0]*x[1]'), V)
 M = dl.assemble( dl.inner(test, trial)*dl.dx )
-print u.vector().size()    # only to check size of mesh
+print u.vector().size(), len(V.dofmap().dofs())    # only to check size of mesh
