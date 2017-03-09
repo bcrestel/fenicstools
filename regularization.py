@@ -4,7 +4,8 @@ import numpy as np
 from dolfin import sqrt, inner, nabla_grad, grad, dx, \
 Function, TestFunction, TrialFunction, Vector, assemble, solve, \
 Constant, plot, interactive, assign, FunctionSpace, \
-PETScKrylovSolver, PETScLUSolver, mpi_comm_world, PETScMatrix
+PETScKrylovSolver, PETScLUSolver, LUSolver, mpi_comm_world, PETScMatrix, \
+as_backend_type, norm
 from miscfenics import isVector, setfct
 from linalg.miscroutines import get_diagonal, setupPETScmatrix, compute_eigfenics
 from hippylib.linalg import MatMatMult, Transpose
@@ -32,19 +33,22 @@ class TV():
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
         GN = self.parameters['GNhessian']
-        self.Vm = self.parameters['Vm']
+        Vm = self.parameters['Vm']
         eps = self.parameters['eps']
         k = self.parameters['k']
 
-        self.m = Function(self.Vm)
-        test, trial = TestFunction(self.Vm), TrialFunction(self.Vm)
+        self.m = Function(Vm)
+        test, trial = TestFunction(Vm), TrialFunction(Vm)
         factM = 1e-2*k
         M = assemble(inner(test, trial)*dx)
         self.sMass = M*factM
 
-        self.Msolver = PETScLUSolver("petsc")
-        self.Msolver.parameters['reuse_factorization'] = True
-        self.Msolver.parameters['symmetric'] = True
+        self.Msolver = PETScKrylovSolver('cg', 'jacobi')
+        self.Msolver.parameters["maximum_iterations"] = 2000
+        self.Msolver.parameters["relative_tolerance"] = 1e-24
+        self.Msolver.parameters["absolute_tolerance"] = 1e-24
+        self.Msolver.parameters["error_on_nonconvergence"] = True 
+        self.Msolver.parameters["nonzero_initial_guess"] = False 
         self.Msolver.set_operator(M)
 
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + Constant(eps)
@@ -146,24 +150,25 @@ class TVPD():
     def __init__(self, parameters, mpicomm=PETSc.COMM_WORLD):
         """ parameters must have key 'Vm' for parameter function space,
         key 'exact' run exact TV, w/o primal-dual; used to check w/ FD """
-        self.parameters = {'k':1.0, 'eps':1e-2, 'rescaledradiusdual':1.0, 'exact':False}
+        self.parameters = {'k':1.0, 'eps':1e-2, 'rescaledradiusdual':1.0,
+        'exact':False, 'print':False}
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
-        self.Vm = self.parameters['Vm']
+        Vm = self.parameters['Vm']
         k = self.parameters['k']
         eps = self.parameters['eps']
         exact = self.parameters['exact']
 
-        self.m = Function(self.Vm)
-        testm = TestFunction(self.Vm)
-        trialm = TrialFunction(self.Vm)
+        self.m = Function(Vm)
+        testm = TestFunction(Vm)
+        trialm = TrialFunction(Vm)
 
         # WARNING: should not be changed.
         # As it is, code only works with DG0
         if self.parameters.has_key('Vw'):
             Vw = self.parameters['Vw']
         else:
-            Vw = FunctionSpace(self.Vm.mesh(), 'DG', 0)
+            Vw = FunctionSpace(Vm.mesh(), 'DG', 0)
         self.wx = Function(Vw)
         self.wxrs = Function(Vw)   # re-scaled dual variable
         self.wxhat = Function(Vw)
@@ -172,6 +177,10 @@ class TVPD():
         self.wyrs = Function(Vw)   # re-scaled dual variable
         self.wyhat = Function(Vw)
         self.gwy = Function(Vw)
+        self.wxsq = Vector()
+        self.wysq = Vector()
+        self.normw = Vector()
+        self.factorw = Vector()
         testw = TestFunction(Vw)
         trialw = TrialFunction(Vw)
 
@@ -200,6 +209,14 @@ class TVPD():
         self.invMwMat = PETScMatrix(invMwMat)
         self.invMwd = Vector()
         self.invMwMat.init_vector(self.invMwd, 0)
+        self.invMwMat.init_vector(self.wxsq, 0)
+        self.invMwMat.init_vector(self.wysq, 0)
+        self.invMwMat.init_vector(self.normw, 0)
+        self.invMwMat.init_vector(self.factorw, 0)
+
+        u = Function(Vw)
+        u.assign(Constant('1.0'))
+        self.one = u.vector()
 
         self.wkformAx = inner(testw, trialm.dx(0) - \
         self.wx * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
@@ -214,12 +231,16 @@ class TVPD():
         M = assemble(inner(testm, trialm)*dx)
         self.sMass = M*factM
 
-        self.Msolver = PETScLUSolver("petsc")
-        self.Msolver.parameters['reuse_factorization'] = True
-        self.Msolver.parameters['symmetric'] = True
+        self.Msolver = PETScKrylovSolver('cg', 'jacobi')
+        self.Msolver.parameters["maximum_iterations"] = 2000
+        self.Msolver.parameters["relative_tolerance"] = 1e-24
+        self.Msolver.parameters["absolute_tolerance"] = 1e-24
+        self.Msolver.parameters["error_on_nonconvergence"] = True 
+        self.Msolver.parameters["nonzero_initial_guess"] = False 
         self.Msolver.set_operator(M)
 
-        print 'TV regularization -- primal-dual method'
+        if self.parameters['print']:
+            print 'TV regularization -- primal-dual method'
         try:
             solver = PETScKrylovSolver('cg', 'ml_amg')
             self.amgprecond = 'ml_amg'
@@ -245,7 +266,9 @@ class TVPD():
         # WARNING: only works if Mw is diagonal (e.g, DG0)
         Mw = assemble(self.massw)
         Mwd = get_diagonal(Mw)
-        self.invMwd[:] = 1./Mwd.array()
+        as_backend_type(self.invMwd).vec().pointwiseDivide(\
+            as_backend_type(self.one).vec(),\
+            as_backend_type(Mwd).vec())
         self.invMwMat.set_diagonal(self.invMwd)
 
 
@@ -256,13 +279,14 @@ class TVPD():
 
         self.gwx.vector().zero()
         self.gwx.vector().axpy(1.0, assemble(self.misfitwx))
-        normgwx = np.linalg.norm(self.gwx.vector().array())
+        normgwx = norm(self.gwx.vector())
 
         self.gwy.vector().zero()
         self.gwy.vector().axpy(1.0, assemble(self.misfitwy))
-        normgwy = np.linalg.norm(self.gwy.vector().array())
+        normgwy = norm(self.gwy.vector())
 
-        print '|gw|={}'.format(np.sqrt(normgwx**2 + normgwy**2))
+        if self.parameters['print']:
+            print '|gw|={}'.format(np.sqrt(normgwx**2 + normgwy**2))
 
         return self.Htvx*(self.wx.vector() - self.invMwd*self.gwx.vector()) \
         + self.Htvy*(self.wy.vector() - self.invMwd*self.gwy.vector())
@@ -304,13 +328,14 @@ class TVPD():
         """ Compute update direction for what, given mhat """
         self.wxhat.vector().zero()
         self.wxhat.vector().axpy(1.0, self.invMwd*(self.Ax*mhat - self.gwx.vector()))
-        normwxhat = np.linalg.norm(self.wxhat.vector().array())
+        normwxhat = norm(self.wxhat.vector())
 
         self.wyhat.vector().zero()
         self.wyhat.vector().axpy(1.0, self.invMwd*(self.Ay*mhat - self.gwy.vector()))
-        normwyhat = np.linalg.norm(self.wyhat.vector().array())
+        normwyhat = norm(self.wyhat.vector())
 
-        print '|what|={}'.format(np.sqrt(normwxhat**2 + normwyhat**2))
+        if self.parameters['print']:
+            print '|what|={}'.format(np.sqrt(normwxhat**2 + normwyhat**2))
 
 
     def update_w(self, mhat, alphaLS, compute_what=True):
@@ -322,14 +347,60 @@ class TVPD():
 
         # rescaledradiusdual=1.0: checked empirically to be max radius acceptable
         rescaledradiusdual = self.parameters['rescaledradiusdual']    
-        wxa, wya = self.wx.vector().array(), self.wy.vector().array()
-        normw = np.sqrt(wxa**2 + wya**2)
-        factorw = [max(1.0, ii/rescaledradiusdual) for ii in normw]
-        nbrescaled = [1.0*(ii > rescaledradiusdual) for ii in normw]
-        print 'perc. dual entries rescaled={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
-        100.*sum(nbrescaled)/len(nbrescaled), min(factorw), max(factorw))
-        setfct(self.wxrs, wxa/factorw)
-        setfct(self.wyrs, wya/factorw)
+        # wx**2
+        as_backend_type(self.wxsq).vec().pointwiseMult(\
+            as_backend_type(self.wx.vector()).vec(),\
+            as_backend_type(self.wx.vector()).vec())
+        # wy**2
+        as_backend_type(self.wysq).vec().pointwiseMult(\
+            as_backend_type(self.wy.vector()).vec(),\
+            as_backend_type(self.wy.vector()).vec())
+        # |w|
+        self.normw = self.wxsq + self.wysq
+        as_backend_type(self.normw).vec().sqrtabs()
+        # |w|/r
+        as_backend_type(self.normw).vec().pointwiseDivide(\
+            as_backend_type(self.normw).vec(),\
+            as_backend_type(self.one*rescaledradiusdual).vec())
+        # max(1.0, |w|/r)
+        as_backend_type(self.factorw).vec().pointwiseMax(\
+            as_backend_type(self.one).vec(),\
+            as_backend_type(self.normw).vec())
+        # rescale wx and wy
+        as_backend_type(self.wxrs.vector()).vec().pointwiseDivide(\
+            as_backend_type(self.wx.vector()).vec(),\
+            as_backend_type(self.factorw).vec())
+        as_backend_type(self.wyrs.vector()).vec().pointwiseDivide(\
+            as_backend_type(self.wy.vector()).vec(),\
+            as_backend_type(self.factorw).vec())
+
+        minf = self.factorw.min()
+        maxf = self.factorw.max()
+        #TODO: finish that
+        self.factorw = self.factorw - self.one
+        factorw2 = self.factorw - self.one
+        as_backend_type(factorw2).vec().pointwiseMax(\
+            as_backend_type(factorw2).vec(),\
+            as_backend_type(self.one*1e-24).vec())
+        as_backend_type(self.factorw).vec().pointwiseDivide(\
+            as_backend_type(self.factorw).vec(),\
+            as_backend_type(self.factorw2).vec())
+         
+        if self.parameters['print']:
+            print 'min(factorw)={}, max(factorw)={}'.format(minf, maxf)
+            #print 'perc. dual entries rescaled={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
+            #-1.1, minf, maxf)
+
+
+#        wxa, wya = self.wx.vector().array(), self.wy.vector().array()
+#        normw = np.sqrt(wxa**2 + wya**2)
+#        factorw = [max(1.0, ii/rescaledradiusdual) for ii in normw]
+#        nbrescaled = [1.0*(ii > rescaledradiusdual) for ii in normw]
+#        if self.parameters['print']:
+#            print 'perc. dual entries rescaled={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
+#            100.*sum(nbrescaled)/len(nbrescaled), min(factorw), max(factorw))
+#        setfct(self.wxrs, wxa/factorw)
+#        setfct(self.wyrs, wya/factorw)
         
 
     def getprecond(self):
