@@ -8,7 +8,7 @@ PETScKrylovSolver, PETScLUSolver, LUSolver, mpi_comm_world, PETScMatrix, \
 as_backend_type, norm
 from miscfenics import isVector, setfct
 from linalg.miscroutines import get_diagonal, setupPETScmatrix, compute_eigfenics
-from hippylib.linalg import MatMatMult, Transpose
+from hippylib.linalg import MatMatMult, Transpose, pointwiseMaxCount
 
 import petsc4py, sys
 petsc4py.init(sys.argv)
@@ -363,9 +363,10 @@ class TVPD():
             as_backend_type(self.normw).vec(),\
             as_backend_type(self.one*rescaledradiusdual).vec())
         # max(1.0, |w|/r)
-        as_backend_type(self.factorw).vec().pointwiseMax(\
-            as_backend_type(self.one).vec(),\
-            as_backend_type(self.normw).vec())
+#        as_backend_type(self.factorw).vec().pointwiseMax(\
+#            as_backend_type(self.one).vec(),\
+#            as_backend_type(self.normw).vec())
+        count = pointwiseMaxCount(self.factorw, self.normw, 1.0)
         # rescale wx and wy
         as_backend_type(self.wxrs.vector()).vec().pointwiseDivide(\
             as_backend_type(self.wx.vector()).vec(),\
@@ -376,32 +377,11 @@ class TVPD():
 
         minf = self.factorw.min()
         maxf = self.factorw.max()
-        #TODO: finish that
-        self.factorw = self.factorw - self.one
-        factorw2 = self.factorw - self.one
-        as_backend_type(factorw2).vec().pointwiseMax(\
-            as_backend_type(factorw2).vec(),\
-            as_backend_type(self.one*1e-24).vec())
-        as_backend_type(self.factorw).vec().pointwiseDivide(\
-            as_backend_type(self.factorw).vec(),\
-            as_backend_type(self.factorw2).vec())
-         
         if self.parameters['print']:
-            print 'min(factorw)={}, max(factorw)={}'.format(minf, maxf)
-            #print 'perc. dual entries rescaled={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
-            #-1.1, minf, maxf)
+#            print 'min(factorw)={}, max(factorw)={}'.format(minf, maxf)
+            print 'perc. dual entries rescaled={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
+            100.*float(count)/self.factorw.size(), minf, maxf)
 
-
-#        wxa, wya = self.wx.vector().array(), self.wy.vector().array()
-#        normw = np.sqrt(wxa**2 + wya**2)
-#        factorw = [max(1.0, ii/rescaledradiusdual) for ii in normw]
-#        nbrescaled = [1.0*(ii > rescaledradiusdual) for ii in normw]
-#        if self.parameters['print']:
-#            print 'perc. dual entries rescaled={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
-#            100.*sum(nbrescaled)/len(nbrescaled), min(factorw), max(factorw))
-#        setfct(self.wxrs, wxa/factorw)
-#        setfct(self.wyrs, wya/factorw)
-        
 
     def getprecond(self):
         """ Precondition by inverting the TV Hessian """
@@ -426,6 +406,11 @@ class TVPD():
 
     def init_vector(self, u, dim):
         self.sMass.init_vector(u, dim)
+
+
+
+
+
 
 
 
@@ -507,83 +492,3 @@ class TVPD():
 #
 #        return 0.5*(self.Htv * self.wtmp.vector() + self.yA)
 
-
-
-
-#### OLDER VERSION
-#class TVPD(TV):
-#    """ Total variation using primal-dual Newton """
-#
-#    def isPD(self): return True
-#
-#    def updatePD(self):
-#        """ Update the parameters.
-#        parameters should be:
-#            - k(x) = factor inside TV
-#            - eps = regularization parameter
-#            - Vm = FunctionSpace for parameter. 
-#        ||f||_TV = int k(x) sqrt{|grad f|^2 + eps} dx
-#        """
-#        # primal dual variables
-#        self.Vw = FunctionSpace(self.Vm.mesh(), 'DG', 0)
-#        self.wH = Function(self.Vw*self.Vw)  # dual variable used in Hessian (re-scaled)
-#        #self.wH = nabla_grad(self.m)/sqrt(self.fTV) # full Hessian
-#        self.w = Function(self.Vw*self.Vw)  # dual variable for primal-dual, initialized at 0
-#        self.dm = Function(self.Vm)
-#        self.dw = Function(self.Vw*self.Vw)  
-#        self.testw = TestFunction(self.Vw*self.Vw)
-#        self.trialw = TrialFunction(self.Vw*self.Vw)
-#        # investigate convergence of dual variable
-#        self.dualres = self.w*sqrt(self.fTV) - nabla_grad(self.m)
-#        self.dualresnorm = inner(self.dualres, self.dualres)*dx
-#        self.normgraddm = inner(nabla_grad(self.dm), nabla_grad(self.dm))*dx
-#        # Hessian
-#        self.wkformPDhess = self.kovsq * ( \
-#        inner(nabla_grad(self.trial), nabla_grad(self.test)) - \
-#        0.5*( inner(self.wH, nabla_grad(self.test))*\
-#        inner(nabla_grad(self.trial), nabla_grad(self.m)) + \
-#        inner(nabla_grad(self.m), nabla_grad(self.test))*\
-#        inner(nabla_grad(self.trial), self.wH) ) / sqrt(self.fTV) \
-#        )*dx
-#        # update dual variable
-#        self.Mw = assemble(inner(self.trialw, self.testw)*dx)
-#        self.rhswwk = inner(-self.w, self.testw)*dx + \
-#        inner(nabla_grad(self.m)+nabla_grad(self.dm), self.testw) \
-#        /sqrt(self.fTV)*dx + \
-#        inner(-inner(nabla_grad(self.m),nabla_grad(self.dm))* \
-#        self.w/sqrt(self.fTV), self.testw)*dx
-#        #self.wH/sqrt(self.fTV), self.testw)*dx # not sure why self.wH
-#
-#    def compute_dw(self, dm):
-#        """ Compute dw """
-#        setfct(self.dm, dm)
-#        b = assemble(self.rhswwk)
-#        solve(self.Mw, self.dw.vector(), b)
-#        # Compute self.dw in a pointwise sense, where
-#        # self.dw is defined at the quadrature nodes, and
-#        # the values of nabla_grad(self.m) and nabla_grad(self.dm) are
-#        # also read the quadrature nodes
-#
-#
-#    def update_w(self, alpha, printres=True):
-#        """ update w and re-scale wH """
-#        self.w.vector().axpy(alpha, self.dw.vector())
-#        # project each w (coord-wise) onto unit sphere to get wH
-#        (wx, wy) = self.w.split(deepcopy=True)
-#        wxa, wya = wx.vector().array(), wy.vector().array()
-#        normw = np.sqrt(wxa**2 + wya**2)
-#        factorw = [max(1.0, ii) for ii in normw]
-#        setfct(wx, wxa/factorw)
-#        setfct(wy, wya/factorw)
-#        assign(self.wH.sub(0), wx)
-#        assign(self.wH.sub(1), wy)
-#        # check
-#        (wx,wy) = self.wH.split(deepcopy=True)
-#        wxa, wya = wx.vector().array(), wy.vector().array()
-#        assert np.amax(np.sqrt(wxa**2 + wya**2)) <= 1.0 + 1e-14
-#        # Print results
-#        if printres:
-#            dualresnorm = assemble(self.dualresnorm)
-#            normgraddm = assemble(self.normgraddm)
-#            print 'line search dual variable: max(|w|)={}, err(w,df)={}, |grad(dm)|={}'.\
-#            format(np.amax(np.sqrt(normw)), np.sqrt(dualresnorm), np.sqrt(normgraddm))
