@@ -3,7 +3,7 @@ import numpy as np
 
 from dolfin import sqrt, inner, nabla_grad, grad, dx, \
 Function, TestFunction, TrialFunction, Vector, assemble, solve, \
-Constant, plot, interactive, assign, FunctionSpace, \
+Constant, plot, interactive, assign, FunctionSpace, interpolate, Expression, \
 PETScKrylovSolver, PETScLUSolver, LUSolver, mpi_comm_world, PETScMatrix, \
 as_backend_type, norm
 from miscfenics import isVector, setfct
@@ -215,7 +215,13 @@ class TVPD():
         self.invMwMat.init_vector(self.factorw, 0)
 
         u = Function(Vw)
-        u.assign(Constant('1.0'))
+        if u.rank() == 0:
+            ones = ("1.0")
+        elif u.rank() == 1:
+            ones = (("1.0", "1.0"))
+        else:
+            sys.exit(1)
+        u = interpolate(Expression(ones), Vw)
         self.one = u.vector()
 
         self.wkformAx = inner(testw, trialm.dx(0) - \
