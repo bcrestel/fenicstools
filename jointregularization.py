@@ -2,16 +2,16 @@
 Define joint regularization terms
 """
 import numpy as np
-from dolfin import inner, nabla_grad, dx, \
+from dolfin import inner, nabla_grad, dx, interpolate, \
 Function, TestFunction, TrialFunction, assemble, \
-PETScKrylovSolver, assign, sqrt, Constant, FunctionSpace
+PETScKrylovSolver, assign, sqrt, Constant, FunctionSpace, as_backend_type
 from miscfenics import setfct
 from linalg.splitandassign import BlockDiagonal
 from regularization import TV, TVPD
+from hippylib.linalg import pointwiseMaxCount
 
 
 #TODO: test in parallel
-
 class SumRegularization():
     """ Sum of independent regularizations for each med. param, 
     potentially connected by cross-gradient or VTV """
@@ -516,9 +516,6 @@ class V_TV():
         assign(self.m.sub(0), self.m1)
         assign(self.m.sub(1), self.m2)
         self.regTV.assemble_hessian(self.m)
-        #self.H = self.regTV.H
-        #self.precond = self.regTV.precond
-
 
     def hessianab(self, m1h, m2h):
         """ m1h, m2h = Vector(V) """
@@ -527,7 +524,6 @@ class V_TV():
         assign(self.m.sub(0), self.m1)
         assign(self.m.sub(1), self.m2)
         return self.regTV.hessian(self.m.vector())
-
 
     def getprecond(self):
         return self.regTV.getprecond()
@@ -539,7 +535,7 @@ class V_TVPD():
 
     def __init__(self, Vm, parameters=[]):
         """ Vm = FunctionSpace for the parameters m1, and m2 """
-        self.parameters = {'k':1.0, 'eps':1e-2, 'rescaledradiusdual':1.0}
+        self.parameters = {'k':1.0, 'eps':1e-2, 'rescaledradiusdual':1.0, 'print':False}
         self.parameters.update(parameters)
         VmVm = Vm*Vm
         self.parameters['Vm'] = VmVm
@@ -551,6 +547,13 @@ class V_TVPD():
 
         self.m1, self.m2 = Function(Vm), Function(Vm)
         self.m = Function(VmVm)
+
+        self.w_loc = Function(VwVw)
+        self.factorw = Function(Vw)
+        self.factorww = Function(VwVw)
+
+        tmp = interpolate(Constant("1.0"), Vw)
+        self.one = tmp.vector()
 
 
     def isTV(self): return True
@@ -586,7 +589,6 @@ class V_TVPD():
         assign(self.m.sub(1), self.m2)
         self.regTV.assemble_hessian(self.m)
 
-
     def hessianab(self, m1h, m2h):
         """ m1h, m2h = Vector(V) """
         setfct(self.m1, m1h)
@@ -594,7 +596,6 @@ class V_TVPD():
         assign(self.m.sub(0), self.m1)
         assign(self.m.sub(1), self.m2)
         return self.regTV.hessian(self.m.vector())
-
 
     def getprecond(self):
         return self.regTV.getprecond()
@@ -614,23 +615,40 @@ class V_TVPD():
 
         # Update rescaled variables
         rescaledradiusdual = self.parameters['rescaledradiusdual']    
-        w1x, w2x = self.regTV.wx.split(deepcopy=True)
-        w1y, w2y = self.regTV.wy.split(deepcopy=True)
-        w1xa, w1ya = w1x.vector().array(), w1y.vector().array()
-        normw1sq = w1xa**2 + w1ya**2
-        w2xa, w2ya = w2x.vector().array(), w2y.vector().array()
-        normw2sq = w2xa**2 + w2ya**2
-        normw = np.sqrt(normw1sq + normw2sq)
-        factorw = [max(1.0, ii/rescaledradiusdual) for ii in normw]
-        nbrescaled = [1.0*(ii > rescaledradiusdual) for ii in normw]
-        print 'perc. dual entries rescaled={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
-        100.*sum(nbrescaled)/len(nbrescaled), min(factorw), max(factorw))
+        # wx**2
+        as_backend_type(self.regTV.wxsq).vec().pointwiseMult(\
+            as_backend_type(self.regTV.wx.vector()).vec(),\
+            as_backend_type(self.regTV.wx.vector()).vec())
+        # wy**2
+        as_backend_type(self.regTV.wysq).vec().pointwiseMult(\
+            as_backend_type(self.regTV.wy.vector()).vec(),\
+            as_backend_type(self.regTV.wy.vector()).vec())
+        # |w|
+        self.w_loc.vector().zero()
+        self.w_loc.vector().axpy(1.0, self.regTV.wxsq + self.regTV.wysq)
+        normw1, normw2 = self.w_loc.split(deepcopy=True)
+        normw = normw1.vector() + normw2.vector()
+        as_backend_type(normw).vec().sqrtabs()
+        # |w|/r
+        as_backend_type(normw).vec().pointwiseDivide(\
+            as_backend_type(normw).vec(),\
+            as_backend_type(self.one*rescaledradiusdual).vec())
+        # max(1.0, |w|/r)
+        count = pointwiseMaxCount(self.factorw.vector(), normw, 1.0)
+        # rescale wx and wy
+        assign(self.factorww.sub(0), self.factorw)
+        assign(self.factorww.sub(1), self.factorw)
+        as_backend_type(self.regTV.wxrs.vector()).vec().pointwiseDivide(\
+            as_backend_type(self.regTV.wx.vector()).vec(),\
+            as_backend_type(self.factorww.vector()).vec())
+        as_backend_type(self.regTV.wyrs.vector()).vec().pointwiseDivide(\
+            as_backend_type(self.regTV.wy.vector()).vec(),\
+            as_backend_type(self.factorww.vector()).vec())
 
-        setfct(w1x, w1xa/factorw)
-        setfct(w1y, w1ya/factorw)
-        assign(self.regTV.wxrs.sub(0), w1x)
-        assign(self.regTV.wyrs.sub(0), w1y)
-        setfct(w2x, w2xa/factorw)
-        setfct(w2y, w2ya/factorw)
-        assign(self.regTV.wxrs.sub(1), w2x)
-        assign(self.regTV.wyrs.sub(1), w2y)
+        minf = self.factorw.vector().min()
+        maxf = self.factorw.vector().max()
+        if self.parameters['print']:
+            print ('perc. dual entries rescaled={:.2f} %, ' +\
+            'min(factorw)={}, max(factorw)={}').format(\
+            100.*float(count)/self.factorw.vector().size(), minf, maxf)
+
