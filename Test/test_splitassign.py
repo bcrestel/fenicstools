@@ -4,13 +4,13 @@ Script to test validity of classed defined in linalg/splitandassign.py
 import numpy as np
 import dolfin as dl
 
-from fenicstools.linalg.splitandassign import *
+from fenicstools.linalg.splitandassign import SplitAndAssign, BlockDiagonal
 
-@profile
+#@profile
 def testsplitassign():
     mesh = dl.UnitSquareMesh(40,40)
-    V1 = dl.FunctionSpace(mesh, "Lagrange", 1)
-    V2 = dl.FunctionSpace(mesh, "Lagrange", 1)
+    V1 = dl.FunctionSpace(mesh, "Lagrange", 2)
+    V2 = dl.FunctionSpace(mesh, "Lagrange", 2)
     V1V2 = V1*V2
     splitassign = SplitAndAssign(V1, V2, mesh.mpi_comm())
 
