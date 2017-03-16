@@ -148,27 +148,31 @@ class TVPD():
     """ Total variation using primal-dual Newton """
 
     def __init__(self, parameters, mpicomm=PETSc.COMM_WORLD):
-        """ parameters must have key 'Vm' for parameter function space,
-        key 'exact' run exact TV, w/o primal-dual; used to check w/ FD """
+        """ 
+        parameters must have key 'Vm' for parameter function space,
+        key 'exact' run exact TV, w/o primal-dual; used to check w/ FD 
+        note: member self.Vm needed for use in jointregularization
+        """
+
         self.parameters = {'k':1.0, 'eps':1e-2, 'rescaledradiusdual':1.0,
         'exact':False, 'print':False}
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
-        Vm = self.parameters['Vm']
+        self.Vm = self.parameters['Vm'] 
         k = self.parameters['k']
         eps = self.parameters['eps']
         exact = self.parameters['exact']
 
-        self.m = Function(Vm)
-        testm = TestFunction(Vm)
-        trialm = TrialFunction(Vm)
+        self.m = Function(self.Vm)
+        testm = TestFunction(self.Vm)
+        trialm = TrialFunction(self.Vm)
 
         # WARNING: should not be changed.
         # As it is, code only works with DG0
         if self.parameters.has_key('Vw'):
             Vw = self.parameters['Vw']
         else:
-            Vw = FunctionSpace(Vm.mesh(), 'DG', 0)
+            Vw = FunctionSpace(self.Vm.mesh(), 'DG', 0)
         self.wx = Function(Vw)
         self.wxrs = Function(Vw)   # re-scaled dual variable
         self.wxhat = Function(Vw)
