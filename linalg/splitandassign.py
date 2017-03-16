@@ -12,7 +12,12 @@ class SplitAndAssign():
     def __init__(self, V1, V2, mpicomm):
         """ WARNING: MixedFunctionSpace is assumed to be V1*V2 
         only works if V1 and V2 are CG of same dimension """
+
         assert V1.dim() == V2.dim(), "V1, V2 must have same dimension"
+        assert (V1.dofmap().dofs() == V2.dofmap().dofs()).prod() == 1, \
+        "V1 and V2 must have same dofmap"
+        assert V1.mesh().size(0) == V2.mesh().size(0), \
+        "V1, V2 must be built on same mesh"
 
         V1V2 = V1*V2
 
