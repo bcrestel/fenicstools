@@ -11,7 +11,6 @@ from regularization import TV, TVPD
 from hippylib.linalg import pointwiseMaxCount
 
 
-#TODO: test in parallel
 class SumRegularization():
     """ Sum of independent regularizations for each med. param, 
     potentially connected by cross-gradient or VTV """
@@ -36,6 +35,7 @@ class SumRegularization():
         self.a, self.b = Function(V1), Function(V2)
         self.ab = Function(self.V1V2)
         self.bd = BlockDiagonal(V1, V2, mpicomm)
+        self.saa = self.bd.saa
 
         if self.coeff_cg > 0.0:
             self.crossgrad = crossgradient(self.V1V2)
@@ -74,36 +74,26 @@ class SumRegularization():
 
 
     def gradab(self, m1, m2):
-        self.a.vector().zero()
-        self.b.vector().zero()
-        grad = Function(self.V1V2)
-
-        setfct(self.a, self.regul1.grad(m1))
-        setfct(self.b, self.regul2.grad(m2))
-        assign(grad.sub(0), self.a)
-        assign(grad.sub(1), self.b)
+        grad1 = self.regul1.grad(m1)
+        grad2 = self.regul2.grad(m2)
+        grad = self.saa.assign(grad1, grad2)
         if self.coeff_cg > 0.0:
-            grad.vector().axpy(self.coeff_cg, self.crossgrad.gradab(m1, m2))
+            grad.axpy(self.coeff_cg, self.crossgrad.gradab(m1, m2))
         if self.coeff_vtv > 0.0:
-            grad.vector().axpy(self.coeff_vtv, self.vtv.gradab(m1, m2))
-        return grad.vector()
+            grad.axpy(self.coeff_vtv, self.vtv.gradab(m1, m2))
+        return grad
 
     def gradabvect(self, m1, m2):
         """ relies on gradvect metod from regularization instead of grad
         gradvect takes a Vector() as input argument """
-        self.a.vector().zero()
-        self.b.vector().zero()
-        grad = Function(self.V1V2)
-
-        setfct(self.a, self.regul1.gradvect(m1))
-        setfct(self.b, self.regul2.gradvect(m2))
-        assign(grad.sub(0), self.a)
-        assign(grad.sub(1), self.b)
+        grad1 = self.regul1.gradvect(m1)
+        grad2 = self.regul2.gradvect(m2)
+        grad = self.saa.assign(grad1, grad2)
         if self.coeff_cg > 0.0:
-            grad.vector().axpy(self.coeff_cg, self.crossgrad.gradab(m1, m2))
+            grad.axpy(self.coeff_cg, self.crossgrad.gradab(m1, m2))
         if self.coeff_vtv > 0.0:
-            grad.vector().axpy(self.coeff_vtv, self.vtv.gradabvect(m1, m2))
-        return grad.vector()
+            grad.axpy(self.coeff_vtv, self.vtv.gradabvect(m1, m2))
+        return grad
 
 
     def _blockdiagprecond(self):
@@ -125,19 +115,14 @@ class SumRegularization():
             self.precond += self.vtv.regTV.precond*self.coeff_vtv
 
     def hessianab(self, m1, m2):
-        self.a.vector().zero()
-        self.b.vector().zero()
-        Hx = Function(self.V1V2)
-
-        setfct(self.a, self.regul1.hessian(m1))
-        setfct(self.b, self.regul2.hessian(m2))
-        assign(Hx.sub(0), self.a)
-        assign(Hx.sub(1), self.b)
+        Hx1 = self.regul1.hessian(m1)
+        Hx2 = self.regul2.hessian(m2)
+        Hx = self.saa.assign(Hx1, Hx2)
         if self.coeff_cg > 0.0:
-            Hx.vector().axpy(self.coeff_cg, self.crossgrad.hessianab(m1, m2))
+            Hx.axpy(self.coeff_cg, self.crossgrad.hessianab(m1, m2))
         if self.coeff_vtv > 0.0:
-            Hx.vector().axpy(self.coeff_vtv, self.vtv.hessianab(m1, m2))
-        return Hx.vector()
+            Hx.axpy(self.coeff_vtv, self.vtv.hessianab(m1, m2))
+        return Hx
 
 
     def getprecond(self):
@@ -154,11 +139,9 @@ class SumRegularization():
     def update_w(self, mhat, alphaLS, compute_what=True):
         """ update dual variable in direction what 
         and update re-scaled version """
-        setfct(self.ab, mhat)
-        mhat1, mhat2 = self.ab.split(deepcopy=True)
-
-        self.regul1.update_w(mhat1.vector(), alphaLS, compute_what)
-        self.regul2.update_w(mhat2.vector(), alphaLS, compute_what)
+        mhat1, mhat2 = self.saa.split(mhat)
+        self.regul1.update_w(mhat1, alphaLS, compute_what)
+        self.regul2.update_w(mhat2, alphaLS, compute_what)
         if self.coeff_vtv > 0.0:
             self.vtv.update_w(mhat, alphaLS, compute_what)
 
@@ -166,118 +149,7 @@ class SumRegularization():
 
 #----------------------------------------------------------------------
 #----------------------------------------------------------------------
-# Tikhonov-type regularization
-class Tikhonovab():
-#TODO: DO NOT USE! Replaced by SumRegularization with LaplacianPrior
-    """ Define Tikhonov regularization for a and b parameters """
-
-    def __init__(self, parameters):
-        """ parameters must contain:
-        Vm = FunctionSpace
-        gamma = reg param for Laplacian
-        beta = reg param for mass matrix
-        optional:
-        m0 = reference state
-        cg = reg param for cross-gradient
-        """
-        V = parameters['Vm']
-        gamma = parameters['gamma']
-        beta = parameters['beta']
-        m0a, m0b = Function(V), Function(V)
-        if parameters.has_key('m0'):
-            m0 = parameters['m0']
-            setfct(m0a, m0[0])
-            setfct(m0b, m0[1])
-        self.m0av = m0a.vector()
-        self.m0bv = m0b.vector()
-        VV = V*V
-        test, trial = TestFunction(VV), TrialFunction(VV)
-        K = assemble(inner(nabla_grad(trial), nabla_grad(test))*dx)
-        M = assemble(inner(trial, test)*dx)
-        self.R = gamma*K + beta*M
-        if beta < 1e-10:
-            self.Rprecond = gamma*K + 1e-10*M
-        else:
-            self.Rprecond = self.R
-        self.precond = self.Rprecond
-        self.a, self.b = Function(V), Function(V)
-        self.ab = Function(VV)
-        self.abv = self.ab.vector()
-        if parameters.has_key('cg'):
-            self.cg = crossgradient(V)
-            self.cgparam = parameters['cg']
-        else:   self.cgparam = -1.0
-
-    # For compatibility with Total Variation regularization
-    def isTV(self): return False
-    def isPD(self): return False
-
-    def costab(self, ma_in, mb_in):
-        """ ma_in, mb_in = Function(V) """
-        setfct(self.a, ma_in)
-        self.a.vector().axpy(-1.0, self.m0av)
-        setfct(self.b, mb_in)
-        self.b.vector().axpy(-1.0, self.m0bv)
-        assign(self.ab.sub(0), self.a)
-        assign(self.ab.sub(1), self.b)
-        cost = 0.5 * self.abv.inner(self.R * self.abv)
-        if self.cgparam > 0.0:
-            cost += self.cgparam*self.cg.costab(ma_in, mb_in)
-        return cost
-
-    def costabvect(self, ma_in, mb_in):    return self.costab(ma_in, mb_in)
-
-
-    def gradab(self, ma_in, mb_in):
-        """ ma_in, mb_in = Function(V) """
-        setfct(self.a, ma_in)
-        self.a.vector().axpy(-1.0, self.m0av)
-        setfct(self.b, mb_in)
-        self.b.vector().axpy(-1.0, self.m0bv)
-        assign(self.ab.sub(0), self.a)
-        assign(self.ab.sub(1), self.b)
-        grad = self.R * self.abv
-        if self.cgparam > 0.0:
-            grad.axpy(self.cgparam, self.cg.gradab(ma_in, mb_in))
-        return grad # this is local
-
-    def gradabvect(self, ma_in, mb_in): return self.gradab(ma_in, mb_in)
-
-
-    def assemble_hessianab(self, a, b):
-        if self.cgparam > 0.0:
-            self.cg.assemble_hessianab(a, b)
-            self.precond = self.Rprecond + self.cgparam*self.cg.Hdiag
-        else:
-            pass
-
-    def hessianab(self, ahat, bhat):
-        """ ahat, bhat = Vector(V) """
-        setfct(self.a, ahat)
-        setfct(self.b, bhat)
-        assign(self.ab.sub(0), self.a)
-        assign(self.ab.sub(1), self.b)
-        Hx = self.R * self.abv
-        if self.cgparam > 0.0:
-            Hx.axpy(self.cgparam, self.cg.hessianab(ahat, bhat))
-        return Hx
-
-    def getprecond(self):
-        solver = PETScKrylovSolver("cg", "amg")
-        solver.parameters["maximum_iterations"] = 2000
-        solver.parameters["relative_tolerance"] = 1e-24
-        solver.parameters["absolute_tolerance"] = 1e-24
-        solver.parameters["error_on_nonconvergence"] = True 
-        solver.parameters["nonzero_initial_guess"] = False 
-        """
-        solver = PETScKrylovSolver("richardson", "amg")
-        solver.parameters["maximum_iterations"] = 1
-        solver.parameters["error_on_nonconvergence"] = False
-        solver.parameters["nonzero_initial_guess"] = False
-        """
-        solver.set_operator(self.precond)
-        return solver
-        
+# Cross-gradient penalty functionals
 
 class crossgradient():
     """ Define cross-gradient joint regularization """
@@ -357,6 +229,57 @@ class crossgradient():
         assign(self.abhat.sub(0), self.ahat)
         assign(self.abhat.sub(1), self.bhat)
         return self.H * self.abhat.vector()
+
+
+
+#TODO: continue....
+# check gradient with AD?
+# can get Hessian matrix with AD?
+class normalizedcrossgradient():
+    """
+    Defined normalized cross-gradient 
+    |nabla m1 x nabla m2|^2/(|nabla m1|^2|nabla m2|^2)
+    """
+
+    def __init__(self, VV, parameters=[]):
+
+        self.parameters = {'eps':1e-4}
+        self.parameters.update(parameters)
+        eps = Constant(self.parameters['eps'])
+
+        self.ab = Function(VV)
+        self.a, self.b = self.ab.split(deepcopy=True)
+        normgrada = sqrt(inner(nabla_grad(self.a), nabla_grad(self.a)) + eps)
+        ngrada = nabla_grad(self.a) / normgrada
+        normgradb = sqrt(inner(nabla_grad(self.b), nabla_grad(self.b)) + eps)
+        ngradb = nabla_grad(self.b) / normgradb
+
+        # cost
+        self.cost = 0.5*(1.0 - inner(ngrada, ngradb)*inner(ngrada, ngradb))*dx
+        # gradient
+        testa, testb = TestFunction(VV)
+        grada = - inner(ngrada, ngradb)* \
+        (inner(ngradb/normgrada, nabla_grad(testa)) - 
+        inner(ngrada, ngradb)* \
+        inner(ngrada/normgrada, nabla_grad(testa)))*dx
+        gradb = - inner(ngrada, ngradb)* \
+        (inner(ngrada/normgradb, nabla_grad(testb)) - 
+        inner(ngrada, ngradb)* \
+        inner(ngradb/normgradb, nabla_grad(testb)))*dx
+        self.grad = grada + gradb
+
+
+    def costab(self, ma_in, mb_in):
+        setfct(self.a, ma_in)
+        setfct(self.b, mb_in)
+        return assemble(self.cost)
+        
+
+    def gradab(self, ma_in, mb_in):
+        """ ma_in, mb_in = Function(V) """
+        setfct(self.a, ma_in)
+        setfct(self.b, mb_in)
+        return assemble(self.grad)
 
 
 #----------------------------------------------------------------------
