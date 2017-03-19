@@ -109,7 +109,7 @@ class SumRegularization():
         self.precond = self._blockdiagprecond()
         if self.coeff_cg > 0.0:
             self.crossgrad.assemble_hessianab(m1, m2)
-            self.precond += self.crossgrad.Hdiag*self.coeff_cg
+            self.precond += self.crossgrad.Hprecond*self.coeff_cg
         if self.coeff_vtv > 0.0:
             self.vtv.assemble_hessianab(m1, m2)
             self.precond += self.vtv.regTV.precond*self.coeff_vtv
@@ -220,7 +220,7 @@ class crossgradient():
         setfct(self.a, a)
         setfct(self.b, b)
         self.H = assemble(self.hessian)
-        self.Hdiag = assemble(self.precond)
+        self.Hprecond = assemble(self.precond)
 
     def hessianab(self, ahat, bhat):
         """ ahat, bhat = Vector(V) """
@@ -233,8 +233,6 @@ class crossgradient():
 
 
 #TODO: continue....
-# check gradient with AD?
-# can get Hessian matrix with AD?
 class normalizedcrossgradient():
     """
     Defined normalized cross-gradient 
@@ -267,6 +265,49 @@ class normalizedcrossgradient():
         inner(ngrada, ngradb)* \
         inner(ngradb/normgradb, nabla_grad(testb)))*dx
         self.grad = grada + gradb
+        # Hessian
+        self.ahat, self.bhat = self.ab.split(deepcopy=True)
+        self.abhat = Function(VV)
+        triala, trialb = TrialFunction(VV)
+        wkform11 = - ((inner(ngradb/normgrada, nabla_grad(testa))
+        - inner(ngrada,ngradb)*inner(ngrada/normgrada, nabla_grad(testa)))*
+        (inner(ngradb/normgrada, nabla_grad(triala)) -
+        inner(ngrada,ngradb)*inner(ngrada/normgrada, nabla_grad(triala)))
+        +
+        inner(ngrada,ngradb)*(
+        -inner(ngradb/normgrada, nabla_grad(testa))*
+        inner(ngrada/normgrada, nabla_grad(triala))
+        -inner(ngradb/normgrada, nabla_grad(triala))*
+        inner(ngrada/normgrada, nabla_grad(testa))
+        -inner(ngrada/normgrada,ngradb/normgrada)*
+        inner(nabla_grad(testa), nabla_grad(triala))
+        + 3*inner(ngrada,ngradb)*
+        inner(ngrada/normgrada,nabla_grad(testa))*
+        inner(ngrada/normgrada,nabla_grad(triala))
+        )
+        )*dx
+        # TODO: Wrong--temp
+        wkform22 = - ((inner(ngradb/normgrada, nabla_grad(testb))
+        - inner(ngrada,ngradb)*inner(ngrada/normgrada, nabla_grad(testb)))*
+        (inner(ngradb/normgrada, nabla_grad(trialb)) -
+        inner(ngrada,ngradb)*inner(ngrada/normgrada, nabla_grad(trialb)))
+        +
+        inner(ngrada,ngradb)*(
+        -inner(ngradb/normgrada, nabla_grad(testb))*
+        inner(ngrada/normgrada, nabla_grad(trialb))
+        -inner(ngradb/normgrada, nabla_grad(trialb))*
+        inner(ngrada/normgrada, nabla_grad(testb))
+        -inner(ngrada/normgrada,ngradb/normgrada)*
+        inner(nabla_grad(testb), nabla_grad(trialb))
+        + 3*inner(ngrada,ngradb)*
+        inner(ngrada/normgrada,nabla_grad(testb))*
+        inner(ngrada/normgrada,nabla_grad(trialb))
+        )
+        )*dx
+        #TODO: add missing wkforms
+        #
+        self.hessian = wkform11 + wkform22 #+ wkform21 + wkform12
+        self.precond = wkform11 + wkform22
 
 
     def costab(self, ma_in, mb_in):
@@ -280,6 +321,22 @@ class normalizedcrossgradient():
         setfct(self.a, ma_in)
         setfct(self.b, mb_in)
         return assemble(self.grad)
+
+
+    def assemble_hessianab(self, a, b):
+        setfct(self.a, a)
+        setfct(self.b, b)
+        self.H = assemble(self.hessian)
+        self.Hprecond = assemble(self.precond)
+
+    def hessianab(self, ahat, bhat):
+        """ ahat, bhat = Vector(V) """
+        setfct(self.ahat, ahat)
+        setfct(self.bhat, bhat)
+        assign(self.abhat.sub(0), self.ahat)
+        assign(self.abhat.sub(1), self.bhat)
+        return self.H * self.abhat.vector()
+
 
 
 #----------------------------------------------------------------------
