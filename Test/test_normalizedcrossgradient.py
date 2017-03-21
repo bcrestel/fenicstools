@@ -65,7 +65,7 @@ for ii in range(5):
 print '\ncheck gradient'
 ak, bk = dl.Function(V), dl.Function(V)
 directab = dl.Function(V*V)
-h = 1e-6
+H = [1e-6,1e-7,1e-5]
 for ii in range(5):
     print 'ii={}'.format(ii)
     a = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii), V)
@@ -77,27 +77,34 @@ for ii in range(5):
         dl.assign(directab.sub(0), directa)
         dl.assign(directab.sub(1), directb)
         gradxdir = grad.inner(directab.vector())
-        setfct(ak, a)
-        setfct(bk, b)
-        ak.vector().axpy(h, directa.vector())
-        bk.vector().axpy(h, directb.vector())
-        cost1 = cg.costab(ak, bk)
-        setfct(ak, a)
-        setfct(bk, b)
-        ak.vector().axpy(-h, directa.vector())
-        bk.vector().axpy(-h, directb.vector())
-        cost2 = cg.costab(ak, bk)
-        gradfddirect = (cost1-cost2)/(2*h)
-        err = np.abs(gradxdir-gradfddirect)/np.abs(gradxdir)
-        print 'grad={}, fd={}, err={}'.format(gradxdir, gradfddirect, err),
-        if err > 1e-6:  print '\t =>> Warning!'
-        else:   print ''
+        print 'grad={}, '.format(gradxdir)
+        for h in H:
+            setfct(ak, a)
+            setfct(bk, b)
+            ak.vector().axpy(h, directa.vector())
+            bk.vector().axpy(h, directb.vector())
+            cost1 = cg.costab(ak, bk)
+            setfct(ak, a)
+            setfct(bk, b)
+            ak.vector().axpy(-h, directa.vector())
+            bk.vector().axpy(-h, directb.vector())
+            cost2 = cg.costab(ak, bk)
+            gradfddirect = (cost1-cost2)/(2*h)
+            if np.abs(gradxdir) > 1e-16:
+                err = np.abs(gradxdir-gradfddirect)/np.abs(gradxdir)
+            else:
+                err = np.abs(gradxdir-gradfddirect)
+            print '\th={}, fd={}, err={:.2e}'.format(h, gradfddirect, err),
+            if err < 1e-6:
+                print '\t =>> OK!'
+                break
+            else:   print ''
 
 # Check other directions of Hessian
 print '\n\ncheck Hessian--block(1,1)'
 ak, bk = dl.Function(V), dl.Function(V)
 directab = dl.Function(V*V)
-h = 1e-5
+H = [1e-6,1e-7,1e-5]
 for ii in range(5):
     print 'ii={}'.format(ii)
     a = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii), V)
@@ -105,34 +112,93 @@ for ii in range(5):
     cg.assemble_hessianab(a, b)
     for jj in range(5):
         directa = dl.interpolate(dl.Expression('pow(x[0], n)*pow(x[1], n)', n=jj+1), V)
-        #directb = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=jj+1), V)
         directb = dl.interpolate(dl.Constant('0.0'),V)
         dl.assign(directab.sub(0), directa)
         dl.assign(directab.sub(1), directb)
         Hxdir = cg.hessianab(directa, directb)
-        #
-        setfct(ak, a)
-        setfct(bk, b)
-        ak.vector().axpy(h, directa.vector())
-        bk.vector().axpy(h, directb.vector())
-        grad1 = cg.gradab(ak, bk)
-        setfct(ak, a)
-        setfct(bk, b)
-        ak.vector().axpy(-h, directa.vector())
-        bk.vector().axpy(-h, directb.vector())
-        grad2 = cg.gradab(ak, bk)
-        hessfddir = (grad1-grad2)/(2*h)
-        #
         Hxdirfun = vector2Function(Hxdir, V*V)
-        hessfddirfun = vector2Function(hessfddir, V*V)
         Hxdira, Hxdirb = Hxdirfun.split(deepcopy=True)
-        hessfddira, hessfddirb = hessfddirfun.split(deepcopy=True)
         normHxdira = dl.norm(Hxdira.vector())
-        if normHxdira > 1e-16:
-            err = dl.norm(Hxdira.vector() - hessfddira.vector())/normHxdira
-        else:
-            err = dl.norm(Hxdira.vector() - hessfddira.vector())
-#        err = np.linalg.norm((Hxdir-hessfddir).array())/np.linalg.norm(Hxdir.array())
-        print '|Hxdir|={}, err={}'.format(normHxdira, err),
-        if err > 1e-6:  print '\t =>> Warning!'
-        else:   print ''
+        normHxdirb = dl.norm(Hxdirb.vector())
+        print '|Hxdira|={}, |Hxdirb|={}'.format(normHxdira, normHxdirb)
+        #
+        for h in H:
+            setfct(ak, a)
+            setfct(bk, b)
+            ak.vector().axpy(h, directa.vector())
+            bk.vector().axpy(h, directb.vector())
+            grad1 = cg.gradab(ak, bk)
+            setfct(ak, a)
+            setfct(bk, b)
+            ak.vector().axpy(-h, directa.vector())
+            bk.vector().axpy(-h, directb.vector())
+            grad2 = cg.gradab(ak, bk)
+            hessfddir = (grad1-grad2)/(2*h)
+            #
+            hessfddirfun = vector2Function(hessfddir, V*V)
+            hessfddira, hessfddirb = hessfddirfun.split(deepcopy=True)
+            if normHxdira > 1e-16:
+                err11 = dl.norm(Hxdira.vector() - hessfddira.vector())/normHxdira
+            else:
+                err11 = dl.norm(Hxdira.vector() - hessfddira.vector())
+            if normHxdirb > 1e-16:
+                err12 = dl.norm(Hxdirb.vector() - hessfddirb.vector())/normHxdirb
+            else:
+                err12 = dl.norm(Hxdirb.vector() - hessfddirb.vector())
+            print '\th={}, |Hxdira|={}, |Hxdirb|={}, err11={:.2e}, err12={:.2e}'.format(\
+            h, dl.norm(hessfddira.vector()), dl.norm(hessfddirb.vector()), err11, err12),
+            if max(err11, err12) < 1e-6:  
+                print '\t =>> OK!'
+                break
+            else:   print ''
+
+
+print '\n\ncheck Hessian--block(2,2)'
+H = [1e-6,1e-7,1e-5]
+for ii in range(5):
+    print 'ii={}'.format(ii)
+    a = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii), V)
+    b = dl.interpolate(dl.Expression('pow(x[0], n)*pow(x[1], n)', n=ii), V)
+    cg.assemble_hessianab(a, b)
+    for jj in range(5):
+        directa = dl.interpolate(dl.Constant('0.0'),V)
+        directb = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=jj+1), V)
+        dl.assign(directab.sub(0), directa)
+        dl.assign(directab.sub(1), directb)
+        Hxdir = cg.hessianab(directa, directb)
+        Hxdirfun = vector2Function(Hxdir, V*V)
+        Hxdira, Hxdirb = Hxdirfun.split(deepcopy=True)
+        normHxdira = dl.norm(Hxdira.vector())
+        normHxdirb = dl.norm(Hxdirb.vector())
+        print '|Hxdira|={}, |Hxdirb|={}'.format(normHxdira, normHxdirb)
+        #
+        for h in H:
+            setfct(ak, a)
+            setfct(bk, b)
+            ak.vector().axpy(h, directa.vector())
+            bk.vector().axpy(h, directb.vector())
+            grad1 = cg.gradab(ak, bk)
+            setfct(ak, a)
+            setfct(bk, b)
+            ak.vector().axpy(-h, directa.vector())
+            bk.vector().axpy(-h, directb.vector())
+            grad2 = cg.gradab(ak, bk)
+            hessfddir = (grad1-grad2)/(2*h)
+            #
+            hessfddirfun = vector2Function(hessfddir, V*V)
+            hessfddira, hessfddirb = hessfddirfun.split(deepcopy=True)
+            if normHxdira > 1e-16:
+                err21 = dl.norm(Hxdira.vector() - hessfddira.vector())/normHxdira
+            else:
+                err21 = dl.norm(Hxdira.vector() - hessfddira.vector())
+            if normHxdirb > 1e-16:
+                err22 = dl.norm(Hxdirb.vector() - hessfddirb.vector())/normHxdirb
+            else:
+                err22 = dl.norm(Hxdirb.vector() - hessfddirb.vector())
+            print '\th={}, |Hxdira|={}, |Hxdirb|={}, err21={:.2e}, err22={:.2e}'.format(\
+            h, dl.norm(hessfddira.vector()), dl.norm(hessfddirb.vector()), err21, err22),
+            if max(err21, err22) < 1e-6:  
+                print '\t =>> OK!'
+                break
+            else:   print ''
+

@@ -284,29 +284,54 @@ class normalizedcrossgradient():
         + 3*inner(ngrada,ngradb)*
         inner(ngrada/normgrada,nabla_grad(testa))*
         inner(ngrada/normgrada,nabla_grad(triala))
-        )
-        )*dx
-        # TODO: Wrong--temp
-        wkform22 = - ((inner(ngradb/normgrada, nabla_grad(testb))
-        - inner(ngrada,ngradb)*inner(ngrada/normgrada, nabla_grad(testb)))*
-        (inner(ngradb/normgrada, nabla_grad(trialb)) -
-        inner(ngrada,ngradb)*inner(ngrada/normgrada, nabla_grad(trialb)))
+        ) )*dx
+        #
+        wkform12 = - ((inner(ngradb/normgrada, nabla_grad(testa))
+        - inner(ngrada,ngradb)*inner(ngrada/normgrada, nabla_grad(testa)))*
+        (inner(ngrada/normgradb, nabla_grad(trialb)) -
+        inner(ngrada,ngradb)*inner(ngradb/normgradb, nabla_grad(trialb)))
         +
         inner(ngrada,ngradb)*(
-        -inner(ngradb/normgrada, nabla_grad(testb))*
-        inner(ngrada/normgrada, nabla_grad(trialb))
-        -inner(ngradb/normgrada, nabla_grad(trialb))*
-        inner(ngrada/normgrada, nabla_grad(testb))
-        -inner(ngrada/normgrada,ngradb/normgrada)*
+        inner(nabla_grad(testa)/normgrada, nabla_grad(trialb)/normgradb)
+        - inner(ngradb/normgrada, nabla_grad(testa))*
+        inner(ngradb/normgradb, nabla_grad(trialb))
+        - inner(ngrada/normgrada, nabla_grad(testa))*(
+        inner(ngrada/normgradb, nabla_grad(trialb))
+        - inner(ngrada, ngradb)*inner(ngradb/normgradb, nabla_grad(trialb)))
+        ) )*dx
+        #
+        wkform22 = - ((inner(ngrada/normgradb, nabla_grad(testb))
+        - inner(ngrada,ngradb)*inner(ngradb/normgradb, nabla_grad(testb)))*
+        (inner(ngrada/normgradb, nabla_grad(trialb)) -
+        inner(ngrada,ngradb)*inner(ngradb/normgradb, nabla_grad(trialb)))
+        +
+        inner(ngrada,ngradb)*(
+        -inner(ngrada/normgradb, nabla_grad(testb))*
+        inner(ngradb/normgradb, nabla_grad(trialb))
+        -inner(ngrada/normgradb, nabla_grad(trialb))*
+        inner(ngradb/normgradb, nabla_grad(testb))
+        -inner(ngrada/normgradb,ngradb/normgradb)*
         inner(nabla_grad(testb), nabla_grad(trialb))
         + 3*inner(ngrada,ngradb)*
-        inner(ngrada/normgrada,nabla_grad(testb))*
-        inner(ngrada/normgrada,nabla_grad(trialb))
-        )
-        )*dx
-        #TODO: add missing wkforms
+        inner(ngradb/normgradb,nabla_grad(testb))*
+        inner(ngradb/normgradb,nabla_grad(trialb))
+        ) )*dx
         #
-        self.hessian = wkform11 + wkform22 #+ wkform21 + wkform12
+        wkform21 = -((inner(ngrada/normgradb, nabla_grad(testb))
+        - inner(ngrada,ngradb)*inner(ngradb/normgradb, nabla_grad(testb)))*
+        (inner(ngradb/normgrada, nabla_grad(triala)) -
+        inner(ngrada,ngradb)*inner(ngrada/normgrada, nabla_grad(triala)))
+        +
+        inner(ngrada,ngradb)*(
+        inner(nabla_grad(testb)/normgradb, nabla_grad(triala)/normgrada)
+        - inner(ngrada/normgradb, nabla_grad(testb))*
+        inner(ngrada/normgrada, nabla_grad(triala))
+        - inner(ngradb/normgradb, nabla_grad(testb))*(
+        inner(ngradb/normgrada, nabla_grad(triala))
+        - inner(ngrada, ngradb)*inner(ngrada/normgrada, nabla_grad(triala)))
+        ) )*dx
+        #
+        self.hessian = wkform11 + wkform22 + wkform12 + wkform21
         self.precond = wkform11 + wkform22
 
 
