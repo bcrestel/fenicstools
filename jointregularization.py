@@ -17,7 +17,8 @@ class SumRegularization():
 
     def __init__(self, regul1, regul2, mpicomm, coeff_cg=0.0, 
     coeff_ncg=0.0, parameters_ncg=[],
-    coeff_vtv=0.0, parameters_vtv=[]):
+    coeff_vtv=0.0, parameters_vtv=[],
+    isprint=False):
         """ regul1, regul2 = regularization/prior objects for medium 1 and 2
         coeff_cg = regularization constant for cross-gradient term
         coeff_ncg = regularization constant for normalized cross-gradient term
@@ -41,11 +42,14 @@ class SumRegularization():
 
         if self.coeff_cg > 0.0:
             self.crossgrad = crossgradient(self.V1V2)
+            if isprint: print "Using cross-gradient"
         if self.coeff_ncg > 0.0:
             self.normalizedcrossgrad = normalizedcrossgradient(self.V1V2, parameters_ncg)
+            if isprint: print "Using normalized cross-gradient"
         if self.coeff_vtv > 0.0:
             assert self.regul1.Vm is self.regul2.Vm
             self.vtv = V_TVPD(V1, parameters_vtv)
+            if isprint: print "Using VTV"
 
         try:
             solver = PETScKrylovSolver('cg', 'ml_amg')
@@ -124,7 +128,8 @@ class SumRegularization():
             self.precond += self.crossgrad.Hprecond*self.coeff_cg
         if self.coeff_ncg > 0.0:
             self.normalizedcrossgrad.assemble_hessianab(m1, m2)
-            self.precond += self.normalizedcrossgrad.Hprecond*self.coeff_ncg
+            #TODO: find a way to precondition when using NCG
+            #self.precond += self.normalizedcrossgrad.Hprecond*self.coeff_ncg
         if self.coeff_vtv > 0.0:
             self.vtv.assemble_hessianab(m1, m2)
             self.precond += self.vtv.regTV.precond*self.coeff_vtv
@@ -143,7 +148,11 @@ class SumRegularization():
 
 
     def getprecond(self):
-        solver = PETScKrylovSolver("cg", self.amgprecond)
+#        if self.coeff_cg + self.coeff_ncg > 0.0:
+#            solver = PETScKrylovSolver('gmres', self.amgprecond)
+#            solver.parameters["maximum_iterations"] = 10000
+#        else:
+        solver = PETScKrylovSolver('cg', self.amgprecond)
         solver.parameters["maximum_iterations"] = 2000
         solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["relative_tolerance"] = 1e-24
@@ -348,7 +357,8 @@ class normalizedcrossgradient():
         ) )*dx
         #
         self.hessian = wkform11 + wkform22 + wkform12 + wkform21
-        self.precond = wkform11 + wkform22
+        self.precond = wkform11 + wkform22 + wkform12 + wkform21
+        #self.precond = wkform11 + wkform22
 
 
     def costab(self, ma_in, mb_in):
