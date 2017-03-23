@@ -232,14 +232,12 @@ class crossgradient():
         """ ma_in, mb_in = Function(V) """
         setfct(self.a, ma_in)
         setfct(self.b, mb_in)
-        self.H = None
         return assemble(self.cost)  # this is global (in parallel)
 
     def gradab(self, ma_in, mb_in):
         """ ma_in, mb_in = Function(V) """
         setfct(self.a, ma_in)
         setfct(self.b, mb_in)
-        #self.H = None
         return assemble(self.grad)
 
     def assemble_hessianab(self, a, b):
@@ -357,8 +355,7 @@ class normalizedcrossgradient():
         ) )*dx
         #
         self.hessian = wkform11 + wkform22 + wkform12 + wkform21
-        self.precond = wkform11 + wkform22 + wkform12 + wkform21
-        #self.precond = wkform11 + wkform22
+        self.precond = wkform11 + wkform22 #+ wkform12 + wkform21
 
 
     def costab(self, ma_in, mb_in):
