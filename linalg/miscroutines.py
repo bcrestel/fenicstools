@@ -4,6 +4,7 @@ the linear algebra backend """
 import numpy as np
 import matplotlib.pyplot as plt
 from dolfin import as_backend_type, PETScVector, PETScMatrix, SLEPcEigenSolver
+from dolfin import MPI
 
 import petsc4py, sys
 petsc4py.init(sys.argv)
@@ -116,12 +117,19 @@ def gathermatrixrows(Matrix, filenames, rows, mpicomm, mattype):
 def compute_eig(M, filename):
     """ Compute eigenvalues of a PETScMatrix M,
     and print to filename """
+    mpirank = MPI.rank(M.mpi_comm())
+
+    if mpirank == 0:    print '\t\tCompute eigenvalues'
     eigsolver = SLEPcEigenSolver(M)
     eigsolver.solve()
+
+    if mpirank == 0:    print '\t\tSort eigenvalues'
     eig = []
     for ii in range(eigsolver.get_number_converged()):
         eig.append(eigsolver.get_eigenvalue(ii)[0])
     eig.sort()
+
+    if mpirank == 0:    print '\t\tPrint results to file'
     np.savetxt(filename, np.array(eig))
 
 def compute_eigfenics(M, filename):
