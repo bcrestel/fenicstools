@@ -691,6 +691,7 @@ class NuclearNormSVD2D():
     def __init__(self, mesh, eps=0.0):
         self.V = FunctionSpace(mesh, 'CG', 1)
         self.Vd = VectorFunctionSpace(mesh, 'DG', 0)
+        VV = self.V * self.V
 
         self.eps = eps
 
@@ -699,6 +700,10 @@ class NuclearNormSVD2D():
         self.m2 = Function(self.V)
         self.gradm2 = Function(self.Vd)
 
+        grad = Function(self.V*self.V)
+        self.grad = grad.vector()
+        self.test1, self.test2 = TestFunction(self.V*self.V)
+
         # evaluation points = centroids
         self.x = []
         self.vol = []
@@ -706,6 +711,13 @@ class NuclearNormSVD2D():
             self.x.append(\
             cell.get_vertex_coordinates().reshape((-1,2)).mean(axis=0))
             self.vol.append(cell.volume())
+
+        # pre-assemble int of grad(test) over each cell
+        indfct = TrialFunction(FunctionSpace(mesh, 'DG', 0))
+        self.Gxtest = assemble(indfct*(self.test1.dx(0) + self.test2.dx(0))*dx)
+        self.Gytest = assemble(indfct*(self.test1.dx(1) + self.test2.dx(1))*dx)
+        #TODO: find correspondence betw: entries indfct <-> cells(mesh)
+        
         
 
     def isTV(self): return False
@@ -716,22 +728,30 @@ class NuclearNormSVD2D():
         self.gradm1 = project(nabla_grad(m1), self.Vd)
         self.gradm2 = project(nabla_grad(m2), self.Vd)
 
-        U, S, V = [], [], []
+        self.UWV = []
         cost = 0.0
         for x, vol in zip(self.x, self.vol):
             G = np.array([self.gradm1(x), self.gradm2(x)]).T
             u, s, v = np.linalg.svd(G)
-            v = v.T
-            U.append(u)
-            S.append(s)
-            V.append(v)
-            cost += vol * s.sum()
+            sqrts2eps = np.sqrt(s**2 + self.eps)
+            W = np.diag(s/sqrts2eps)
+            self.UWV.append(u.dot(W.dot(v)))
+            cost += vol * sqrts2eps.sum()
         return cost
 
     def costabvect(self, m1, m2):
         setfct(self.m1, m1)
         setfct(self.m2, m2)
         return self.costab(self.m1, self.m2)
+
+
+    def gradab(self, m1, m2):
+        gradm1 = project(nabla_grad(m1), self.Vd)
+        gradm2 = project(nabla_grad(m2), self.Vd)
+
+        grad.zero()
+        #for uwv, vol in zip(self.UWV, self.vol):
+            
 
 
 

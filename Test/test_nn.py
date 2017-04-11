@@ -8,8 +8,10 @@ import numpy as np
 from fenicstools.jointregularization import NuclearNormSVD2D, NuclearNormformula
 
 def test_cost():
-    mesh = UnitSquareMesh(10,10)
+    mesh = UnitSquareMesh(2,2)
     NN = NuclearNormSVD2D(mesh, eps=0.0)
+    print NN.Gxtest.array()
+    print NN.Gytest.array()
     NN2 = NuclearNormformula(mesh, eps=1e-16)
 
     print 'Test 1'
@@ -70,6 +72,9 @@ def test_cost():
     nn2 = NN2.costab(m1, m2)
     print 'cost={}, cost2={}, err={}'.format(nn, nn2, np.abs(nn-nn2)/np.abs(nn2))
 
+def test_grad():
+    mesh = UnitSquareMesh(10,10)
+    NN = NuclearNormSVD2D(mesh, eps=1e-16)
 
 
 if __name__ == "__main__":
@@ -80,5 +85,8 @@ if __name__ == "__main__":
         sys.exit(1)
 
     if case_nb == 0:
-        print 'test cost functional'
+        print 'Test cost functional'
         test_cost()
+    elif case_nb == 1:
+        print 'Test gradient'
+        test_grad()
