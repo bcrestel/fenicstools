@@ -3,12 +3,13 @@ Define joint regularization terms
 """
 import numpy as np
 from dolfin import inner, nabla_grad, dx, interpolate, cells, \
-Function, TestFunction, TrialFunction, assemble, project \
-PETScKrylovSolver, assign, sqrt, Constant, FunctionSpace, as_backend_type
+Function, TestFunction, TrialFunction, assemble, project, \
+PETScKrylovSolver, assign, sqrt, Constant, as_backend_type, \
+FunctionSpace, VectorFunctionSpace
 from miscfenics import setfct
 from linalg.splitandassign import BlockDiagonal
-from regularization import TV, TVPD
-from hippylib.linalg import pointwiseMaxCount
+#from regularization import TV, TVPD
+#from hippylib.linalg import pointwiseMaxCount
 
 
 class SumRegularization():
@@ -685,7 +686,7 @@ class V_TVPD():
 
 #----------------------------------------------------------------------
 #----------------------------------------------------------------------
-class NuclearNorm2D():
+class NuclearNormSVD2D():
 
     def __init__(self, mesh, eps=0.0):
         self.V = FunctionSpace(mesh, 'CG', 1)
@@ -698,11 +699,13 @@ class NuclearNorm2D():
         self.m2 = Function(self.V)
         self.gradm2 = Function(self.Vd)
 
-        # evaluation points
+        # evaluation points = centroids
         self.x = []
-        for cell in cells(self.mesh):
+        self.vol = []
+        for cell in cells(mesh):
             self.x.append(\
             cell.get_vertex_coordinates().reshape((-1,2)).mean(axis=0))
+            self.vol.append(cell.volume())
         
 
     def isTV(self): return False
@@ -710,22 +713,53 @@ class NuclearNorm2D():
 
 
     def costab(self, m1, m2):
-        self.gradm1 = project(m1, self.Vd)
-        self.gradm2 = project(m2, self.Vd)
+        self.gradm1 = project(nabla_grad(m1), self.Vd)
+        self.gradm2 = project(nabla_grad(m2), self.Vd)
 
-        U, S, V = []
+        U, S, V = [], [], []
         cost = 0.0
-        for x in self.x:
+        for x, vol in zip(self.x, self.vol):
             G = np.array([self.gradm1(x), self.gradm2(x)]).T
             u, s, v = np.linalg.svd(G)
             v = v.T
             U.append(u)
             S.append(s)
-            V.append(V)
-            cost += cell.volume() * s.sum()
+            V.append(v)
+            cost += vol * s.sum()
         return cost
 
     def costabvect(self, m1, m2):
         setfct(self.m1, m1)
         setfct(self.m2, m2)
         return self.costab(self.m1, self.m2)
+
+
+
+class NuclearNormformula():
+
+    def __init__(self, mesh, eps=0.0):
+        self.V = FunctionSpace(mesh, 'CG', 1)
+
+        self.m1 = Function(self.V)
+        self.m2 = Function(self.V)
+
+        normg1 = inner(nabla_grad(self.m1), nabla_grad(self.m1))
+        normg2 = inner(nabla_grad(self.m2), nabla_grad(self.m2))
+        self.cost = 1./np.sqrt(2.0)* \
+        (sqrt(normg1 + normg2 + sqrt((normg1 - normg2)**2 + 
+        4.0*inner(nabla_grad(self.m1), nabla_grad(self.m2))**2) 
+        + Constant(eps))
+        + sqrt(normg1 + normg2 - sqrt((normg1 - normg2)**2 + 
+        4.0*inner(nabla_grad(self.m1), nabla_grad(self.m2))**2) 
+        + Constant(eps)))*dx
+
+
+
+    def costab(self, m1, m2):
+        setfct(self.m1, m1)
+        setfct(self.m2, m2)
+        return assemble(self.cost)
+
+
+    def costabvect(self, m1, m2):
+        return self.costab(m1, m2)
