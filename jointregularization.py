@@ -2,8 +2,8 @@
 Define joint regularization terms
 """
 import numpy as np
-from dolfin import inner, nabla_grad, dx, interpolate, \
-Function, TestFunction, TrialFunction, assemble, \
+from dolfin import inner, nabla_grad, dx, interpolate, cells, \
+Function, TestFunction, TrialFunction, assemble, project \
 PETScKrylovSolver, assign, sqrt, Constant, FunctionSpace, as_backend_type
 from miscfenics import setfct
 from linalg.splitandassign import BlockDiagonal
@@ -680,3 +680,52 @@ class V_TVPD():
             'min(factorw)={}, max(factorw)={}').format(\
             100.*float(count)/self.factorw.vector().size(), minf, maxf)
 
+
+
+
+#----------------------------------------------------------------------
+#----------------------------------------------------------------------
+class NuclearNorm2D():
+
+    def __init__(self, mesh, eps=0.0):
+        self.V = FunctionSpace(mesh, 'CG', 1)
+        self.Vd = VectorFunctionSpace(mesh, 'DG', 0)
+
+        self.eps = eps
+
+        self.m1 = Function(self.V)
+        self.gradm1 = Function(self.Vd)
+        self.m2 = Function(self.V)
+        self.gradm2 = Function(self.Vd)
+
+        # evaluation points
+        self.x = []
+        for cell in cells(self.mesh):
+            self.x.append(\
+            cell.get_vertex_coordinates().reshape((-1,2)).mean(axis=0))
+        
+
+    def isTV(self): return False
+    def isPD(self): return False
+
+
+    def costab(self, m1, m2):
+        self.gradm1 = project(m1, self.Vd)
+        self.gradm2 = project(m2, self.Vd)
+
+        U, S, V = []
+        cost = 0.0
+        for x in self.x:
+            G = np.array([self.gradm1(x), self.gradm2(x)]).T
+            u, s, v = np.linalg.svd(G)
+            v = v.T
+            U.append(u)
+            S.append(s)
+            V.append(V)
+            cost += cell.volume() * s.sum()
+        return cost
+
+    def costabvect(self, m1, m2):
+        setfct(self.m1, m1)
+        setfct(self.m2, m2)
+        return self.costab(self.m1, self.m2)
