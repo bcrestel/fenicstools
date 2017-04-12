@@ -5,9 +5,10 @@ import numpy as np
 from dolfin import inner, nabla_grad, dx, interpolate, cells, \
 Function, TestFunction, TrialFunction, assemble, project, \
 PETScKrylovSolver, assign, sqrt, Constant, as_backend_type, \
-FunctionSpace, VectorFunctionSpace
+FunctionSpace, VectorFunctionSpace, norm
 from miscfenics import setfct
 from linalg.splitandassign import BlockDiagonal
+from linalg.miscroutines import setglobalvalue
 #from regularization import TV, TVPD
 #from hippylib.linalg import pointwiseMaxCount
 
@@ -691,7 +692,7 @@ class NuclearNormSVD2D():
     def __init__(self, mesh, eps=0.0):
         self.V = FunctionSpace(mesh, 'CG', 1)
         self.Vd = VectorFunctionSpace(mesh, 'DG', 0)
-        VV = self.V * self.V
+        self.VV = self.V * self.V
 
         self.eps = eps
 
@@ -700,7 +701,7 @@ class NuclearNormSVD2D():
         self.m2 = Function(self.V)
         self.gradm2 = Function(self.Vd)
 
-        grad = Function(self.V*self.V)
+        grad = Function(self.VV)
         self.grad = grad.vector()
         self.test1, self.test2 = TestFunction(self.V*self.V)
 
@@ -714,10 +715,11 @@ class NuclearNormSVD2D():
 
         # pre-assemble int of grad(test) over each cell
         indfct = TrialFunction(FunctionSpace(mesh, 'DG', 0))
-        self.Gxtest = assemble(indfct*(self.test1.dx(0) + self.test2.dx(0))*dx)
-        self.Gytest = assemble(indfct*(self.test1.dx(1) + self.test2.dx(1))*dx)
-        #TODO: find correspondence betw: entries indfct <-> cells(mesh)
-        
+        self.Gx1test = assemble(indfct*(self.test1.dx(0))*dx)
+        self.Gx2test = assemble(indfct*(self.test2.dx(0))*dx)
+        self.Gy1test = assemble(indfct*(self.test1.dx(1))*dx)
+        self.Gy2test = assemble(indfct*(self.test2.dx(1))*dx)
+        self.rhsG = Function(FunctionSpace(mesh, 'DG', 0))
         
 
     def isTV(self): return False
@@ -728,14 +730,11 @@ class NuclearNormSVD2D():
         self.gradm1 = project(nabla_grad(m1), self.Vd)
         self.gradm2 = project(nabla_grad(m2), self.Vd)
 
-        self.UWV = []
         cost = 0.0
         for x, vol in zip(self.x, self.vol):
             G = np.array([self.gradm1(x), self.gradm2(x)]).T
             u, s, v = np.linalg.svd(G)
             sqrts2eps = np.sqrt(s**2 + self.eps)
-            W = np.diag(s/sqrts2eps)
-            self.UWV.append(u.dot(W.dot(v)))
             cost += vol * sqrts2eps.sum()
         return cost
 
@@ -746,13 +745,28 @@ class NuclearNormSVD2D():
 
 
     def gradab(self, m1, m2):
-        gradm1 = project(nabla_grad(m1), self.Vd)
-        gradm2 = project(nabla_grad(m2), self.Vd)
+        self.gradm1 = project(nabla_grad(m1), self.Vd)
+        self.gradm2 = project(nabla_grad(m2), self.Vd)
 
-        grad.zero()
-        #for uwv, vol in zip(self.UWV, self.vol):
+        self.grad.zero()
+        for ii, x in enumerate(self.x):
+            G = np.array([self.gradm1(x), self.gradm2(x)]).T
+            u, s, v = np.linalg.svd(G)
+            sqrts2eps = np.sqrt(s**2 + self.eps)
+            W = np.diag(s/sqrts2eps)
+            uwv = u.dot(W.dot(v))
+
+            self.rhsG.vector().zero()
+            setglobalvalue(self.rhsG, ii, uwv[0][0])
+            self.grad.axpy(1.0, self.Gx1test * self.rhsG.vector())
+            setglobalvalue(self.rhsG, ii, uwv[1][0])
+            self.grad.axpy(1.0, self.Gy1test * self.rhsG.vector())
+            setglobalvalue(self.rhsG, ii, uwv[0][1])
+            self.grad.axpy(1.0, self.Gx2test * self.rhsG.vector())
+            setglobalvalue(self.rhsG, ii, uwv[1][1])
+            self.grad.axpy(1.0, self.Gy2test * self.rhsG.vector())
+        return self.grad
             
-
 
 
 class NuclearNormformula():
