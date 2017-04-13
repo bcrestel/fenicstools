@@ -5,12 +5,15 @@ import numpy as np
 from dolfin import inner, nabla_grad, dx, interpolate, cells, \
 Function, TestFunction, TrialFunction, assemble, project, \
 PETScKrylovSolver, assign, sqrt, Constant, as_backend_type, \
-FunctionSpace, VectorFunctionSpace, norm, MPI, Vector
+FunctionSpace, VectorFunctionSpace, norm, MPI, Vector, split, derivative
 from miscfenics import setfct
 from linalg.splitandassign import BlockDiagonal
 from linalg.miscroutines import setglobalvalue
-#from regularization import TV, TVPD
-#from hippylib.linalg import pointwiseMaxCount
+try:
+    from regularization import TV, TVPD
+    from hippylib.linalg import pointwiseMaxCount
+except:
+    pass
 
 
 class SumRegularization():
@@ -804,27 +807,80 @@ class NuclearNormformula():
 
     def __init__(self, mesh, eps=0.0):
         self.V = FunctionSpace(mesh, 'CG', 1)
-
         self.m1 = Function(self.V)
         self.m2 = Function(self.V)
 
+        self.VV = VectorFunctionSpace(mesh, 'CG', 1, 2)
+        self.m = Function(self.VV)
+        self.mtest = TestFunction(self.VV)
+        self.mtrial = TrialFunction(self.VV)
+        self.m1, self.m2 = split(self.m)
+
+        self.tmp1, self.tmp2 = Function(self.V), Function(self.V)
+        self.mh = Function(self.VV)
+
         normg1 = inner(nabla_grad(self.m1), nabla_grad(self.m1))
         normg2 = inner(nabla_grad(self.m2), nabla_grad(self.m2))
-        self.cost = 1./np.sqrt(2.0)* \
-        (sqrt(normg1 + normg2 + sqrt((normg1 - normg2)**2 + 
-        4.0*inner(nabla_grad(self.m1), nabla_grad(self.m2))**2) 
-        + Constant(eps))
-        + sqrt(normg1 + normg2 - sqrt((normg1 - normg2)**2 + 
-        4.0*inner(nabla_grad(self.m1), nabla_grad(self.m2))**2) 
-        + Constant(eps)))*dx
+        self.cost = 1./np.sqrt(2.0)* (\
+        sqrt(normg1 + normg2 + Constant(np.sqrt(eps)) + 
+        sqrt((normg1 - normg2)**2 + Constant(eps) +
+        4.0*inner(nabla_grad(self.m1), nabla_grad(self.m2))**2))
+        + sqrt(normg1 + normg2 + Constant(np.sqrt(eps) + 1e-16) - 
+        sqrt((normg1 - normg2)**2 + Constant(eps) +
+        4.0*inner(nabla_grad(self.m1), nabla_grad(self.m2))**2)))*dx
 
+        self.grad = derivative(self.cost, self.m, self.mtest)
+
+        self.hessian = derivative(self.grad, self.m, self.mtrial)
 
 
     def costab(self, m1, m2):
-        setfct(self.m1, m1)
-        setfct(self.m2, m2)
+        assign(self.m.sub(0), m1)
+        assign(self.m.sub(1), m2)
         return assemble(self.cost)
 
-
     def costabvect(self, m1, m2):
-        return self.costab(m1, m2)
+        setfct(self.tmp1, m1)
+        setfct(self.tmp2, m2)
+        return self.costab(self.tmp1, self.tmp2)
+
+
+    def gradab(self, m1, m2):
+        assign(self.m.sub(0), m1)
+        assign(self.m.sub(1), m2)
+        return assemble(self.grad)
+
+    def gradabvect(self, m1, m2):
+        setfct(self.tmp1, m1)
+        setfct(self.tmp2, m2)
+        return self.gradab(self.tmp1, self.tmp2)
+
+
+    def assemble_hessianab(self, m1, m2):
+        setfct(self.tmp1, m1)
+        setfct(self.tmp2, m2)
+        assign(self.m.sub(0), self.tmp1)
+        assign(self.m.sub(1), self.tmp2)
+        self.H = assembe(self.hessian)
+
+    def hessianab(self, m1h, m2h):
+        """ m1h, m2h = Vector(V) """
+        setfct(self.tmp1, m1h)
+        setfct(self.tmp2, m2h)
+        assign(self.mh.sub(0), self.m1)
+        assign(self.mh.sub(1), self.m2)
+        return self.H * self.mh.vector()
+
+
+    #TODO
+    def getprecond(self):
+        """ precondition by TV + small fraction of mass matrix """
+        solver = PETScKrylovSolver('cg', self.amgprecond)
+        solver.parameters["maximum_iterations"] = 2000
+        solver.parameters["relative_tolerance"] = 1e-24
+        solver.parameters["absolute_tolerance"] = 1e-24
+        solver.parameters["error_on_nonconvergence"] = True 
+        solver.parameters["nonzero_initial_guess"] = False 
+        solver.set_operator(self.H + self.sMass)
+        return solver
+

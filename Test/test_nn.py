@@ -11,6 +11,7 @@ from fenicstools.miscfenics import setfct
 
 set_log_level(WARNING)
 
+#@profile
 def test_cost(eps_in):
     mesh = UnitSquareMesh(10,10)
     NN = NuclearNormSVD2D(mesh, eps=eps_in)
@@ -28,16 +29,17 @@ def test_cost(eps_in):
     m2 = Function(NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
+    tt = 2.0*np.sqrt(eps_in)
     if mpirank == 0:
-        print 'cost={}, err={}'.format(nn, np.abs(nn))
-        print 'cost2={}, err={}'.format(nn2, np.abs(nn2))
+        print 'cost={}, err={}'.format(nn, np.abs(nn-tt)/tt)
+        print 'cost2={}, err={}'.format(nn2, np.abs(nn2-tt)/tt)
 
     if mpirank == 0:    print '\nTest 2'
     m1 = interpolate(Expression("x[0]"), NN.V)
     m2 = interpolate(Expression("x[1]"), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
-    tt = 2.0
+    tt = 2.0*np.sqrt(1.0 + eps_in)
     if mpirank == 0:
         print 'cost={}, err={}'.format(nn, np.abs(nn-tt)/tt)
         print 'cost2={}, err={}'.format(nn2, np.abs(nn2-tt)/tt)
@@ -47,7 +49,7 @@ def test_cost(eps_in):
     m2 = interpolate(Expression("x[1]*x[1]"), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
-    tt = 2.0
+    tt = 2.0    # only true for eps=0
     if mpirank == 0:
         print 'cost={}, err={}'.format(nn, np.abs(nn-tt)/tt)
         print 'cost2={}, err={}'.format(nn2, np.abs(nn2-tt)/tt)
@@ -57,7 +59,7 @@ def test_cost(eps_in):
     m2 = interpolate(Expression("x[0] + x[1]"), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
-    tt = 2.0
+    tt = np.sqrt(2.0*2.0 + eps_in) + np.sqrt(eps_in)
     if mpirank == 0:
         print 'cost={}, err={}'.format(nn, np.abs(nn-tt)/tt)
         print 'cost2={}, err={}'.format(nn2, np.abs(nn2-tt)/tt)
@@ -67,7 +69,7 @@ def test_cost(eps_in):
     m2 = interpolate(Expression("x[0] - x[1]"), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
-    tt = 2.0*np.sqrt(2.0)
+    tt = 2.0*np.sqrt(2.0 + eps)
     if mpirank == 0:
         print 'cost={}, err={}'.format(nn, np.abs(nn-tt)/tt)
         print 'cost2={}, err={}'.format(nn2, np.abs(nn2-tt)/tt)
@@ -92,6 +94,7 @@ def test_cost(eps_in):
 def test_grad(eps_in):
     mesh = UnitSquareMesh(10,10)
     NN = NuclearNormSVD2D(mesh, eps=eps_in)
+    NN2 = NuclearNormformula(mesh, eps=eps_in)
     direc12 = Function(NN.VV)
     m1h, m2h = Function(NN.V), Function(NN.V)
     H = [1e-4, 1e-5, 1e-6, 1e-7]
@@ -108,9 +111,12 @@ def test_grad(eps_in):
     m1 = Function(NN.V)
     m2 = Function(NN.V)
     grad = NN.gradab(m1, m2)
+    grad2 = NN2.gradab(m1, m2)
     normgrad = norm(grad)
+    normgrad2 = norm(grad2)
     if mpirank == 0:
         print '|grad|={}, err={}'.format(normgrad, np.abs(normgrad))
+        print '|grad2|={}, err={}'.format(normgrad2, np.abs(normgrad2))
 
     M1 = [interpolate(Expression("x[0] + x[1]"), NN.V),
     interpolate(Expression("x[0] * x[1]"), NN.V),
@@ -123,6 +129,7 @@ def test_grad(eps_in):
         if mpirank == 0:    print '\nTest {}'.format(tt)
         tt += 1
         grad = NN.gradab(m1, m2)
+        grad2 = NN2.gradab(m1, m2)
         for nn in range(5):
             if mpirank == 0:    print '--direction {}'.format(nn)
             direc1 = interpolate(Expression('1 + sin(n*pi*x[0])*sin(n*pi*x[1])',\
@@ -132,7 +139,10 @@ def test_grad(eps_in):
             assign(direc12.sub(0), direc1)
             assign(direc12.sub(1), direc2)
             direcderiv = grad.inner(direc12.vector())
-            if mpirank == 0:    print 'grad={}, '.format(direcderiv)
+            direcderiv2 = grad2.inner(direc12.vector())
+            if mpirank == 0:    
+                print 'grad={}, '.format(direcderiv)
+                print 'grad2={}, '.format(direcderiv2)
 
             for hh in H:
                 setfct(m1h, m1)
