@@ -5,7 +5,7 @@ import numpy as np
 from dolfin import inner, nabla_grad, dx, interpolate, cells, \
 Function, TestFunction, TrialFunction, assemble, project, \
 PETScKrylovSolver, assign, sqrt, Constant, as_backend_type, \
-FunctionSpace, VectorFunctionSpace, norm
+FunctionSpace, VectorFunctionSpace, norm, MPI, Vector
 from miscfenics import setfct
 from linalg.splitandassign import BlockDiagonal
 from linalg.miscroutines import setglobalvalue
@@ -694,6 +694,8 @@ class NuclearNormSVD2D():
         self.Vd = VectorFunctionSpace(mesh, 'DG', 0)
         self.VV = self.V * self.V
 
+        self.mpicomm = mesh.mpi_comm()
+
         self.eps = eps
 
         self.m1 = Function(self.V)
@@ -736,7 +738,9 @@ class NuclearNormSVD2D():
             u, s, v = np.linalg.svd(G)
             sqrts2eps = np.sqrt(s**2 + self.eps)
             cost += vol * sqrts2eps.sum()
-        return cost
+
+        cost_global = MPI.sum(self.mpicomm, cost)
+        return cost_global
 
     def costabvect(self, m1, m2):
         setfct(self.m1, m1)
@@ -748,7 +752,10 @@ class NuclearNormSVD2D():
         self.gradm1 = project(nabla_grad(m1), self.Vd)
         self.gradm2 = project(nabla_grad(m2), self.Vd)
 
-        self.grad.zero()
+        uwv00, uwv00ind = [], []
+        uwv10, uwv10ind = [], []
+        uwv01, uwv01ind = [], []
+        uwv11, uwv11ind = [], []
         for ii, x in enumerate(self.x):
             G = np.array([self.gradm1(x), self.gradm2(x)]).T
             u, s, v = np.linalg.svd(G)
@@ -756,17 +763,41 @@ class NuclearNormSVD2D():
             W = np.diag(s/sqrts2eps)
             uwv = u.dot(W.dot(v))
 
-            self.rhsG.vector().zero()
-            setglobalvalue(self.rhsG, ii, uwv[0][0])
-            self.grad.axpy(1.0, self.Gx1test * self.rhsG.vector())
-            setglobalvalue(self.rhsG, ii, uwv[1][0])
-            self.grad.axpy(1.0, self.Gy1test * self.rhsG.vector())
-            setglobalvalue(self.rhsG, ii, uwv[0][1])
-            self.grad.axpy(1.0, self.Gx2test * self.rhsG.vector())
-            setglobalvalue(self.rhsG, ii, uwv[1][1])
-            self.grad.axpy(1.0, self.Gy2test * self.rhsG.vector())
+            uwv00.append(uwv[0][0])
+            uwv00ind.append(ii)
+
+            uwv10.append(uwv[1][0])
+            uwv10ind.append(ii)
+
+            uwv01.append(uwv[0][1])
+            uwv01ind.append(ii)
+
+            uwv11.append(uwv[1][1])
+            uwv11ind.append(ii)
+
+        self.grad.zero()
+        rhsG = Vector()
+        self.Gx1test.init_vector(rhsG, 1)
+
+        rhsG.set_local(np.array(uwv00), np.array(uwv00ind, dtype=np.intc))
+        rhsG.apply('insert')
+        self.grad.axpy(1.0, self.Gx1test * rhsG)
+
+        rhsG.zero()
+        rhsG.set_local(np.array(uwv10), np.array(uwv10ind, dtype=np.intc))
+        rhsG.apply('insert')
+        self.grad.axpy(1.0, self.Gy1test * rhsG)
+
+        rhsG.set_local(np.array(uwv01), np.array(uwv01ind, dtype=np.intc))
+        rhsG.apply('insert')
+        self.grad.axpy(1.0, self.Gx2test * rhsG)
+
+        rhsG.set_local(np.array(uwv11), np.array(uwv11ind, dtype=np.intc))
+        rhsG.apply('insert')
+        self.grad.axpy(1.0, self.Gy2test * rhsG)
+
         return self.grad
-            
+
 
 
 class NuclearNormformula():
