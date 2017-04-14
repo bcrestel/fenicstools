@@ -802,7 +802,7 @@ class NuclearNormSVD2D():
 
 class NuclearNormformula():
 
-    def __init__(self, mesh, parameters=[]):
+    def __init__(self, mesh, parameters=[], isprint=False):
         self.parameters = {'eps':0.0, 'k':1.0}
         self.parameters.update(parameters)
         eps = self.parameters['eps']
@@ -844,6 +844,14 @@ class NuclearNormformula():
         M = assemble(inner(self.mtest, self.mtrial)*dx)
         factM = 1e-2*k
         self.sMass = M*factM
+
+        if isprint:
+            print 'Using nuclear norm regularization (no SVD).',
+            print ' eps={}, k={}'.format(eps, k)
+
+
+    def isTV(self): return False
+    def isPD(self): return False
 
 
     def costab(self, m1, m2):
@@ -892,6 +900,7 @@ class NuclearNormformula():
         solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["error_on_nonconvergence"] = True 
         solver.parameters["nonzero_initial_guess"] = False 
-        solver.set_operator(self.H + self.sMass)
+        self.precond = self.H + self.sMass
+        solver.set_operator(self.precond)
         return solver
 
