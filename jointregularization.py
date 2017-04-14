@@ -823,7 +823,7 @@ class NuclearNormformula():
 
         normg1 = inner(nabla_grad(self.m1), nabla_grad(self.m1))
         normg2 = inner(nabla_grad(self.m2), nabla_grad(self.m2))
-        self.cost = 1./np.sqrt(2.0)* (\
+        self.cost = 1./np.sqrt(2.0) * Constant(k) * (\
         sqrt(normg1 + normg2 + Constant(np.sqrt(eps)) + 
         sqrt((normg1 - normg2)**2 + Constant(eps) +
         4.0*inner(nabla_grad(self.m1), nabla_grad(self.m2))**2))
