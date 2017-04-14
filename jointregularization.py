@@ -705,10 +705,7 @@ class NuclearNormSVD2D():
         self.gradm1 = Function(self.Vd)
         self.m2 = Function(self.V)
         self.gradm2 = Function(self.Vd)
-
-        grad = Function(self.VV)
-        self.grad = grad.vector()
-        self.test1, self.test2 = TestFunction(self.V*self.V)
+        self.test1, self.test2 = TestFunction(self.VV)
 
         # evaluation points = centroids
         self.x = []
@@ -724,7 +721,6 @@ class NuclearNormSVD2D():
         self.Gx2test = assemble(indfct*(self.test2.dx(0))*dx)
         self.Gy1test = assemble(indfct*(self.test1.dx(1))*dx)
         self.Gy2test = assemble(indfct*(self.test2.dx(1))*dx)
-        self.rhsG = Function(FunctionSpace(mesh, 'DG', 0))
         
 
     def isTV(self): return False
@@ -778,34 +774,40 @@ class NuclearNormSVD2D():
             uwv11.append(uwv[1][1])
             uwv11ind.append(ii)
 
-        self.grad.zero()
+        Grad = Function(self.VV)
+        grad = Grad.vector()
         rhsG = Vector()
         self.Gx1test.init_vector(rhsG, 1)
 
         rhsG.set_local(np.array(uwv00), np.array(uwv00ind, dtype=np.intc))
         rhsG.apply('insert')
-        self.grad.axpy(1.0, self.Gx1test * rhsG)
+        grad.axpy(1.0, self.Gx1test * rhsG)
 
         rhsG.zero()
         rhsG.set_local(np.array(uwv10), np.array(uwv10ind, dtype=np.intc))
         rhsG.apply('insert')
-        self.grad.axpy(1.0, self.Gy1test * rhsG)
+        grad.axpy(1.0, self.Gy1test * rhsG)
 
         rhsG.set_local(np.array(uwv01), np.array(uwv01ind, dtype=np.intc))
         rhsG.apply('insert')
-        self.grad.axpy(1.0, self.Gx2test * rhsG)
+        grad.axpy(1.0, self.Gx2test * rhsG)
 
         rhsG.set_local(np.array(uwv11), np.array(uwv11ind, dtype=np.intc))
         rhsG.apply('insert')
-        self.grad.axpy(1.0, self.Gy2test * rhsG)
+        grad.axpy(1.0, self.Gy2test * rhsG)
 
-        return self.grad
+        return grad
 
 
 
 class NuclearNormformula():
 
-    def __init__(self, mesh, eps=0.0):
+    def __init__(self, mesh, parameters=[]):
+        self.parameters = {'eps':0.0, 'k':1.0}
+        self.parameters.update(parameters)
+        eps = self.parameters['eps']
+        k = self.parameters['k']
+
         self.V = FunctionSpace(mesh, 'CG', 1)
         self.m1 = Function(self.V)
         self.m2 = Function(self.V)
@@ -832,6 +834,16 @@ class NuclearNormformula():
         self.grad = derivative(self.cost, self.m, self.mtest)
 
         self.hessian = derivative(self.grad, self.m, self.mtrial)
+
+        try:
+            solver = PETScKrylovSolver('cg', 'ml_amg')
+            self.amgprecond = 'ml_amg'
+        except:
+            self.amgprecond = 'petsc_amg'
+
+        M = assemble(inner(self.mtest, self.mtrial)*dx)
+        factM = 1e-2*k
+        self.sMass = M*factM
 
 
     def costab(self, m1, m2):
@@ -861,18 +873,17 @@ class NuclearNormformula():
         setfct(self.tmp2, m2)
         assign(self.m.sub(0), self.tmp1)
         assign(self.m.sub(1), self.tmp2)
-        self.H = assembe(self.hessian)
+        self.H = assemble(self.hessian)
 
     def hessianab(self, m1h, m2h):
         """ m1h, m2h = Vector(V) """
         setfct(self.tmp1, m1h)
         setfct(self.tmp2, m2h)
-        assign(self.mh.sub(0), self.m1)
-        assign(self.mh.sub(1), self.m2)
+        assign(self.mh.sub(0), self.tmp1)
+        assign(self.mh.sub(1), self.tmp2)
         return self.H * self.mh.vector()
 
 
-    #TODO
     def getprecond(self):
         """ precondition by TV + small fraction of mass matrix """
         solver = PETScKrylovSolver('cg', self.amgprecond)
