@@ -827,7 +827,7 @@ class NuclearNormformula():
         sqrt(normg1 + normg2 + Constant(np.sqrt(eps)) + 
         sqrt((normg1 - normg2)**2 + Constant(eps) +
         4.0*inner(nabla_grad(self.m1), nabla_grad(self.m2))**2))
-        + sqrt(normg1 + normg2 + Constant(np.sqrt(eps) + 1e-16) - 
+        + sqrt(normg1 + normg2 + Constant(np.sqrt(eps)*(1.0+1e-15)) - 
         sqrt((normg1 - normg2)**2 + Constant(eps) +
         4.0*inner(nabla_grad(self.m1), nabla_grad(self.m2))**2)))*dx
 
@@ -894,8 +894,9 @@ class NuclearNormformula():
 
     def getprecond(self):
         """ precondition by TV + small fraction of mass matrix """
+        #TODO: does not appear to be a great way to apply preconditioner (DIVERGED_ITS)
         solver = PETScKrylovSolver('cg', self.amgprecond)
-        solver.parameters["maximum_iterations"] = 2000
+        solver.parameters["maximum_iterations"] = 3000
         solver.parameters["relative_tolerance"] = 1e-24
         solver.parameters["absolute_tolerance"] = 1e-24
         solver.parameters["error_on_nonconvergence"] = True 
