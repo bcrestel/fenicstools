@@ -122,10 +122,14 @@ class LaplacianPrior(GaussianPrior):
         nabla_grad(self.mtest))*dx)
         self.M = assemble(inner(self.mtrial, self.mtest)*dx)
 
-        self.Msolver = LUSolver()
-        self.Msolver.parameters['reuse_factorization'] = True
-        self.Msolver.parameters['symmetric'] = True
+        self.Msolver = PETScKrylovSolver('cg', 'jacobi')
+        self.Msolver.parameters["maximum_iterations"] = 2000
+        self.Msolver.parameters["relative_tolerance"] = 1e-24
+        self.Msolver.parameters["absolute_tolerance"] = 1e-24
+        self.Msolver.parameters["error_on_nonconvergence"] = True 
+        self.Msolver.parameters["nonzero_initial_guess"] = False 
         self.Msolver.set_operator(self.M)
+
 
         # preconditioner is Gamma^{-1}:
         if self.beta > 1e-10: self.precond = self.gamma*self.R + self.beta*self.M
