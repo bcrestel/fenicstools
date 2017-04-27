@@ -14,8 +14,9 @@ set_log_level(WARNING)
 #@profile
 def test_cost(eps_in, k_in):
     mesh = UnitSquareMesh(10,10)
-    NN = NuclearNormSVD2D(mesh, eps=eps_in, k=k_in)
-    NN2 = NuclearNormformula(mesh, {'eps':eps_in, 'k':k_in})
+    param = {'eps':eps_in, 'k':k_in}
+    NN = NuclearNormSVD2D(mesh, param)
+    NN2 = NuclearNormformula(mesh, param)
     test = 0
 
     mpicomm = mesh.mpi_comm()
@@ -129,8 +130,9 @@ def test_cost(eps_in, k_in):
 
 def test_grad(eps_in, k_in):
     mesh = UnitSquareMesh(10,10)
-    NN = NuclearNormSVD2D(mesh, eps=eps_in, k=k_in)
-    NN2 = NuclearNormformula(mesh, {'eps':eps_in, 'k':k_in})
+    param = {'eps':eps_in, 'k':k_in}
+    NN = NuclearNormSVD2D(mesh, param)
+    NN2 = NuclearNormformula(mesh, param)
     direc12 = Function(NN.VV)
     m1h, m2h = Function(NN.V), Function(NN.V)
     H = [1e-4, 1e-5, 1e-6, 1e-7]
@@ -225,8 +227,9 @@ def test_grad(eps_in, k_in):
 
 def test_hessian(eps_in):
     mesh = UnitSquareMesh(10,10)
-    NN = NuclearNormSVD2D(mesh, eps=eps_in)
-    NN2 = NuclearNormformula(mesh, {'eps':eps_in})
+    param = {'eps':eps_in}
+    NN = NuclearNormSVD2D(mesh, param)
+    NN2 = NuclearNormformula(mesh, param)
     direc12 = Function(NN.VV)
     m1h, m2h = Function(NN.V), Function(NN.V)
     H = [1e-4, 1e-5, 1e-6, 1e-7]

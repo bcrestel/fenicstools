@@ -692,15 +692,19 @@ class V_TVPD():
 #----------------------------------------------------------------------
 class NuclearNormSVD2D():
 
-    def __init__(self, mesh, eps=0.0, k=1.0):
+    def __init__(self, mesh, parameters_in=[], isprint=False):
         self.V = FunctionSpace(mesh, 'CG', 1)
         self.Vd = VectorFunctionSpace(mesh, 'DG', 0)
         self.VV = self.V * self.V
 
         self.mpicomm = mesh.mpi_comm()
 
-        self.eps = eps
-        self.k = k
+        self.parameters = {}
+        self.parameters['eps'] = 0.0
+        self.parameters['k'] = 1.0
+        self.parameters.update(parameters_in)
+        self.eps = self.parameters['eps']
+        self.k = self.parameters['k']
 
         self.m1 = Function(self.V)
         self.gradm1 = Function(self.Vd)
@@ -722,6 +726,10 @@ class NuclearNormSVD2D():
         self.Gx2test = assemble(indfct*(self.test2.dx(0))*dx)
         self.Gy1test = assemble(indfct*(self.test1.dx(1))*dx)
         self.Gy2test = assemble(indfct*(self.test2.dx(1))*dx)
+
+        if isprint:
+            print 'Using nuclear norm regularization with SVD.',
+            print ' eps={}, k={}'.format(self.eps, self.k)
         
 
     def isTV(self): return False
