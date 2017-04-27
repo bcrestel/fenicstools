@@ -692,7 +692,7 @@ class V_TVPD():
 #----------------------------------------------------------------------
 class NuclearNormSVD2D():
 
-    def __init__(self, mesh, eps=0.0):
+    def __init__(self, mesh, eps=0.0, k=1.0):
         self.V = FunctionSpace(mesh, 'CG', 1)
         self.Vd = VectorFunctionSpace(mesh, 'DG', 0)
         self.VV = self.V * self.V
@@ -700,6 +700,7 @@ class NuclearNormSVD2D():
         self.mpicomm = mesh.mpi_comm()
 
         self.eps = eps
+        self.k = k
 
         self.m1 = Function(self.V)
         self.gradm1 = Function(self.Vd)
@@ -739,7 +740,7 @@ class NuclearNormSVD2D():
             cost += vol * sqrts2eps.sum()
 
         cost_global = MPI.sum(self.mpicomm, cost)
-        return cost_global
+        return self.k*cost_global
 
     def costabvect(self, m1, m2):
         setfct(self.m1, m1)
@@ -796,7 +797,7 @@ class NuclearNormSVD2D():
         rhsG.apply('insert')
         grad.axpy(1.0, self.Gy2test * rhsG)
 
-        return grad
+        return grad*self.k
 
 
 
