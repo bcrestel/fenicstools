@@ -28,14 +28,14 @@ class TV():
             - eps = regularization parameter
         |f|_TV = int k(x) sqrt{|grad f|^2 + eps} dx """
 
-        self.parameters = {'k':1.0, 'eps':1e-2, 'GNhessian':False} # default parameters
-
+        self.parameters = {'k':1.0, 'eps':1e-2, 'GNhessian':False, 'print':False}
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
         GN = self.parameters['GNhessian']
         Vm = self.parameters['Vm']
         eps = self.parameters['eps']
         k = self.parameters['k']
+        isprint = self.parameters['print']
 
         self.m = Function(Vm)
         test, trial = TestFunction(Vm), TrialFunction(Vm)
@@ -65,10 +65,10 @@ class TV():
         inner(nabla_grad(trial), nabla_grad(self.m))/self.fTV )*dx
         if GN: 
             self.wkformhess = self.wkformGNhess
-            print 'TV regularization -- GN Hessian'
+            if isprint: print 'TV regularization -- GN Hessian'
         else:   
             self.wkformhess = self.wkformFhess
-            print 'TV regularization -- full Hessian'
+            if isprint: print 'TV regularization -- full Hessian'
 
         try:
             solver = PETScKrylovSolver('cg', 'ml_amg')
