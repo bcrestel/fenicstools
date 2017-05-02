@@ -32,13 +32,13 @@ class TV():
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
         GN = self.parameters['GNhessian']
-        Vm = self.parameters['Vm']
+        self.Vm = self.parameters['Vm']
         eps = self.parameters['eps']
         k = self.parameters['k']
         isprint = self.parameters['print']
 
-        self.m = Function(Vm)
-        test, trial = TestFunction(Vm), TrialFunction(Vm)
+        self.m = Function(self.Vm)
+        test, trial = TestFunction(self.Vm), TrialFunction(self.Vm)
         factM = 1e-2*k
         M = assemble(inner(test, trial)*dx)
         self.sMass = M*factM
