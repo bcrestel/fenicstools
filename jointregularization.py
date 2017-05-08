@@ -692,18 +692,23 @@ class V_TVPD():
 #----------------------------------------------------------------------
 class NuclearNormSVD2D():
 
-    def __init__(self, mesh, eps=0.0):
+    def __init__(self, mesh, parameters_in=[], isprint=False):
         self.V = FunctionSpace(mesh, 'CG', 1)
         self.Vd = VectorFunctionSpace(mesh, 'DG', 0)
         self.VV = self.V * self.V
 
         self.mpicomm = mesh.mpi_comm()
 
-        self.eps = eps
+        self.parameters = {}
+        self.parameters['eps'] = 0.0
+        self.parameters['k'] = 1.0
+        self.parameters.update(parameters_in)
+        self.eps = self.parameters['eps']
+        self.k = self.parameters['k']
 
-        self.m1 = Function(self.V)
+        self.tmpm1 = Function(self.V)
+        self.tmpm2 = Function(self.V)
         self.gradm1 = Function(self.Vd)
-        self.m2 = Function(self.V)
         self.gradm2 = Function(self.Vd)
         self.test1, self.test2 = TestFunction(self.VV)
 
@@ -721,6 +726,10 @@ class NuclearNormSVD2D():
         self.Gx2test = assemble(indfct*(self.test2.dx(0))*dx)
         self.Gy1test = assemble(indfct*(self.test1.dx(1))*dx)
         self.Gy2test = assemble(indfct*(self.test2.dx(1))*dx)
+
+        if isprint:
+            print 'Using nuclear norm regularization with SVD.',
+            print ' eps={}, k={}'.format(self.eps, self.k)
         
 
     def isTV(self): return False
@@ -739,12 +748,12 @@ class NuclearNormSVD2D():
             cost += vol * sqrts2eps.sum()
 
         cost_global = MPI.sum(self.mpicomm, cost)
-        return cost_global
+        return self.k*cost_global
 
     def costabvect(self, m1, m2):
-        setfct(self.m1, m1)
-        setfct(self.m2, m2)
-        return self.costab(self.m1, self.m2)
+        setfct(self.tmpm1, m1)
+        setfct(self.tmpm2, m2)
+        return self.costab(self.tmpm1, self.tmpm2)
 
 
     def gradab(self, m1, m2):
@@ -796,7 +805,16 @@ class NuclearNormSVD2D():
         rhsG.apply('insert')
         grad.axpy(1.0, self.Gy2test * rhsG)
 
-        return grad
+        return grad*self.k
+
+    def gradabvect(self, m1, m2):
+        setfct(self.tmpm1, m1)
+        setfct(self.tmpm2, m2)
+        return self.gradab(self.tmpm1, self.tmpm2)
+
+
+    def assemble_hessianab(self, m1, m2):
+        pass
 
 
 
@@ -809,16 +827,13 @@ class NuclearNormformula():
         k = self.parameters['k']
 
         self.V = FunctionSpace(mesh, 'CG', 1)
-        self.m1 = Function(self.V)
-        self.m2 = Function(self.V)
+        self.tmp1, self.tmp2 = Function(self.V), Function(self.V)
 
         self.VV = VectorFunctionSpace(mesh, 'CG', 1, 2)
         self.m = Function(self.VV)
         self.mtest = TestFunction(self.VV)
         self.mtrial = TrialFunction(self.VV)
         self.m1, self.m2 = split(self.m)
-
-        self.tmp1, self.tmp2 = Function(self.V), Function(self.V)
         self.mh = Function(self.VV)
 
         normg1 = inner(nabla_grad(self.m1), nabla_grad(self.m1))

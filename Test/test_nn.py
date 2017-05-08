@@ -12,10 +12,11 @@ from fenicstools.miscfenics import setfct
 set_log_level(WARNING)
 
 #@profile
-def test_cost(eps_in):
+def test_cost(eps_in, k_in):
     mesh = UnitSquareMesh(10,10)
-    NN = NuclearNormSVD2D(mesh, eps=eps_in)
-    NN2 = NuclearNormformula(mesh, {'eps':eps_in})
+    param = {'eps':eps_in, 'k':k_in}
+    NN = NuclearNormSVD2D(mesh, param)
+    NN2 = NuclearNormformula(mesh, param)
     test = 0
 
     mpicomm = mesh.mpi_comm()
@@ -26,62 +27,62 @@ def test_cost(eps_in):
         print '-------------------------------------'
 
     test += 1
-    if mpirank == 0:    print 'Test {}'.format(test)
+    if mpirank == 0:    print 'Test {}: (0,0)'.format(test)
     m1 = Function(NN.V)
     m2 = Function(NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
-    tt = 2.0*np.sqrt(eps_in)
+    tt = 2.0*np.sqrt(eps_in)*k_in
     if mpirank == 0:
         print 'cost={}, err={:.2e}'.format(nn, np.abs(nn-tt)/tt)
         print 'cost2={}, err={:.2e}'.format(nn2, np.abs(nn2-tt)/tt)
 
     test += 1
-    if mpirank == 0:    print 'Test {}'.format(test)
+    if mpirank == 0:    print 'Test {}: (x,y)'.format(test)
     m1 = interpolate(Expression("x[0]"), NN.V)
     m2 = interpolate(Expression("x[1]"), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
-    tt = 2.0*np.sqrt(1.0 + eps_in)
+    tt = 2.0*np.sqrt(1.0 + eps_in)*k_in
     if mpirank == 0:
         print 'cost={}, err={:.2e}'.format(nn, np.abs(nn-tt)/tt)
         print 'cost2={}, err={:.2e}'.format(nn2, np.abs(nn2-tt)/tt)
     
     test += 1
-    if mpirank == 0:    print 'Test {}'.format(test)
+    if mpirank == 0:    print 'Test {}: (x^2, y^2)'.format(test)
     m1 = interpolate(Expression("x[0]*x[0]"), NN.V)
     m2 = interpolate(Expression("x[1]*x[1]"), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
-    tt = 2.0    # only true for eps=0
+    tt = 2.0*k_in    # only true for eps=0
     if mpirank == 0:
         print 'cost={}, err={:.2e}'.format(nn, np.abs(nn-tt)/tt)
         print 'cost2={}, err={:.2e}'.format(nn2, np.abs(nn2-tt)/tt)
     
     test += 1
-    if mpirank == 0:    print 'Test {}'.format(test)
+    if mpirank == 0:    print 'Test {}: (x+y, x+y)'.format(test)
     m1 = interpolate(Expression("x[0] + x[1]"), NN.V)
     m2 = interpolate(Expression("x[0] + x[1]"), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
-    tt = np.sqrt(2.0*2.0 + eps_in) + np.sqrt(eps_in)
+    tt = (np.sqrt(2.0*2.0 + eps_in) + np.sqrt(eps_in))*k_in
     if mpirank == 0:
         print 'cost={}, err={:.2e}'.format(nn, np.abs(nn-tt)/tt)
         print 'cost2={}, err={:.2e}'.format(nn2, np.abs(nn2-tt)/tt)
 
     test += 1
-    if mpirank == 0:    print 'Test {}'.format(test)
+    if mpirank == 0:    print 'Test {}: (x+y, x-y)'.format(test)
     m1 = interpolate(Expression("x[0] + x[1]"), NN.V)
     m2 = interpolate(Expression("x[0] - x[1]"), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
-    tt = 2.0*np.sqrt(2.0 + eps)
+    tt = 2.0*np.sqrt(2.0 + eps)*k_in
     if mpirank == 0:
         print 'cost={}, err={:.2e}'.format(nn, np.abs(nn-tt)/tt)
         print 'cost2={}, err={:.2e}'.format(nn2, np.abs(nn2-tt)/tt)
 
     test += 1
-    if mpirank == 0:    print 'Test {}'.format(test)
+    if mpirank == 0:    print 'Test {}: (x^2+y, x+y^2)'.format(test)
     m1 = interpolate(Expression("x[0]*x[0] + x[1]"), NN.V)
     m2 = interpolate(Expression("x[0] + x[1]*x[1]"), NN.V)
     nn = NN.costab(m1, m2)
@@ -90,7 +91,7 @@ def test_cost(eps_in):
         print 'cost={}, cost2={}, diff={:.2e}'.format(nn, nn2, np.abs(nn-nn2)/np.abs(nn2))
 
     test += 1
-    if mpirank == 0:    print 'Test {}'.format(test)
+    if mpirank == 0:    print 'Test {}: (x^2*y, x*y^2)'.format(test)
     m1 = interpolate(Expression("x[0]*x[0]*x[1]"), NN.V)
     m2 = interpolate(Expression("x[0]*x[1]*x[1]"), NN.V)
     nn = NN.costab(m1, m2)
@@ -99,7 +100,7 @@ def test_cost(eps_in):
         print 'cost={}, cost2={}, diff={:.2e}'.format(nn, nn2, np.abs(nn-nn2)/np.abs(nn2))
 
     test += 1
-    if mpirank == 0:    print 'Test {}'.format(test)
+    if mpirank == 0:    print 'Test {}: coincide'.format(test)
     m1 = interpolate(Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
     '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), NN.V)
@@ -112,7 +113,7 @@ def test_cost(eps_in):
         print 'cost={}, cost2={}, diff={:.2e}'.format(nn, nn2, np.abs(nn-nn2)/np.abs(nn2))
 
     test += 1
-    if mpirank == 0:    print 'Test {}'.format(test)
+    if mpirank == 0:    print 'Test {}: coincide2'.format(test)
     m1 = interpolate(Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * 8 )'), NN.V)
     m2 = interpolate(Expression('log(10 - ' + \
@@ -127,10 +128,11 @@ def test_cost(eps_in):
 
 
 
-def test_grad(eps_in):
+def test_grad(eps_in, k_in):
     mesh = UnitSquareMesh(10,10)
-    NN = NuclearNormSVD2D(mesh, eps=eps_in)
-    NN2 = NuclearNormformula(mesh, {'eps':eps_in})
+    param = {'eps':eps_in, 'k':k_in}
+    NN = NuclearNormSVD2D(mesh, param)
+    NN2 = NuclearNormformula(mesh, param)
     direc12 = Function(NN.VV)
     m1h, m2h = Function(NN.V), Function(NN.V)
     H = [1e-4, 1e-5, 1e-6, 1e-7]
@@ -225,8 +227,9 @@ def test_grad(eps_in):
 
 def test_hessian(eps_in):
     mesh = UnitSquareMesh(10,10)
-    NN = NuclearNormSVD2D(mesh, eps=eps_in)
-    NN2 = NuclearNormformula(mesh, {'eps':eps_in})
+    param = {'eps':eps_in}
+    NN = NuclearNormSVD2D(mesh, param)
+    NN2 = NuclearNormformula(mesh, param)
     direc12 = Function(NN.VV)
     m1h, m2h = Function(NN.V), Function(NN.V)
     H = [1e-4, 1e-5, 1e-6, 1e-7]
@@ -316,18 +319,20 @@ if __name__ == "__main__":
     try:
         case_nb = int(sys.argv[1])
     except:
-        print 'Error: Wrong argument\nUsage: {} <case_nb> (eps)'.format(\
+        print 'Error: Wrong argument\nUsage: {} <case_nb> (eps k)'.format(\
         sys.argv[0])
         sys.exit(1)
 
     try:
         eps = float(sys.argv[2])
+        k = float(sys.argv[3])
     except:
         eps = 1e-12
+        k = 1.0
 
     if case_nb == 0:
-        test_cost(eps)
+        test_cost(eps, k)
     elif case_nb == 1:
-        test_grad(eps)
+        test_grad(eps, k)
     elif case_nb == 2:
         test_hessian(eps)
