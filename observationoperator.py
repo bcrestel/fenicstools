@@ -11,17 +11,12 @@ from numpy.random import randn
 import matplotlib.pyplot as plt
 
 from dolfin import Function, TrialFunction, TestFunction, \
-Constant, Point, as_backend_type, assemble, inner, dx
-try:
-    from dolfin import MPI, mpi_comm_world
-    PARALLEL=True
-except:
-    PARALLEL=False
+Constant, Point, as_backend_type, assemble, inner, dx, \
+MPI, mpi_comm_world
 from exceptionsfenics import WrongInstanceError
 from miscfenics import isFunction, isVector, isarray, arearrays, isequal, setfct
 from sourceterms import PointSources
 
-#TODO: Fix it, not correct. It doesn't create a smooth transition at the 1.0 level
 class TimeFilter():
     """ Create time filter to fade out data misfit (hence src term in adj eqn) """
 
@@ -41,8 +36,9 @@ class TimeFilter():
             self.t1 = times[1]
             self.t2 = times[2]
             self.T = times[3]
-            self.t1b = 2*self.t1-self.t0
-            self.t2b = 2*self.t2-self.T
+            self.t1b = 0.5*(self.t0 + self.t1)
+            self.t2b = 0.5*(self.t2 + self.T)
+            #self.t2b = 2*self.t2-self.T
 
 
     def __call__(self, tt):
@@ -51,12 +47,14 @@ class TimeFilter():
         #'Input tt={} out of bounds [t0, T]; tt-t0={}, T-tt={}'.format(tt, tt-self.t0, self.T-tt)
         if tt <= self.t0 + 1e-16: return 0.0
         if tt >= self.T - 1e-16:    return 0.0
-        if tt <= self.t1:   
-            return np.exp( ((tt-self.t0)*(self.t1b-tt)-(self.t1-self.t0)*(self.t1-self.t0)) \
-            / ((self.t1-self.t0)*(self.t1-self.t0)*(tt-self.t0)*(self.t1b-tt)) )
-        if tt >= self.t2:   
-            return np.exp( ((tt-self.t2b)*(self.T-tt)-(self.T-self.t2)*(self.T-self.t2))\
-            / ((self.T-self.t2)*(self.T-self.t2)*(tt-self.t2b)*(self.T-tt)) )
+        if tt <= self.t1b:
+            return 0.5*np.exp(1./(self.t0-tt))/np.exp(1./(self.t0-self.t1b))
+        if tt <= self.t1:
+            return 1.0 - self.__call__(tt-2.0*(tt-self.t1b))
+        if tt >= self.t2b:
+            return 0.5*np.exp(1./(tt-self.T))/np.exp(1./(self.t2b-self.T))
+        if tt >= self.t2:
+            return 1.0 - self.__call__(self.T-(tt-self.t2))
         return 1.0
 
 
@@ -124,12 +122,8 @@ class ObservationOperator():
         noisevect = randn(len(uin))
         # Get norm of entire random vector and
         # Get norm of entire vector ud (not just local part):
-        if PARALLEL:
-            normrand = sqrt(MPI.sum(self.mycomm, norm(noisevect)**2))
-            normud = sqrt(MPI.sum(self.mycomm, norm(uin)**2))
-        else:
-            normrand = norm(noisevect)
-            normud = norm(uin)
+        normrand = sqrt(MPI.sum(self.mycomm, norm(noisevect)**2))
+        normud = sqrt(MPI.sum(self.mycomm, norm(uin)**2))
         noisevect /= normrand
         noisevect *= self.noisepercent * normud
         objnoise_glob = (self.noisepercent * normud)**2
