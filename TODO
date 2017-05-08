@@ -1,22 +1,7 @@
 TODO list
 
-    - TV:
-* primal-dual TV
- -> missing preconditioner for variational formulation
- -> formulate and implement quadrature nodes-based formulation
- -> test on denoising problem (TV, TV-PD)
-+ check best preconditioner for that problem; can't use amg w/ matrix-free, so
-what else?
- -> test on poisson inverse problem with TV (full) then TV-PD + 
-inspect poisson inverse problem further--behave fishy sometimes
-
-
     - JOINT:
-* Finish VTV + test it
 * Boundary conditions: implement ABC/PML in joint inversion
-* Study analytically similarity terms + test examples that illustrate
- analytical results
-* Improve computational performance (primal-dual, split Bregman,...)
 
 
     - ACOUSTIC:
@@ -40,11 +25,3 @@ Maybe worthwhile with TV regularization
     MAP point completely unrealistic in that case (4Hz and 8Hz)
     Should compute at target parameter
     Or is this setting informative of anything at all?
-
-
-    - BAYESIAN:
-* Implement elliptic pb with log-permeability (i.e., -div(exp(m)grad(u))) and mixed (Dirich-Neum) BCs.
-* Check convergence of fwd pb.
-* Check/clarify definition of prior covariance + check sampling (compute mean and variance)
-* Run MCMC
-

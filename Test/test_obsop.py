@@ -11,8 +11,10 @@ from fenicstools.miscfenics import setfct
 
 
 def runtimefilter(dt=0.01):
-    tf = TimeFilter([0.0, dt, 1.0-dt, 1.0])
-    myfig = tf.plot(int(1000/dt))
+    t0 = 1.0
+    t1 = 5.0
+    tf = TimeFilter([t0, t0+dt, t1-dt, t1])
+    myfig = tf.plot(int(5000/dt))
     plt.show()
 
 def runcontobs():
@@ -112,5 +114,5 @@ def runcontobs():
         print '\nTest Hessian --  Summary: {} test(s) failed\n'.format(failures)
 
 if __name__ == "__main__":
-    runtimefilter(0.1)
+    runtimefilter(1.0)
     #runcontobs()
