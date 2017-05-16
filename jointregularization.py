@@ -45,6 +45,9 @@ class SumRegularization():
         self.bd = BlockDiagonal(V1, V2, mpicomm)
         self.saa = self.bd.saa
 
+        test, trial = TestFunction(self.V1V2), TrialFunction(self.V1V2)
+        self.M = assemble(inner(test, trial)*dx)
+
         if self.coeff_cg > 0.0:
             self.crossgrad = crossgradient(self.V1V2)
             if isprint: print "Using cross-gradient"
@@ -133,7 +136,7 @@ class SumRegularization():
             self.precond += self.crossgrad.Hprecond*self.coeff_cg
         if self.coeff_ncg > 0.0:
             self.normalizedcrossgrad.assemble_hessianab(m1, m2)
-            #TODO: find a way to precondition when using NCG
+            self.precond += self.M*(1e-2*self.coeff_ncg)
             #self.precond += self.normalizedcrossgrad.Hprecond*self.coeff_ncg
         if self.coeff_vtv > 0.0:
             self.vtv.assemble_hessianab(m1, m2)
