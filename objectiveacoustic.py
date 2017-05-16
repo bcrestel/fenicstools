@@ -12,8 +12,6 @@ class ObjectiveAcoustic(LinearOperator):
     Computes data misfit, gradient and Hessian evaluation for the seismic
     inverse problem using acoustic wave data
     """
-    #TODO: add proper support for multiple sources
-
     # CONSTRUCTORS:
     def __init__(self, acousticwavePDE, sources, invparam='ab', regularization=None):
         """ 
