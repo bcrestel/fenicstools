@@ -22,20 +22,22 @@ class ObjectiveAcoustic(LinearOperator):
         self.PDE.exact = None
         self.fwdsource = sources
         # functions for gradient
-        self.ab = Function(self.PDE.Vm*self.PDE.Vm)
+        Vm = self.PDE.Vm
+        V = self.PDE.V
+        self.ab = Function(Vm*Vm)
         self.obsop = None   # Observation operator
         self.dd = None  # observations
         # decide whether ahat and bhat are used
         self.invparam = invparam
         if self.invparam == 'ab':
-            self.MG = Function(self.PDE.Vm*self.PDE.Vm)
+            self.MG = Function(Vm*Vm)
             self.MGv = self.MG.vector()
-            self.Grad = Function(self.PDE.Vm*self.PDE.Vm)
-            self.srchdir = Function(self.PDE.Vm*self.PDE.Vm)
-            self.delta_m = Function(self.PDE.Vm*self.PDE.Vm)
+            self.Grad = Function(Vm*Vm)
+            self.srchdir = Function(Vm*Vm)
+            self.delta_m = Function(Vm*Vm)
             self.get_costreg = self.get_costreg_joint
             self.update_m = self.update_ab
-            self.m_bkup = Function(self.PDE.Vm*self.PDE.Vm)
+            self.m_bkup = Function(Vm*Vm)
             self.backup_m = self.backup_ab
             self.restore_m = self.restore_ab
             self.assemble_hessian = self.assemble_hessianab
@@ -46,12 +48,12 @@ class ObjectiveAcoustic(LinearOperator):
             self.hessiana = self.hessian_componenta
             self.hessianb = self.hessian_componentb
         else:
-            self.MG = Function(self.PDE.Vm)
+            self.MG = Function(Vm)
             self.MGv = self.MG.vector()
-            self.Grad = Function(self.PDE.Vm)
-            self.srchdir = Function(self.PDE.Vm)
-            self.delta_m = Function(self.PDE.Vm)
-            self.m_bkup = Function(self.PDE.Vm)
+            self.Grad = Function(Vm)
+            self.srchdir = Function(Vm)
+            self.delta_m = Function(Vm)
+            self.m_bkup = Function(Vm)
             if self.invparam == 'a':
                 self.get_costreg = self.get_costreg_a
                 self.update_m = self.update_a
@@ -87,15 +89,15 @@ class ObjectiveAcoustic(LinearOperator):
             self.PD = self.regularization.isPD()
         self.alpha_reg = 1.0
         # gradient and Hessian
-        self.p, self.q = Function(self.PDE.V), Function(self.PDE.V)
-        self.phat, self.qhat = Function(self.PDE.V), Function(self.PDE.V)
-        self.ahat, self.bhat = Function(self.PDE.Vm), Function(self.PDE.Vm)
-        self.ptrial, self.ptest = TrialFunction(self.PDE.V), TestFunction(self.PDE.V)
-        self.mtest, self.mtrial = TestFunction(self.PDE.Vm), TrialFunction(self.PDE.Vm)
-        self.ppprhs = Function(self.PDE.V)
-        self.ptmp = Function(self.PDE.V)
-        if self.PDE.lump:
-            self.Mprime = LumpedMassMatrixPrime(self.PDE.Vm, self.PDE.V, self.PDE.M.ratio)
+        self.p, self.q = Function(V), Function(V)
+        self.phat, self.qhat = Function(V), Function(V)
+        self.ahat, self.bhat = Function(Vm), Function(Vm)
+        self.ptrial, self.ptest = TrialFunction(V), TestFunction(V)
+        self.mtest, self.mtrial = TestFunction(Vm), TrialFunction(Vm)
+        self.ppprhs = Function(V)
+        self.ptmp = Function(V)
+        if self.PDE.parameters['lumpM']:
+            self.Mprime = LumpedMassMatrixPrime(Vm, V, self.PDE.M.ratio)
             self.get_gradienta = self.get_gradienta_lumped
             self.get_hessiana = self.get_hessiana_lumped
             self.get_incra = self.get_incra_lumped
@@ -114,8 +116,8 @@ class ObjectiveAcoustic(LinearOperator):
         # Mass matrix:
         if self.invparam == 'ab':
             # mass matrix will be block-diagonal (although rows and columns are mixed)
-            self.mmtest, self.mmtrial = TestFunction(self.PDE.Vm*self.PDE.Vm), \
-            TrialFunction(self.PDE.Vm*self.PDE.Vm)
+            self.mmtest, self.mmtrial = TestFunction(Vm*Vm), \
+            TrialFunction(Vm*Vm)
         else:
             self.mmtest, self.mmtrial = self.mtest, self.mtrial
         weak_m =  inner(self.mmtrial, self.mmtest)*dx
@@ -140,15 +142,15 @@ class ObjectiveAcoustic(LinearOperator):
 #            if self.PDE.lumpD:
 #                print '*** Warning: Damping matrix D is lumped. ',\
 #                'Make sure gradient is consistent.'
-#            self.vD, self.pD, self.p1D, self.p2D = Function(self.PDE.V), \
-#            Function(self.PDE.V), Function(self.PDE.V), Function(self.PDE.V)
+#            self.vD, self.pD, self.p1D, self.p2D = Function(V), \
+#            Function(V), Function(V), Function(V)
 #            self.wkformgradD = inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
 #            *self.pD, self.vD*self.lamtest)*self.PDE.ds(1)
 #            self.wkformDprime = inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
 #            *self.bhat*self.ptrial, self.ptest)*self.PDE.ds(1)
-#            self.dp, self.dph, self.vhatD = Function(self.PDE.V), \
-#            Function(self.PDE.V), Function(self.PDE.V)
-#            self.p1hatD, self.p2hatD = Function(self.PDE.V), Function(self.PDE.V)
+#            self.dp, self.dph, self.vhatD = Function(V), \
+#            Function(V), Function(V)
+#            self.p1hatD, self.p2hatD = Function(V), Function(V)
 #            self.wkformhessD = inner(-0.25*sqrt(self.PDE.rho)/(self.PDE.lam*sqrt(self.PDE.lam))\
 #            *self.bhat*self.dp, self.vD*self.lamtest)*self.PDE.ds(1) \
 #            + inner(0.5*sqrt(self.PDE.rho/self.PDE.lam)\
@@ -430,7 +432,7 @@ class ObjectiveAcoustic(LinearOperator):
             self.ahat.vector().zero()
             setfct(self.bhat, abhat)
         self.C = assemble(self.wkformrhsincrb)
-        if not self.PDE.lump:   self.E = assemble(self.wkformrhsincra)
+        if not self.PDE.parameters['lumpM']:    self.E = assemble(self.wkformrhsincra)
         #if self.PDE.abc:    self.Dp = assemble(self.wkformDprime)
         # Compute Hessian*abhat
         self.ab.vector().zero()

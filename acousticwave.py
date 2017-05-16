@@ -46,11 +46,9 @@ class AcousticWave():
         """(hard) copy constructor"""
         newobj = self.__class__({'V':self.V, 'Vm':self.Vm}, self.parameters)
         newobj.exact = self.exact
-        newobj.utinit = self.utinit
-        newobj.u1init = self.u1init
         newobj.bc = self.bc
-        if self.abc == True:
-            newobj.set_abc(self.V.mesh(), self.class_bc_abc, self.lumpD)
+        if self.parameters['abc'] == True:
+            newobj.set_abc(self.V.mesh(), self.class_bc_abc, self.parameters['lumpD'])
         newobj.ftime = self.ftime
         newobj.update({'a':self.a, 'b':self.b, \
         't0':self.t0, 'tf':self.tf, 'Dt':self.Dt, \
