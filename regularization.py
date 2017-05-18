@@ -75,12 +75,17 @@ class TV():
         inner(nabla_grad(trial), nabla_grad(test)) - \
         inner(nabla_grad(self.m), nabla_grad(test))*\
         inner(nabla_grad(trial), nabla_grad(self.m))/self.fTV )*dx
+        if isprint: print 'TV regularization',
         if GN: 
             self.wkformhess = self.wkformGNhess
-            if isprint: print 'TV regularization -- GN Hessian'
+            if isprint: print ' -- GN Hessian',
         else:   
             self.wkformhess = self.wkformFhess
-            if isprint: print 'TV regularization -- full Hessian'
+            if isprint: print ' -- full Hessian',
+        if isprint: 
+            if self.parameters['PCGN']:
+                print ' -- PCGN',
+            print ' -- k={}, eps={}'.format(self.parameters['k'], self.parameters['eps'])
 
         try:
             solver = PETScKrylovSolver('cg', 'ml_amg')
@@ -282,7 +287,10 @@ class TVPD():
         self.Msolver.set_operator(M)
 
         if self.parameters['print']:
-            print 'TV regularization -- primal-dual method'
+            print 'TV regularization -- primal-dual method',
+            if self.parameters['PCGN']:
+                print ' -- PCGN',
+            print ' -- k={}, eps={}'.format(self.parameters['k'], self.parameters['eps'])
         try:
             solver = PETScKrylovSolver('cg', 'ml_amg')
             self.amgprecond = 'ml_amg'

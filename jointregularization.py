@@ -50,14 +50,19 @@ class SumRegularization():
 
         if self.coeff_cg > 0.0:
             self.crossgrad = crossgradient(self.V1V2)
-            if isprint: print "Using cross-gradient"
+            if isprint: print "SumRegularization w/ cross-gradient"
         if self.coeff_ncg > 0.0:
             self.normalizedcrossgrad = normalizedcrossgradient(self.V1V2, parameters_ncg)
-            if isprint: print "Using normalized cross-gradient"
+            if isprint: 
+                print 'SumRegularization w/ normalized cross-gradient (eps={})'.format(
+                self.normalizedcrossgrad.parameters['eps'])
         if self.coeff_vtv > 0.0:
             assert self.regul1.Vm is self.regul2.Vm
             self.vtv = V_TVPD(V1, parameters_vtv)
-            if isprint: print "Using VTV"
+            if isprint: print "SumRegularization w/ VTV"
+        if isprint:
+            print 'coeff cg={}, ncg={}, vtv={}'.format(
+            self.coeff_cg, self.coeff_ncg, self.coeff_vtv)
 
         try:
             solver = PETScKrylovSolver('cg', 'ml_amg')
