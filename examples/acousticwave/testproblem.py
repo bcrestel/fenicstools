@@ -16,8 +16,22 @@ from fenicstools.sourceterms import PointSources, RickerWavelet
 
 from mediumparameters import targetmediumparameters
 
+
+LARGE = False
+
+if LARGE:
+    Nxy = 100
+    Dt = 1.0e-4   #Dt = h/(r*alpha)
+    tf = 1.0
+    fpeak = 6.0
+else:
+    Nxy = 20
+    Dt = 5.0e-4
+    tf = 3.0
+    fpeak = 1.0
+
+
 # Inputs:
-Nxy = 100
 h = 1./Nxy
 # dist is in [km]
 X, Y = 1, 1
@@ -25,8 +39,6 @@ mesh = dl.RectangleMesh(dl.Point(0.0,0.0),dl.Point(X,Y),X*Nxy,Y*Nxy)
 mpicomm = mesh.mpi_comm()
 mpirank = MPI.rank(mpicomm)
 Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
-Dt = 1.0e-4   #Dt = h/(r*alpha)
-tf = 1.0
 
 # Plots:
 filename, ext = splitext(sys.argv[0])
@@ -36,7 +48,6 @@ MPI.barrier(mpicomm)
 myplot = PlotFenics(filename)
 
 # Source term:
-fpeak = 6.0
 Ricker = RickerWavelet(fpeak, 1e-6)
 
 # Boundary conditions:

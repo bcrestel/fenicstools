@@ -24,9 +24,26 @@ from fenicstools.optimsolver import checkgradfd_med, checkhessabfd_med
 from fenicstools.examples.acousticwave.mediumparameters import \
 targetmediumparameters, initmediumparameters
 
+ALL = False
+LARGE = False
+
+
+if LARGE:
+    Nxy = 100
+    Dt = 1.0e-4   #Dt = h/(r*alpha)
+    tf = 1.0
+    fpeak = 6.0
+    t0, t1, t2 = 0.0, 0.2, 0.8
+    nbtest = 5
+else:
+    Nxy = 20
+    Dt = 5.0e-4
+    tf = 3.0
+    fpeak = 1.0
+    t0, t1, t2 = 0.0, 0.5, 2.5
+    nbtest = 2
 
 # Define PDE:
-Nxy = 100
 h = 1./Nxy
 # dist is in [km]
 X, Y = 1, 1
@@ -34,10 +51,7 @@ mesh = dl.RectangleMesh(dl.Point(0.0,0.0),dl.Point(X,Y),X*Nxy,Y*Nxy)
 mpicomm = mesh.mpi_comm()
 mpirank = MPI.rank(mpicomm)
 Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
-Dt = 1.0e-4   #Dt = h/(r*alpha)
-tf = 1.0
 # Source term:
-fpeak = 6.0
 Ricker = RickerWavelet(fpeak, 1e-6)
 # Boundary conditions:
 class ABCdom(dl.SubDomain):
@@ -60,7 +74,6 @@ Wave.update({'b':bf, 'a':af, 't0':0.0, 'tf':tf, 'Dt':Dt,\
 
 # observation operator:
 obspts = [[ 0.9*Y, ii*float(X)/float(Nxy)] for ii in range(Nxy+1)]
-t0, t1, t2 = 0.0, 0.2, 0.8
 tfilterpts = [t0, t1, t2, tf]
 obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
 
@@ -94,12 +107,25 @@ if mpirank == 0:    print 'misfit = {}'.format(waveobj.cost_misfit)
 waveobj.solveadj_constructgrad()
 MGa, MGb = waveobj.Grad.split(deepcopy=True)
 
-if True:
-    # Prepare random medium directions to test gradient and Hessian
-    Mediuma = np.zeros((5, Wave.a.vector().local_size() + Wave.b.vector().local_size()))
-    Mediumb = np.zeros((5, Wave.a.vector().local_size() + Wave.b.vector().local_size()))
+if ALL:
+    Medium = np.zeros((nbtest, Wave.a.vector().local_size() + Wave.b.vector().local_size()))
     tmp = dl.Function(Vl*Vl)
-    for ii in range(5):
+    for ii in range(nbtest):
+        smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
+        smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
+        dl.assign(tmp.sub(0), smoothperturb_fn)
+        dl.assign(tmp.sub(1), smoothperturb_fn)
+        Medium[ii,:] = tmp.vector().array()
+    if mpirank == 0:    print 'check gradient with FD'
+    checkgradfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-6, 1e-7], True, mpicomm)
+    if mpirank == 0:    print 'check Hessian with FD'
+    checkhessabfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6, 1e-7], True, 'all', mpicomm)
+else:
+    # Prepare random medium directions to test gradient and Hessian
+    Mediuma = np.zeros((nbtest, Wave.a.vector().local_size() + Wave.b.vector().local_size()))
+    Mediumb = np.zeros((nbtest, Wave.a.vector().local_size() + Wave.b.vector().local_size()))
+    tmp = dl.Function(Vl*Vl)
+    for ii in range(nbtest):
         smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
         smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
         dl.assign(tmp.sub(0), smoothperturb_fn)
@@ -112,21 +138,8 @@ if True:
     checkgradfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True, mpicomm)
 
     if mpirank == 0:    print 'check a-Hessian with FD'
-    #checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7], True, 'a', mpicomm)
-    checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-4, 1e-5, 1e-6, 1e-7], False, 'a', mpicomm)
+    checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7, 1e-8], True, 'a', mpicomm)
+    #checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-4, 1e-5, 1e-6, 1e-7], False, 'a', mpicomm)
     if mpirank == 0:    print 'check b-Hessian with FD'
-    #checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True, 'b', mpicomm)
-    checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'b', mpicomm)
-else:
-    Medium = np.zeros((5, 2*Vl.dim()))
-    tmp = dl.Function(Vl*Vl)
-    for ii in range(Medium.shape[0]):
-        smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
-        smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
-        dl.assign(tmp.sub(0), smoothperturb_fn)
-        dl.assign(tmp.sub(1), smoothperturb_fn)
-        Medium[ii,:] = tmp.vector().array()
-    if mpirank == 0:    print 'check gradient with FD'
-    checkgradfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6], True, mpicomm)
-    if mpirank == 0:    print 'check Hessian with FD'
-    checkhessabfd_med(waveobj, Medium, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'all', mpicomm)
+    checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7, 1e-8], True, 'b', mpicomm)
+    #checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'b', mpicomm)
