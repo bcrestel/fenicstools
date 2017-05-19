@@ -117,26 +117,28 @@ class AcousticWave():
             if not isequal(self.Tf, self.tf, 1e-12) and isprint:
                 print 'Final time modified from {} to {} ({}%)'.\
                 format(self.tf, self.Tf, abs(self.Tf-self.tf)/self.tf)
+
         # Initial conditions:
         if parameters_m.has_key('u0init'):   self.u0init = parameters_m['u0init']
         if parameters_m.has_key('utinit'):   self.utinit = parameters_m['utinit']
         if parameters_m.has_key('u1init'):   self.u1init = parameters_m['u1init']
         if parameters_m.has_key('um1init'):   self.um1init = parameters_m['um1init']
+
         # Medium parameters:
         if parameters_m.has_key('b'):
             setfct(self.b, parameters_m['b'])
-            if np.amin(self.b.vector().array()) < 1e-14:
+            if np.amin(self.b.vector().array()) < 1e-8:
                 if isprint: print 'negative value for parameter b'
                 sys.exit(1)
             if isprint: print 'assemble K',
             self.K = assemble(self.weak_k)
             if isprint: print ' -- K assembled'
+
         if parameters_m.has_key('a'):
             setfct(self.a, parameters_m['a'])
-            if np.amin(self.a.vector().array()) < 1e-14:
+            if np.amin(self.a.vector().array()) < 1e-8:
                 if isprint: print 'negative value for parameter a'
                 sys.exit(1)
-            # Mass matrix:
             if isprint: print 'assemble M',
             Mfull = assemble(self.weak_m)
             if lumpM:
@@ -150,6 +152,7 @@ class AcousticWave():
                 if not self.bc == None: self.bc.apply(Mfull)
                 self.solverM.set_operator(Mfull)
             if isprint: print ' -- M assembled'
+
         # Matrix D for abs BC
         if abc == True:    
             if isprint:    print 'assemble D',
@@ -198,6 +201,7 @@ class AcousticWave():
         if isprint:    print 'Compute solution -- time {}'.format(tt)
         setfct(self.u0, self.u0init)
         solout.append([self.u0.vector().array(), tt])
+        self.solpout.append([self.utinit.vector().copy(), self.get_tt(0)])
         # Compute u1:
         if not self.u1init == None: self.u1 = self.u1init
         else:
@@ -249,6 +253,7 @@ class AcousticWave():
         else:
             assert isequal(tt, self.t0, 1e-16), \
             'tt={}, t0={}, reldiff={}'.format(tt, self.t0, abs(tt-self.t0))
+        self.solpout.append([self.solpout[-1][0], tt])    #TODO: fix this
         self.solppout.append([self.solppout[-1][0], tt])    #TODO: fix this
         return solout, self.solpout, self.solppout, self.computeerror()
 
@@ -266,7 +271,11 @@ class AcousticWave():
         self.rhs.vector().zero()
         self.rhs.vector().axpy(self.Dt, self.ftime(tt))
         self.rhs.vector().axpy(-self.Dt, self.K*self.ptru1v)
-        self.rhs.vector().axpy(-1.0, self.D*(self.ptru1v-self.ptru0v))
+        solp = self.ptru1v-self.ptru0v
+        self.rhs.vector().axpy(-1.0, self.D*solp)
+
+        self.solpout.append([solp.copy()*(self.fwdadj/self.Dt), tt])
+
         self.applybc(self.rhs.vector())
         self.solverM.solve(self.sol.vector(), self.rhs.vector())
 
