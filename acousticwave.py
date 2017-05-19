@@ -190,7 +190,9 @@ class AcousticWave():
             self.applybc = self.applybcD
 
         if isprint:    print 'Compute solution'
-        solout = [] # Store computed solution
+        solout = []             # Store computed solution
+        self.solpout = []        # first derivative (only if abc)
+        self.solppout = []      # second derivative (backward timestepper only)
         # u0:
         tt = self.get_tt(0)
         if isprint:    print 'Compute solution -- time {}'.format(tt)
@@ -212,6 +214,8 @@ class AcousticWave():
         tt = self.get_tt(1)
         if isprint:    print 'Compute solution -- time {}'.format(tt)
         solout.append([self.u1.vector().array(), tt])
+        # FD approx more accurate for initial acceleration:
+        self.solppout.append([self.u1.vector().copy()/(self.Dt*self.Dt), self.get_tt(0)])
         # Iteration
         self.ptru0v = self.u0.vector()    # ptru* = 'pointers' to the u*'s
         self.ptru1v = self.u1.vector()
@@ -245,7 +249,8 @@ class AcousticWave():
         else:
             assert isequal(tt, self.t0, 1e-16), \
             'tt={}, t0={}, reldiff={}'.format(tt, self.t0, abs(tt-self.t0))
-        return solout, self.computeerror()
+        self.solppout.append([self.solppout[-1][0], tt])    #TODO: fix this
+        return solout, self.solpout, self.solppout, self.computeerror()
 
     def iteration_centered(self, tt):
         self.rhs.vector().zero()
@@ -264,6 +269,9 @@ class AcousticWave():
         self.rhs.vector().axpy(-1.0, self.D*(self.ptru1v-self.ptru0v))
         self.applybc(self.rhs.vector())
         self.solverM.solve(self.sol.vector(), self.rhs.vector())
+
+        self.solppout.append([self.sol.vector().copy()/self.Dt, tt])
+
         self.ptru2v.zero()
         self.ptru2v.axpy(2.0, self.ptru1v)
         self.ptru2v.axpy(-1.0, self.ptru0v)

@@ -132,7 +132,8 @@ class ObjectiveAcoustic(LinearOperator):
     #@profile
     def solvefwd(self, cost=False):
         self.PDE.set_fwd()
-        self.solfwd, self.Bp = [], []
+        self.solfwd, self.solppfwd = [], [] 
+        self.Bp = []
 
         #TODO: make fwdsource iterable to return source term
         Ricker = self.fwdsource[0]
@@ -143,8 +144,9 @@ class ObjectiveAcoustic(LinearOperator):
                 srcv.axpy(Ricker(tt), ptsrc)
                 return srcv
             self.PDE.ftime = srcterm
-            solfwd,_ = self.PDE.solve()
+            solfwd, _, solppfwd,_ = self.PDE.solve()
             self.solfwd.append(solfwd)
+            self.solppfwd.append(solppfwd)
 
             Bp = np.zeros((len(self.obsop.PtwiseObs.Points),len(solfwd)))
             for index, sol in enumerate(solfwd):
@@ -172,7 +174,7 @@ class ObjectiveAcoustic(LinearOperator):
         for Bp, dd in zip(self.Bp, self.dd):
             self.obsop.assemble_rhsadj(Bp, dd, self.PDE.times, self.PDE.bc)
             self.PDE.ftime = self.obsop.ftimeadj
-            soladj,_ = self.PDE.solve()
+            soladj,solpadj,solppadj,_ = self.PDE.solve()
             self.soladj.append(soladj)
 
         if grad:
@@ -180,13 +182,22 @@ class ObjectiveAcoustic(LinearOperator):
             MGa, MGb = self.MG.split(deepcopy=True)
             MGav, MGbv = MGa.vector(), MGb.vector()
 
-            for solfwd, soladj in zip(self.solfwd, self.soladj):
-                for fwd, adj, fact, fwdm, fwdp in \
-                zip(solfwd, reversed(soladj), self.factors,\
-                [[solfwd[0][0], -self.PDE.Dt]]+solfwd[:-1], \
-                solfwd[1:]+[[solfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]]):
-                    self.gradient_componentb(fact, fwd, adj, MGbv)
-                    self.gradient_componenta(fact, fwdm, fwdp, adj, MGav)
+
+            for solfwd, solppfwd, soladj in \
+            zip(self.solfwd, self.solppfwd, self.soladj):
+
+                for fwd, fwdpp, adj, fact in \
+                zip(solfwd, solppfwd, reversed(soladj), self.factors):
+                    # gradient a
+                    setfct(self.p, fwdpp[0])
+                    setfct(self.q, adj[0])
+                    MGav.axpy(fact, self.get_gradienta()) 
+                    # gradient b
+                    setfct(self.p, fwd[0])
+                    MGbv.axpy(fact, assemble(self.wkformgradb))
+            
+
+
             setfct(MGa, MGav/len(self.Bp))
             setfct(MGb, MGbv/len(self.Bp))
             assign(self.MG.sub(0), MGa)
@@ -230,36 +241,14 @@ class ObjectiveAcoustic(LinearOperator):
 
     def solveadj_constructgrad(self):   self.solveadj(True)
 
-    #TODO: gradient b 5 times more expensive that a with lumped mass matrix
-    def gradient_componentb(self, fact, fwd, adj, MGbv):
-        ttf, tta = fwd[1], adj[1]
-        assert isequal(ttf, tta, 1e-16), \
-        'tfwd={}, tadj={}, reldiff={}'.format(ttf, tta, abs(ttf-tta)/ttf)
-        setfct(self.p, fwd[0])
-        setfct(self.q, adj[0])
-        MGbv.axpy(fact, assemble(self.wkformgradb))
-
-    def gradient_componenta(self, fact, fwdm, fwdp, adj, MGav):
-        tta = adj[1]
-        ttfm, ttfp = fwdm[1], fwdp[1]
-        assert isequal(ttfm+self.PDE.Dt, tta, 1e-15), 'a={}, b={}, err={}'.\
-        format(ttfm+self.PDE.Dt, tta, np.abs(ttfm+self.PDE.Dt-tta)/tta)
-        assert isequal(ttfp-self.PDE.Dt, tta, 1e-15), 'a={}, b={}, err={}'.\
-        format(ttfp-self.PDE.Dt, tta, np.abs(ttfp-self.PDE.Dt-tta)/tta)
-        setfct(self.ptmp, fwdm[0])
-        self.p.vector().axpy(-0.5, self.ptmp.vector())
-        setfct(self.ptmp, fwdp[0])
-        self.p.vector().axpy(-0.5, self.ptmp.vector())
-        MGav.axpy(-2.0*self.invDt*self.invDt*fact, self.get_gradienta()) 
-
     def get_gradienta_lumped(self):
         return self.Mprime.get_gradient(self.p.vector(), self.q.vector())
+
     def get_gradienta_full(self):
         return assemble(self.wkformgrada)
 
+
     # HESSIAN:
-    def ftimepass(self):
-        pass
 
     #@profile
     def ftimeincrfwd(self, tt):
@@ -366,11 +355,11 @@ class ObjectiveAcoustic(LinearOperator):
             # solve for phat
             self.PDE.set_fwd()
             self.PDE.ftime = self.ftimeincrfwd
-            self.solincrfwd,_ = self.PDE.solve()
+            self.solincrfwd,_,_,_ = self.PDE.solve()
             # solve for vhat
             self.PDE.set_adj()
             self.PDE.ftime = self.ftimeincradj
-            self.solincradj,_ = self.PDE.solve()
+            self.solincradj,_,_,_ = self.PDE.solve()
     #        index = 0
     #        if self.PDE.abc:
     #            self.vD.vector().zero(); self.vhatD.vector().zero(); 
