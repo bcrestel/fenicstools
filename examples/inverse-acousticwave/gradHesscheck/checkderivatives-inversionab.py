@@ -31,16 +31,14 @@ LARGE = False
 if LARGE:
     Nxy = 100
     Dt = 1.0e-4   #Dt = h/(r*alpha)
-    tf = 1.0
     fpeak = 6.0
-    t0, t1, t2 = 0.0, 0.2, 0.8
+    t0, t1, t2, tf = 0.0, 0.2, 0.8, 1.0
     nbtest = 5
 else:
-    Nxy = 20
-    Dt = 5.0e-4
-    tf = 3.0
+    Nxy = 10
+    Dt = 2.0e-3
     fpeak = 1.0
-    t0, t1, t2 = 0.0, 0.5, 2.5
+    t0, t1, t2, tf = 0.0, 0.5, 2.5, 3.0
     nbtest = 2
 
 # Define PDE:

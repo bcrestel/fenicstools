@@ -25,8 +25,8 @@ if LARGE:
     tf = 1.0
     fpeak = 6.0
 else:
-    Nxy = 20
-    Dt = 5.0e-4
+    Nxy = 10
+    Dt = 2.0e-3
     tf = 3.0
     fpeak = 1.0
 
