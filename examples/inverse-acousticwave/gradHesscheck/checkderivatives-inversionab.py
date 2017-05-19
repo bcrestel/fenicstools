@@ -102,57 +102,49 @@ a0, b0 = initmediumparameters(Vl, X)
 waveobj.update_PDE({'a':a0, 'b':b0})
 waveobj.solvefwd_cost()
 if mpirank == 0:    print 'misfit = {}'.format(waveobj.cost_misfit)
-waveobj.solveadj_constructgrad()
-MGa, MGb = waveobj.Grad.split(deepcopy=True)
 
 # Medium perturbations
 MPa = [
-dl. Expression('sin(pi*x[0])*sin(pi*x[1])'),
 dl.Expression('1.0'), 
+dl. Expression('sin(pi*x[0])*sin(pi*x[1])'),
 dl.Expression('x[0]'), dl.Expression('x[1]'), 
 dl.Expression('sin(3*pi*x[0])*sin(3*pi*x[1])')]
 MPb = [
-dl. Expression('sin(pi*x[0])*sin(pi*x[1])'),
 dl.Expression('1.0'), 
+dl. Expression('sin(pi*x[0])*sin(pi*x[1])'),
 dl.Expression('x[1]'), dl.Expression('x[0]'), 
 dl.Expression('sin(3*pi*x[0])*sin(3*pi*x[1])')]
 
 if ALL:
-    Medium = np.zeros((nbtest, Wave.a.vector().local_size() + Wave.b.vector().local_size()))
+    Medium = []
     tmp = dl.Function(Vl*Vl)
     for ii in range(nbtest):
-        smoothperturb = MPa[ii]
-        smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
-        dl.assign(tmp.sub(0), smoothperturb_fn)
-        smoothperturb = MPb[ii]
-        smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
-        dl.assign(tmp.sub(1), smoothperturb_fn)
-        Medium[ii,:] = tmp.vector().array()
+        tmp.vector().zero()
+        dl.assign(tmp.sub(0), dl.interpolate(MPa[ii], Vl))
+        dl.assign(tmp.sub(1), dl.interpolate(MPb[ii], Vl))
+        Medium.append(tmp.vector().copy())
     if mpirank == 0:    print 'check gradient with FD'
-    checkgradfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-6, 1e-7], True, mpicomm)
+    checkgradfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-6, 1e-7], True)
     if mpirank == 0:    print 'check Hessian with FD'
-    checkhessabfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6, 1e-7], True, 'all', mpicomm)
+    checkhessabfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-6, 1e-7], True, 'all')
 else:
-    Mediuma = np.zeros((nbtest, Wave.a.vector().local_size() + Wave.b.vector().local_size()))
-    Mediumb = np.zeros((nbtest, Wave.a.vector().local_size() + Wave.b.vector().local_size()))
+    Mediuma, Mediumb = [], []
     tmp = dl.Function(Vl*Vl)
     for ii in range(nbtest):
-        smoothperturb = MPa[ii]
-        smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
-        dl.assign(tmp.sub(0), smoothperturb_fn)
-        Mediuma[ii,:] = tmp.vector().array()
-        smoothperturb = MPb[ii]
-        smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
-        dl.assign(tmp.sub(1), smoothperturb_fn)
-        Mediumb[ii,:] = tmp.vector().array()
+        tmp.vector().zero()
+        dl.assign(tmp.sub(0), dl.interpolate(MPa[ii], Vl))
+        Mediuma.append(tmp.vector().copy())
+        tmp.vector().zero()
+        dl.assign(tmp.sub(1), dl.interpolate(MPb[ii], Vl))
+        Mediumb.append(tmp.vector().copy())
     if mpirank == 0:    print 'check a-gradient with FD'
-    checkgradfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7], True, mpicomm)
+    checkgradfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7], True)
     if mpirank == 0:    print 'check b-gradient with FD'
-    checkgradfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True, mpicomm)
+    checkgradfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True)
 
     if mpirank == 0:    print 'check a-Hessian with FD'
-    checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7, 1e-8], True, 'a', mpicomm)
-    #checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-4, 1e-5, 1e-6, 1e-7], False, 'a', mpicomm)
+    checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7, 1e-8], True, 'a')
+    #checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-4, 1e-5, 1e-6, 1e-7], False, 'a')
     if mpirank == 0:    print 'check b-Hessian with FD'
-    checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7, 1e-8], True, 'b', mpicomm)
-    #checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'b', mpicomm)
+    checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7, 1e-8], True, 'b')
+    #checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'b')
