@@ -63,7 +63,7 @@ srcv = dl.Function(V).vector()
 if mpirank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 Wave = AcousticWave({'V':V, 'Vm':Vl}, 
 {'print':False, 'lumpM':True, 'timestepper':'backward'})
-#Wave.set_abc(mesh, ABCdom(), lumpD=True)
+Wave.set_abc(mesh, ABCdom(), lumpD=False)
 #
 af, bf = targetmediumparameters(Vl, X)
 #
@@ -71,7 +71,7 @@ Wave.update({'b':bf, 'a':af, 't0':0.0, 'tf':tf, 'Dt':Dt,\
 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
 
 # observation operator:
-obspts = [[ 0.9*Y, ii*float(X)/float(Nxy)] for ii in range(Nxy+1)]
+obspts = [[ii*float(X)/float(Nxy), 0.9*Y] for ii in range(Nxy+1)]
 tfilterpts = [t0, t1, t2, tf]
 obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
 
