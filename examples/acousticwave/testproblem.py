@@ -14,45 +14,69 @@ from fenicstools.plotfenics import PlotFenics
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
 
+from mediumparameters import targetmediumparameters
+
+
+LARGE = False
+
+if LARGE:
+    Nxy = 100
+    Dt = 1.0e-4   #Dt = h/(r*alpha)
+    tf = 1.0
+    fpeak = 6.0
+else:
+    Nxy = 20
+    Dt = 5.0e-4
+    tf = 3.0
+    fpeak = 1.0
+
 
 # Inputs:
-Nxy = 100
-mesh = dl.UnitSquareMesh(Nxy, Nxy, "crossed")
-myrank = MPI.rank(mesh.mpi_comm())
 h = 1./Nxy
+# dist is in [km]
+X, Y = 1, 1
+mesh = dl.RectangleMesh(dl.Point(0.0,0.0),dl.Point(X,Y),X*Nxy,Y*Nxy)
+mpicomm = mesh.mpi_comm()
+mpirank = MPI.rank(mpicomm)
 Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
-Dt = 1e-4   #Dt = h/(r*alpha)
-tf = 1.5
+
+# Plots:
+filename, ext = splitext(sys.argv[0])
+if mpirank == 0: 
+    if isdir(filename + '/'):   rmtree(filename + '/')
+MPI.barrier(mpicomm)
+myplot = PlotFenics(filename)
 
 # Source term:
-fpeak = 4.0 # .4Hz => up to 10Hz in input signal
-Ricker = RickerWavelet(fpeak, 1e-10)
+Ricker = RickerWavelet(fpeak, 1e-6)
 
 # Boundary conditions:
-class AllFour(dl.SubDomain):
+class ABCdom(dl.SubDomain):
     def inside(self, x, on_boundary):
-        return on_boundary
+        return on_boundary and (x[1] < Y)
 
 r = 2
 V = dl.FunctionSpace(mesh, 'Lagrange', r)
-Pt = PointSources(V, [[.5,.5]])
+Pt = PointSources(V, [[0.5*X,Y]])
 mydelta = Pt[0]
 def mysrc(tt):
     return mydelta * Ricker(tt)
 # Computation:
-if myrank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
-Wave = AcousticWave({'V':V, 'Vm':Vl})
-#Wave.verbose = True
-Wave.timestepper = 'centered'
-Wave.lump = True
-Wave.set_abc(mesh, AllFour(), True)
+if mpirank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
+Wave = AcousticWave({'V':V, 'Vm':Vl}, 
+{'print':(not mpirank), 'lumpM':True, 'timestepper':'backward'})
+#Wave.set_abc(mesh, ABCdom(), lumpD=True)
 Wave.exact = dl.Function(V)
-Wave.update({'b':1.0, 'a':1.0, 't0':0.0, 'tf':tf, 'Dt':Dt,\
-'u0init':dl.Function(V), 'utinit':dl.Function(V)})
 Wave.ftime = mysrc
+#
+af, bf = targetmediumparameters(Vl, X, myplot)
+#
+Wave.update({'b':bf, 'a':af, 't0':0.0, 'tf':tf, 'Dt':Dt,\
+'u0init':dl.Function(V), 'utinit':dl.Function(V)})
+
 sol, error = Wave.solve()
-if myrank == 0: print 'relative error = {:.5e}'.format(error)
-MPI.barrier(mycomm)
+if mpirank == 0: print 'relative error = {:.5e}'.format(error)
+MPI.barrier(mesh.mpi_comm())
 
 # Plots:
 try:
@@ -60,11 +84,6 @@ try:
 except:
     boolplot = 0
 if boolplot > 0:
-    filename, ext = splitext(sys.argv[0])
-    if myrank == 0: 
-        if isdir(filename + '/'):   rmtree(filename + '/')
-    if not mycomm == None:  MPI.barrier(mycomm)
-    myplot = PlotFenics(filename)
     myplot.set_varname('p')
     plotp = dl.Function(V)
     for index, pp in enumerate(sol):

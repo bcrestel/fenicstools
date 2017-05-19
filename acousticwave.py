@@ -18,38 +18,37 @@ class AcousticWave():
     lambda = bulk modulus, rho = ambient density, lambda = rho c^2
     """
 
-    def __init__(self, functionspaces_V):
+    def __init__(self, functionspaces_V, parameters_in=[]):
         """
         Input:
             functionspaces_V = dict containing functionspaces
                 V, for state/adj
                 Vm, for a and b medium parameters
         """
+        self.parameters = {}
+        self.parameters['print']        = False
+        self.parameters['lumpM']        = False
+        self.parameters['lumpD']        = False
+        self.parameters['timestepper']  = 'centered'
+        self.parameters['abc']          = False
+        self.parameters.update(parameters_in)
+
         self.readV(functionspaces_V)
-        self.verbose = False    # print info
-        self.lump = False   # Lump the mass matrix
-        self.lumpD = False   # Lump the ABC matrix
-        self.timestepper = None # 'backward', 'centered'
         self.exact = None   # exact solution at final time
         self.u0init = None  # provides u(t=t0)
         self.utinit = None  # provides u_t(t=t0)
         self.u1init = None  # provides u1 = u(t=t0+/-Dt)
         self.bc = None
-        self.abc = False
         self.set_fwd()  # default is forward problem
 
 
     def copy(self):
         """(hard) copy constructor"""
-        newobj = self.__class__({'V':self.V, 'Vm':self.Vm})
-        newobj.lump = self.lump
-        newobj.timestepper = self.timestepper
+        newobj = self.__class__({'V':self.V, 'Vm':self.Vm}, self.parameters)
         newobj.exact = self.exact
-        newobj.utinit = self.utinit
-        newobj.u1init = self.u1init
         newobj.bc = self.bc
-        if self.abc == True:
-            newobj.set_abc(self.V.mesh(), self.class_bc_abc, self.lumpD)
+        if self.parameters['abc'] == True:
+            newobj.set_abc(self.V.mesh(), self.class_bc_abc, self.parameters['lumpD'])
         newobj.ftime = self.ftime
         newobj.update({'a':self.a, 'b':self.b, \
         't0':self.t0, 'tf':self.tf, 'Dt':self.Dt, \
@@ -76,8 +75,8 @@ class AcousticWave():
 
 
     def set_abc(self, mesh, class_bc_abc, lumpD=False):
-        self.abc = True # False means zero-Neumann all-around
-        if lumpD:    self.lumpD = True
+        self.parameters['abc'] = True   # False means zero-Neumann all-around
+        if lumpD:    self.parameters['lumpD'] = True
         abc_boundaryparts = FacetFunction("size_t", mesh)
         class_bc_abc.mark(abc_boundaryparts, 1)
         self.ds = Measure("ds")[abc_boundaryparts]
@@ -99,7 +98,11 @@ class AcousticWave():
 
 
     def update(self, parameters_m):
-        assert not self.timestepper == None, "You need to set a time stepping method"
+        isprint = self.parameters['print']
+        lumpM = self.parameters['lumpM']
+        lumpD = self.parameters['lumpD']
+        abc = self.parameters['abc']
+
         # Time options:
         if parameters_m.has_key('t0'):   self.t0 = parameters_m['t0'] 
         if parameters_m.has_key('tf'):   self.tf = parameters_m['tf'] 
@@ -111,7 +114,7 @@ class AcousticWave():
             assert isequal(self.times[1]-self.times[0], self.Dt, 1e-16), "Dt modified"
             self.Dt = self.times[1] - self.times[0]
             assert isequal(self.Tf, self.tf, 1e-2), "Final time differs by more than 1%"
-            if not isequal(self.Tf, self.tf, 1e-12):
+            if not isequal(self.Tf, self.tf, 1e-12) and isprint:
                 print 'Final time modified from {} to {} ({}%)'.\
                 format(self.tf, self.Tf, abs(self.Tf-self.tf)/self.tf)
         # Initial conditions:
@@ -123,69 +126,61 @@ class AcousticWave():
         if parameters_m.has_key('b'):
             setfct(self.b, parameters_m['b'])
             if np.amin(self.b.vector().array()) < 1e-14:
-                print 'negative value for parameter b'
+                if isprint: print 'negative value for parameter b'
                 sys.exit(1)
-            if self.verbose: print 'assemble K',
+            if isprint: print 'assemble K',
             self.K = assemble(self.weak_k)
-            if self.verbose: print ' -- K assembled'
+            if isprint: print ' -- K assembled'
         if parameters_m.has_key('a'):
             setfct(self.a, parameters_m['a'])
             if np.amin(self.a.vector().array()) < 1e-14:
-                print 'negative value for parameter a'
+                if isprint: print 'negative value for parameter a'
                 sys.exit(1)
             # Mass matrix:
-            if self.verbose: print 'assemble M',
+            if isprint: print 'assemble M',
             Mfull = assemble(self.weak_m)
-            if self.lump:
+            if lumpM:
                 self.solverM = LumpedMatrixSolverS(self.V)
                 self.solverM.set_operator(Mfull, self.bc)
                 self.M = self.solverM
             else:
-                # For serial only: LU Solver consumes much more memory but is faster
-#                self.solverM = PETScLUSolver("petsc")
-#                self.solverM.parameters['symmetric'] = True
-#                self.solverM.parameters['reuse_factorization'] = True
-                # In parallel,
-                # matrix-free preconditioner
-                #solverMl = LumpedMassPreconditioner(self.V, Mfull, self.bc)
-                #self.solverM = PETScKrylovSolver('cg', solverMl)
-                # petsc preconditioner
-                #self.solverM = PETScKrylovSolver('cg', 'none')
-                self.solverM = PETScKrylovSolver('cg', 'hypre_amg')
+                self.solverM = PETScKrylovSolver('cg', 'jacobi')
                 self.solverM.parameters['report'] = False
                 self.solverM.parameters['nonzero_initial_guess'] = True
                 if not self.bc == None: self.bc.apply(Mfull)
                 self.solverM.set_operator(Mfull)
-            if self.verbose: print ' -- M assembled'
+            if isprint: print ' -- M assembled'
         # Matrix D for abs BC
-        if self.abc == True:    
-            if self.verbose:    print 'assemble D',
+        if abc == True:    
+            if isprint:    print 'assemble D',
             Mfull = assemble(self.weak_m)
             Dfull = assemble(self.weak_d)
-            if self.lumpD:
+            if lumpD:
                 self.D = LumpedMatrixSolverS(self.V)
                 self.D.set_operator(Dfull, None, False)
-                if self.lump:
+                if lumpM:
                     self.solverMplD = LumpedMatrixSolverS(self.V)
                     self.solverMplD.set_operators(Mfull, Dfull, .5*self.Dt, self.bc)
                     self.MminD = LumpedMatrixSolverS(self.V)
                     self.MminD.set_operators(Mfull, Dfull, -.5*self.Dt, self.bc)
             else:
                 self.D = Dfull
-            if self.verbose:    print ' -- D assembled'
+            if isprint:    print ' -- D assembled'
         else:   self.D = 0.0
 
 
     #@profile
     def solve(self):
-        """ General solver method """
+        timestepper = self.parameters['timestepper']
+        isprint = self.parameters['print']
+
         # Set time-stepper:
-        if self.timestepper == 'backward':
+        if timestepper == 'backward':
             def iterate(tt):  self.iteration_backward(tt)
-        elif self.timestepper == 'centered':
+        elif timestepper == 'centered':
             def iterate(tt):  self.iteration_centered(tt)
         else:
-            print "Time stepper not implemented"
+            if isprint: print "Time stepper not implemented"
             sys.exit(1)
 
         # Set boundary conditions:
@@ -194,11 +189,11 @@ class AcousticWave():
         else:
             self.applybc = self.applybcD
 
-        if self.verbose:    print 'Compute solution'
+        if isprint:    print 'Compute solution'
         solout = [] # Store computed solution
         # u0:
         tt = self.get_tt(0)
-        if self.verbose:    print 'Compute solution -- time {}'.format(tt)
+        if isprint:    print 'Compute solution -- time {}'.format(tt)
         setfct(self.u0, self.u0init)
         solout.append([self.u0.vector().array(), tt])
         # Compute u1:
@@ -215,7 +210,7 @@ class AcousticWave():
             self.u1.vector().axpy(self.fwdadj*self.Dt, self.utinit.vector())
             self.u1.vector().axpy(0.5*self.Dt**2, self.sol.vector())
         tt = self.get_tt(1)
-        if self.verbose:    print 'Compute solution -- time {}'.format(tt)
+        if isprint:    print 'Compute solution -- time {}'.format(tt)
         solout.append([self.u1.vector().array(), tt])
         # Iteration
         self.ptru0v = self.u0.vector()    # ptru* = 'pointers' to the u*'s
@@ -241,9 +236,8 @@ class AcousticWave():
                 self.ptru2v = self.u2.vector()
                 config = 1
             tt = self.get_tt(nn)
-            if self.verbose:    
-                print 'Compute solution -- time {}, rhs {}'.\
-                format(tt, np.max(np.abs(self.ftime(tt))))
+            if isprint:    
+                print 'Compute solution -- time {}'.format(tt)
             solout.append([self.ptru1v.array(),tt])
         if self.fwdadj > 0.0:   
             assert isequal(tt, self.Tf, 1e-16), \

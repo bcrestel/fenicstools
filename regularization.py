@@ -23,12 +23,24 @@ class TV():
     """
 
     def __init__(self, parameters=[]):
-        """ parameters should be:
-            - k(x) = factor inside TV
-            - eps = regularization parameter
-        |f|_TV = int k(x) sqrt{|grad f|^2 + eps} dx """
+        """
+        TV regularization in primal form:
+                |f|_TV = int k(x) sqrt{|grad f|^2 + eps} dx 
+        Input parameters:
+            * k = regularization parameter
+            * eps = regularization constant (see above)
+            * GNhessian = use GN format (aka, lagged diffusivity) (bool)
+            * PCGN = use GN Hessian to precondition (bool); only used if 'GNhessian = False'
+            * print (bool)
+        """
 
-        self.parameters = {'k':1.0, 'eps':1e-2, 'GNhessian':False, 'print':False}
+        self.parameters = {}
+        self.parameters['k']            = 1.0
+        self.parameters['eps']          = 1e-2
+        self.parameters['GNhessian']    = False
+        self.parameters['PCGN']         = False
+        self.parameters['print']        = False
+
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
         GN = self.parameters['GNhessian']
@@ -63,12 +75,17 @@ class TV():
         inner(nabla_grad(trial), nabla_grad(test)) - \
         inner(nabla_grad(self.m), nabla_grad(test))*\
         inner(nabla_grad(trial), nabla_grad(self.m))/self.fTV )*dx
+        if isprint: print 'TV regularization',
         if GN: 
             self.wkformhess = self.wkformGNhess
-            if isprint: print 'TV regularization -- GN Hessian'
+            if isprint: print ' -- GN Hessian',
         else:   
             self.wkformhess = self.wkformFhess
-            if isprint: print 'TV regularization -- full Hessian'
+            if isprint: print ' -- full Hessian',
+        if isprint: 
+            if self.parameters['PCGN']:
+                print ' -- PCGN',
+            print ' -- k={}, eps={}'.format(self.parameters['k'], self.parameters['eps'])
 
         try:
             solver = PETScKrylovSolver('cg', 'ml_amg')
@@ -101,7 +118,12 @@ class TV():
         """ Assemble the Hessian of TV at m_in """
         setfct(self.m, m_in)
         self.H = assemble(self.wkformhess)
-        self.precond = self.H + self.sMass
+        PCGN = self.parameters['PCGN']
+        if PCGN:
+            HGN = assemble(self.wkformGNhess)
+            self.precond = HGN + self.sMass
+        else:
+            self.precond = self.H + self.sMass
 
     def assemble_GNhessian(self, m_in):
         """ Assemble the Gauss-Newton Hessian at m_in 
@@ -149,13 +171,26 @@ class TVPD():
 
     def __init__(self, parameters, mpicomm=PETSc.COMM_WORLD):
         """ 
-        parameters must have key 'Vm' for parameter function space,
-        key 'exact' run exact TV, w/o primal-dual; used to check w/ FD 
-        note: member self.Vm needed for use in jointregularization
+        TV regularization in primal-dual format
+        Input parameters:
+            * k = regularization parameter
+            * eps = regularization constant (see above)
+            * rescaledradiusdual = radius of dual set
+            * exact = use full TV (bool)
+            * PCGN = use GN Hessian to precondition (bool); 
+            only used if 'GNhessian = False';
+            not recommended for performance but can help avoid num.instability
+            * print (bool)
         """
 
-        self.parameters = {'k':1.0, 'eps':1e-2, 'rescaledradiusdual':1.0,
-        'exact':False, 'print':False}
+        self.parameters = {}
+        self.parameters['k']                    = 1.0
+        self.parameters['eps']                  = 1e-2
+        self.parameters['rescaledradiusdual']   = 1.0
+        self.parameters['exact']                = False
+        self.parameters['PCGN']                 = False
+        self.parameters['print']                = False
+
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
         self.Vm = self.parameters['Vm'] 
@@ -237,6 +272,8 @@ class TVPD():
         self.wkformAyrs = inner(testw, trialm.dx(1) - \
         self.wyrs * inner(nabla_grad(self.m), nabla_grad(trialm)) / TVnorm) * dx
 
+        kovsq = Constant(k) / TVnorm
+        self.wkformGNhess = kovsq*inner(nabla_grad(trialm), nabla_grad(testm))*dx
         factM = 1e-2*k
         M = assemble(inner(testm, trialm)*dx)
         self.sMass = M*factM
@@ -250,7 +287,10 @@ class TVPD():
         self.Msolver.set_operator(M)
 
         if self.parameters['print']:
-            print 'TV regularization -- primal-dual method'
+            print 'TV regularization -- primal-dual method',
+            if self.parameters['PCGN']:
+                print ' -- PCGN',
+            print ' -- k={}, eps={}'.format(self.parameters['k'], self.parameters['eps'])
         try:
             solver = PETScKrylovSolver('cg', 'ml_amg')
             self.amgprecond = 'ml_amg'
@@ -327,7 +367,12 @@ class TVPD():
         self.H = Hx + Hy
         self.Hrs = Hxrs + Hyrs
 
-        self.precond = self.Hrs + self.sMass
+        PCGN = self.parameters['PCGN']
+        if PCGN:
+            HGN = assemble(self.wkformGNhess)
+            self.precond = HGN + self.sMass
+        else:
+            self.precond = self.Hrs + self.sMass
 
 
     def hessian(self, mhat):

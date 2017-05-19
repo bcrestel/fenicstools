@@ -141,23 +141,6 @@ class LumpedMassMatrixPrime():
         self.ratioM = ratioM
         wkform = dl.inner(alpha*test, trial)*dl.dx
         M = dl.assemble(wkform)
-#       TODO: remove following commented-out lines when it's clear that it works
-#        # extract local to global map for each fct space
-#        VaDM, VphiDM = Va.dofmap(), Vphi.dofmap()
-#        a_map = PETSc.LGMap().create(VaDM.dofs(), comm=mpicomm)
-#        phi_map = PETSc.LGMap().create(VphiDM.dofs(), comm=mpicomm)
-#        # assemble PETSc version of Mprime
-#        MprimePETSc = PETSc.Mat()
-#        MprimePETSc.create(mpicomm)
-#        MprimePETSc.setSizes([ [VaDM.local_dimension("owned"), Va.dim()], \
-#        [VphiDM.local_dimension("owned"), Vphi.dim()] ])
-#        MprimePETSc.setType('aij') # sparse
-##        MprimePETSc.setPreallocationNNZ(30)
-#        MprimePETSc.setUp()
-#        MprimePETSc.setLGMap(a_map, phi_map)
-#        # compare PETSc and Fenics local partitions:
-#        Istart, Iend = MprimePETSc.getOwnershipRange()
-#        assert list(VaDM.dofs()) == range(Istart, Iend)
         MprimePETSc, VaDM, VphiDM = setupPETScmatrix(Va, Vphi, 'aij', mpicomm)
         # populate the PETSc matrix
         for ii in xrange(Va.dim()):
