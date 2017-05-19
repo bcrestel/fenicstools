@@ -105,13 +105,27 @@ if mpirank == 0:    print 'misfit = {}'.format(waveobj.cost_misfit)
 waveobj.solveadj_constructgrad()
 MGa, MGb = waveobj.Grad.split(deepcopy=True)
 
+# Medium perturbations
+MPa = [
+dl. Expression('sin(pi*x[0])*sin(pi*x[1])'),
+dl.Expression('1.0'), 
+dl.Expression('x[0]'), dl.Expression('x[1]'), 
+dl.Expression('sin(3*pi*x[0])*sin(3*pi*x[1])')]
+MPb = [
+dl. Expression('sin(pi*x[0])*sin(pi*x[1])'),
+dl.Expression('1.0'), 
+dl.Expression('x[1]'), dl.Expression('x[0]'), 
+dl.Expression('sin(3*pi*x[0])*sin(3*pi*x[1])')]
+
 if ALL:
     Medium = np.zeros((nbtest, Wave.a.vector().local_size() + Wave.b.vector().local_size()))
     tmp = dl.Function(Vl*Vl)
     for ii in range(nbtest):
-        smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
+        smoothperturb = MPa[ii]
         smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
         dl.assign(tmp.sub(0), smoothperturb_fn)
+        smoothperturb = MPb[ii]
+        smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
         dl.assign(tmp.sub(1), smoothperturb_fn)
         Medium[ii,:] = tmp.vector().array()
     if mpirank == 0:    print 'check gradient with FD'
@@ -119,15 +133,16 @@ if ALL:
     if mpirank == 0:    print 'check Hessian with FD'
     checkhessabfd_med(waveobj, Medium, 1e-6, [1e-4, 1e-5, 1e-6, 1e-7], True, 'all', mpicomm)
 else:
-    # Prepare random medium directions to test gradient and Hessian
     Mediuma = np.zeros((nbtest, Wave.a.vector().local_size() + Wave.b.vector().local_size()))
     Mediumb = np.zeros((nbtest, Wave.a.vector().local_size() + Wave.b.vector().local_size()))
     tmp = dl.Function(Vl*Vl)
     for ii in range(nbtest):
-        smoothperturb = dl.Expression('sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii+1)
+        smoothperturb = MPa[ii]
         smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
         dl.assign(tmp.sub(0), smoothperturb_fn)
         Mediuma[ii,:] = tmp.vector().array()
+        smoothperturb = MPb[ii]
+        smoothperturb_fn = dl.interpolate(smoothperturb, Vl)
         dl.assign(tmp.sub(1), smoothperturb_fn)
         Mediumb[ii,:] = tmp.vector().array()
     if mpirank == 0:    print 'check a-gradient with FD'
