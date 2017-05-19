@@ -7,6 +7,11 @@ from miscfenics import setfct, isequal, ZeroRegularization
 from linalg.lumpedmatrixsolver import LumpedMassMatrixPrime
 from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
 
+#TODO: clean-up:
+#   no nested for loops
+#   look at using existing tensor from inside repeated assemble
+#   zip/izip?
+
 class ObjectiveAcoustic(LinearOperator):
     """
     Computes data misfit, gradient and Hessian evaluation for the seismic
@@ -20,75 +25,31 @@ class ObjectiveAcoustic(LinearOperator):
         """
         self.PDE = acousticwavePDE
         self.PDE.exact = None
+        self.obsop = None   # Observation operator
+        self.dd = None  # observations
+
         self.fwdsource = sources
-        # functions for gradient
+
         Vm = self.PDE.Vm
         V = self.PDE.V
         self.ab = Function(Vm*Vm)
-        self.obsop = None   # Observation operator
-        self.dd = None  # observations
-        # decide whether ahat and bhat are used
         self.invparam = invparam
-        if self.invparam == 'ab':
-            self.MG = Function(Vm*Vm)
-            self.MGv = self.MG.vector()
-            self.Grad = Function(Vm*Vm)
-            self.srchdir = Function(Vm*Vm)
-            self.delta_m = Function(Vm*Vm)
-            self.get_costreg = self.get_costreg_joint
-            self.update_m = self.update_ab
-            self.m_bkup = Function(Vm*Vm)
-            self.backup_m = self.backup_ab
-            self.restore_m = self.restore_ab
-            self.assemble_hessian = self.assemble_hessianab
-            self.ftimeincrfwda = self.ftimeincrfwd_componenta
-            self.ftimeincrfwdb = self.ftimeincrfwd_componentb
-            self.ftimeincradja = self.ftimeincradj_componenta
-            self.ftimeincradjb = self.ftimeincradj_componentb
-            self.hessiana = self.hessian_componenta
-            self.hessianb = self.hessian_componentb
-        else:
-            self.MG = Function(Vm)
-            self.MGv = self.MG.vector()
-            self.Grad = Function(Vm)
-            self.srchdir = Function(Vm)
-            self.delta_m = Function(Vm)
-            self.m_bkup = Function(Vm)
-            if self.invparam == 'a':
-                self.get_costreg = self.get_costreg_a
-                self.update_m = self.update_a
-                self.backup_m = self.backup_a
-                self.restore_m = self.restore_a
-                self.assemble_hessian = self.assemble_hessiana
-                self.ftimeincrfwda = self.ftimeincrfwd_componenta
-                self.ftimeincrfwdb = self.ftimepass
-                self.ftimeincradja = self.ftimeincradj_componenta
-                self.ftimeincradjb = self.ftimepass
-                self.hessiana = self.hessian_componenta
-                self.hessianb = self.hessian_componentbpass
-            elif self.invparam == 'b':
-                self.get_costreg = self.get_costreg_b
-                self.update_m = self.update_b
-                self.backup_m = self.backup_b
-                self.restore_m = self.restore_b
-                self.assemble_hessian = self.assemble_hessianb
-                self.ftimeincrfwda = self.ftimeincrfwd_componentapass
-                self.ftimeincrfwdb = self.ftimeincrfwd_componentb
-                self.ftimeincradja = self.ftimeincradj_componentapass
-                self.ftimeincradjb = self.ftimeincradj_componentb
-                self.hessiana = self.hessian_componentapass
-                self.hessianb = self.hessian_componentb
+        self.MG = Function(Vm*Vm)
+        self.MGv = self.MG.vector()
+        self.Grad = Function(Vm*Vm)
+        self.srchdir = Function(Vm*Vm)
+        self.delta_m = Function(Vm*Vm)
+        self.m_bkup = Function(Vm*Vm)
         LinearOperator.__init__(self, self.MGv, self.MGv)
-        # regularization
+
         if regularization == None:  
             print '*** Warning: Using zero regularization'
             self.regularization = ZeroRegularization()
         else:   
             self.regularization = regularization
-            #self.TV = self.regularization.isTV()# does NOT seem to be used
             self.PD = self.regularization.isPD()
         self.alpha_reg = 1.0
-        # gradient and Hessian
+
         self.p, self.q = Function(V), Function(V)
         self.phat, self.qhat = Function(V), Function(V)
         self.ahat, self.bhat = Function(Vm), Function(Vm)
@@ -113,29 +74,26 @@ class ObjectiveAcoustic(LinearOperator):
         self.wkformrhsincrb = inner(self.bhat*nabla_grad(self.ptrial), nabla_grad(self.ptest))*dx
         self.wkformhessb = inner(nabla_grad(self.phat)*self.mtest, nabla_grad(self.q))*dx \
         + inner(nabla_grad(self.p)*self.mtest, nabla_grad(self.qhat))*dx
+
         # Mass matrix:
-        if self.invparam == 'ab':
-            # mass matrix will be block-diagonal (although rows and columns are mixed)
-            self.mmtest, self.mmtrial = TestFunction(Vm*Vm), \
-            TrialFunction(Vm*Vm)
-        else:
-            self.mmtest, self.mmtrial = self.mtest, self.mtrial
+        self.mmtest, self.mmtrial = TestFunction(Vm*Vm), TrialFunction(Vm*Vm)
         weak_m =  inner(self.mmtrial, self.mmtest)*dx
         self.Mass = assemble(weak_m)
-        # For serial only,
-        #self.solverM = LUSolver("petsc")
-        #self.solverM.parameters['reuse_factorization'] = True
-        #self.solverM.parameters['symmetric'] = True
-        # In parallel,
-        self.solverM = PETScKrylovSolver("cg", "amg")
-        self.solverM.parameters['report'] = False
-        self.solverM.parameters['nonzero_initial_guess'] = True
+        self.solverM = PETScKrylovSolver("cg", "jacobi")
+        self.solverM.parameters["maximum_iterations"] = 2000
+        self.solverM.parameters["absolute_tolerance"] = 1e-24
+        self.solverM.parameters["relative_tolerance"] = 1e-24
+        self.solverM.parameters["report"] = False
+        self.solverM.parameters["error_on_nonconvergence"] = True 
+        self.solverM.parameters["nonzero_initial_guess"] = False # True?
         self.solverM.set_operator(self.Mass)
+
         # Time-integration factors
         self.factors = np.ones(self.PDE.times.size)
         self.factors[0], self.factors[-1] = 0.5, 0.5
         self.factors *= self.PDE.Dt
         self.invDt = 1./self.PDE.Dt
+
         # Absorbing BCs
         #TODO: ABCs not implemented yet for joint inversion
 #        if self.PDE.abc:
@@ -174,12 +132,11 @@ class ObjectiveAcoustic(LinearOperator):
     #@profile
     def solvefwd(self, cost=False):
         self.PDE.set_fwd()
+        self.solfwd, self.Bp = [], []
+
+        #TODO: make fwdsource iterable to return source term
         Ricker = self.fwdsource[0]
         srcv = self.fwdsource[2]
-        #TODO: modify to make fwdsource an iterable object that returns a source term
-        # there should not be any source construction inside the solvefwd
-        # function
-        self.solfwd, self.Bp = [], []
         for ptsrc in self.fwdsource[1]:
             def srcterm(tt):
                 srcv.zero()
@@ -188,27 +145,24 @@ class ObjectiveAcoustic(LinearOperator):
             self.PDE.ftime = srcterm
             solfwd,_ = self.PDE.solve()
             self.solfwd.append(solfwd)
-            # observations:
+
             Bp = np.zeros((len(self.obsop.PtwiseObs.Points),len(solfwd)))
             for index, sol in enumerate(solfwd):
                 setfct(self.p, sol[0])
                 Bp[:,index] = self.obsop.obs(self.p)
             self.Bp.append(Bp)
+
         if cost:
             assert not self.dd == None, "Provide data observations to compute cost"
             self.cost_misfit = 0.0
             for Bp, dd in zip(self.Bp, self.dd):
                 self.cost_misfit += self.obsop.costfct(Bp, dd, self.PDE.times)
             self.cost_misfit /= len(self.Bp)
-            self.cost_reg = self.get_costreg()
+            self.cost_reg = self.regularization.costab(self.PDE.a, self.PDE.b)
             self.cost = self.cost_misfit + self.alpha_reg*self.cost_reg
 
     def solvefwd_cost(self):    self.solvefwd(True)
 
-    def get_costreg_joint(self):    return self.regularization.costab(self.PDE.a, self.PDE.b)
-    def get_costreg_a(self):    return self.regularization.cost(self.PDE.a)
-    def get_costreg_b(self):    return self.regularization.cost(self.PDE.b)
-        
 
     # ADJOINT PROBLEM + GRAD:
     #@profile
@@ -220,61 +174,31 @@ class ObjectiveAcoustic(LinearOperator):
             self.PDE.ftime = self.obsop.ftimeadj
             soladj,_ = self.PDE.solve()
             self.soladj.append(soladj)
+
         if grad:
-            if self.invparam == 'ab':
-                # split gradient parts a and b
-                self.MGv.zero()
-                MGa, MGb = self.MG.split(deepcopy=True)
-                MGav, MGbv = MGa.vector(), MGb.vector()
-                # loop over time
-                for solfwd, soladj in zip(self.solfwd, self.soladj):
-                    for fwd, adj, fact, fwdm, fwdp in \
-                    zip(solfwd, reversed(soladj), self.factors,\
-                    [[solfwd[0][0], -self.PDE.Dt]]+solfwd[:-1], \
-                    solfwd[1:]+[[solfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]]):
-                        self.gradient_componentb(fact, fwd, adj, MGbv)
-                        self.gradient_componenta(fact, fwdm, fwdp, adj, MGav)
-                setfct(MGa, MGav/len(self.Bp))
-                setfct(MGb, MGbv/len(self.Bp))
-                # add regularization
-                assign(self.MG.sub(0), MGa)
-                assign(self.MG.sub(1), MGb)
-                self.MGv.axpy(self.alpha_reg, \
-                self.regularization.gradab(self.PDE.a, self.PDE.b))
-            else:
-                if self.invparam == 'a':
-                    self.MGv.zero()
-                    MGav = self.MGv
-                    # loop over time
-                    for solfwd, soladj in zip(self.solfwd, self.soladj):
-                        for fwd, adj, fact, fwdm, fwdp in \
-                        zip(solfwd, reversed(soladj), self.factors,\
-                        [[solfwd[0][0], -self.PDE.Dt]]+solfwd[:-1], \
-                        solfwd[1:]+[[solfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]]):
-                            setfct(self.p, fwd[0])
-                            setfct(self.q, adj[0])
-                            self.gradient_componenta(fact, fwdm, fwdp, adj, MGav)
-                    setfct(self.MG, MGav/len(self.Bp))
-                    # add regularization
-                    self.MGv.axpy(self.alpha_reg, self.regularization.grad(self.PDE.a))
-                elif self.invparam == 'b':
-                    self.MGv.zero()
-                    MGbv = self.MGv
-                    # loop over time
-                    for solfwd, soladj in zip(self.solfwd, self.soladj):
-                        for fwd, adj, fact in \
-                        zip(solfwd, reversed(soladj), self.factors):
-                            self.gradient_componentb(fact, fwd, adj, MGbv)
-                    setfct(self.MG, MGbv/len(self.Bp))
-                    # add regularization
-                    self.MGv.axpy(self.alpha_reg, self.regularization.grad(self.PDE.b))
-            # compute Grad
-            # When Grad very small (optim almost converged), first few residuals
-            # may be flagged as diverging by PETSc. In that case, enlarge
-            # divergence_limit
+            self.MGv.zero()
+            MGa, MGb = self.MG.split(deepcopy=True)
+            MGav, MGbv = MGa.vector(), MGb.vector()
+
+            for solfwd, soladj in zip(self.solfwd, self.soladj):
+                for fwd, adj, fact, fwdm, fwdp in \
+                zip(solfwd, reversed(soladj), self.factors,\
+                [[solfwd[0][0], -self.PDE.Dt]]+solfwd[:-1], \
+                solfwd[1:]+[[solfwd[0][0], self.PDE.times[-1]+self.PDE.Dt]]):
+                    self.gradient_componentb(fact, fwd, adj, MGbv)
+                    self.gradient_componenta(fact, fwdm, fwdp, adj, MGav)
+            setfct(MGa, MGav/len(self.Bp))
+            setfct(MGb, MGbv/len(self.Bp))
+            assign(self.MG.sub(0), MGa)
+            assign(self.MG.sub(1), MGb)
+
+            self.MGv.axpy(self.alpha_reg, \
+            self.regularization.gradab(self.PDE.a, self.PDE.b))
+
             try:
                 self.solverM.solve(self.Grad.vector(), self.MGv)
             except:
+                # if |G|<<1, first residuals may diverge
                 # Massive caveat: Hope that ALL processes throw an exception
                 pseudoGradnorm = np.sqrt(self.MGv.inner(self.MGv))
                 if pseudoGradnorm < 1e-8:
@@ -284,6 +208,7 @@ class ObjectiveAcoustic(LinearOperator):
                 else:
                     print '*** Error: Problem with Mass matrix solver'
                     sys.exit(1)
+
 #            if self.PDE.abc:
 #                self.vD.vector().zero(); self.pD.vector().zero();
 #                self.p1D.vector().zero(); self.p2D.vector().zero();
@@ -313,6 +238,7 @@ class ObjectiveAcoustic(LinearOperator):
         setfct(self.p, fwd[0])
         setfct(self.q, adj[0])
         MGbv.axpy(fact, assemble(self.wkformgradb))
+
     def gradient_componenta(self, fact, fwdm, fwdp, adj, MGav):
         tta = adj[1]
         ttfm, ttfp = fwdm[1], fwdp[1]
@@ -358,9 +284,10 @@ class ObjectiveAcoustic(LinearOperator):
 #                self.v.vector().axpy(.5*self.invDt, self.Dp*self.p.vector())
         return -1.0*self.q.vector()
 
-    def ftimeincrfwd_componentb(self):
+    def ftimeincrfwdb(self):
         setfct(self.q, self.C*self.p.vector())
-    def ftimeincrfwd_componenta(self, index):
+
+    def ftimeincrfwda(self, index):
         solfwdm = [[self.solfwdi[0][0], -self.PDE.Dt]]+self.solfwdi[:-1]
         solfwdp = self.solfwdi[1:]+[[self.solfwdi[0][0], self.PDE.times[-1]+self.PDE.Dt]]
         setfct(self.ptmp, solfwdm[index][0])
@@ -368,8 +295,6 @@ class ObjectiveAcoustic(LinearOperator):
         setfct(self.ptmp, solfwdp[index][0])
         self.p.vector().axpy(-0.5, self.ptmp.vector())
         self.q.vector().axpy(-2.0*self.invDt*self.invDt, self.get_incra(self.p.vector()))
-    def ftimeincrfwd_componentapass(self, index):
-        pass
 
     #@profile
     def ftimeincradj(self, tt):
@@ -399,9 +324,10 @@ class ObjectiveAcoustic(LinearOperator):
 #                self.vhat.vector().axpy(-.5*self.invDt, self.Dp*self.v.vector())
         return -1.0*self.qhat.vector()
 
-    def ftimeincradj_componentb(self):
+    def ftimeincradjb(self):
         setfct(self.qhat, self.C*self.q.vector())
-    def ftimeincradj_componenta(self, indexa):
+
+    def ftimeincradja(self, indexa):
         soladjm = [[self.soladji[0][0], -self.PDE.Dt]]+self.soladji[:-1]
         soladjp = self.soladji[1:]+[[self.soladji[0][0], self.PDE.times[-1]+self.PDE.Dt]]
         setfct(self.ptmp, soladjm[indexa][0])
@@ -409,8 +335,6 @@ class ObjectiveAcoustic(LinearOperator):
         setfct(self.ptmp, soladjp[indexa][0])
         self.q.vector().axpy(-0.5, self.ptmp.vector())
         self.qhat.vector().axpy(-2.0*self.invDt*self.invDt, self.get_incra(self.q.vector()))
-    def ftimeincradj_componentapass(self, indexa):
-        pass
         
     #@profile
     def mult(self, abhat, y):
@@ -494,23 +418,14 @@ class ObjectiveAcoustic(LinearOperator):
     #                setfct(self.vhatD, self.vhat)
     #            index += 1
         y.zero()
-        if self.invparam == 'ab':
-            assign(self.ab.sub(0), yaF)
-            assign(self.ab.sub(1), ybF)
-            y.axpy(1.0/len(self.Bp), self.ab.vector())
-            # add regularization term
-            y.axpy(self.alpha_reg, \
-            self.regularization.hessianab(self.ahat.vector(), self.bhat.vector()))
-        elif self.invparam == 'a':
-            y.axpy(1.0/len(self.Bp), ya)
-            # add regularization term
-            y.axpy(self.alpha_reg, self.regularization.hessian(abhat))
-        elif self.invparam == 'b':
-            y.axpy(1.0/len(self.Bp), yb)
-            # add regularization term
-            y.axpy(self.alpha_reg, self.regularization.hessian(abhat))
+        assign(self.ab.sub(0), yaF)
+        assign(self.ab.sub(1), ybF)
+        y.axpy(1.0/len(self.Bp), self.ab.vector())
 
-    def hessian_componenta(self, ya, fact, fwdm, fwdp, incrfwdm, incrfwdp):
+        y.axpy(self.alpha_reg, \
+        self.regularization.hessianab(self.ahat.vector(), self.bhat.vector()))
+
+    def hessiana(self, ya, fact, fwdm, fwdp, incrfwdm, incrfwdp):
         setfct(self.ptmp, fwdm[0])
         self.p.vector().axpy(-0.5, self.ptmp.vector())
         setfct(self.ptmp, fwdp[0])
@@ -523,12 +438,9 @@ class ObjectiveAcoustic(LinearOperator):
         setfct(self.p, self.p.vector()*scalingdiff)
         setfct(self.phat, self.phat.vector()*scalingdiff)
         ya.axpy(fact, self.get_hessiana())
-    def hessian_componentapass(self, ya, fact, fwdm, fwdp, incrfwdm, incrfwdp):
-        pass
-    def hessian_componentb(self, yb, fact):
+
+    def hessianb(self, yb, fact):
         yb.axpy(fact, assemble(self.wkformhessb))
-    def hessian_componentbpass(self, yb, fact):
-        pass
 
     def get_hessiana_full(self):
         return assemble(self.wkformhessa)
@@ -549,46 +461,27 @@ class ObjectiveAcoustic(LinearOperator):
 
     def update_PDE(self, parameters): self.PDE.update(parameters)
 
-    def update_ab(self, medparam):
+    def update_m(self, medparam):
         """ medparam contains both med parameters """
         setfct(self.ab, medparam)
         a, b = self.ab.split(deepcopy=True)
         self.update_PDE({'a':a, 'b':b})
-    def update_a(self, medparam):
-        self.update_PDE({'a':medparam})
-    def update_b(self, medparam):
-        self.update_PDE({'b':medparam})
 
     def set_abc(self, mesh, class_bc_abc, lumpD):  
         self.PDE.set_abc(mesh, class_bc_abc, lumpD)
 
-    def backup_ab(self): 
+    def backup_m(self): 
         """ back-up current value of med param a and b """
         assign(self.m_bkup.sub(0), self.PDE.a)
         assign(self.m_bkup.sub(1), self.PDE.b)
-    def backup_a(self):
-        setfct(self.m_bkup, self.PDE.a)
-    def backup_b(self):
-        setfct(self.m_bkup, self.PDE.b)
 
-    def restore_ab(self):    
+    def restore_m(self):    
         """ restore backed-up values of a and b """
         a, b = self.m_bkup.split(deepcopy=True)
         self.update_PDE({'a':a, 'b':b})
-    def restore_a(self):
-        self.update_PDE({'a':self.m_bkup})
-    def restore_b(self):
-        self.update_PDE({'b':self.m_bkup})
 
     def setsrcterm(self, ftime):    self.PDE.ftime = ftime
 
-
-    def assemble_hessianab(self):
-        self.regularization.assemble_hessianab(self.PDE.a, self.PDE.b)
-    def assemble_hessiana(self): 
-        self.regularization.assemble_hessian(self.PDE.a)
-    def assemble_hessianb(self): 
-        self.regularization.assemble_hessian(self.PDE.b)
 
 
     # GETTERS:
@@ -650,7 +543,7 @@ class ObjectiveAcoustic(LinearOperator):
             # compute search direction and plot
             #tolcg = min(0.5, np.sqrt(gradnorm/gradnorm0))
             tolcg = min(tolcg, np.sqrt(gradnorm/gradnorm0))
-            self.assemble_hessian() # for nonlinear regularization functionals
+            self.regularization.assemble_hessianab(self.PDE.a, self.PDE.b)
             cgiter, cgres, cgid, tolcg = compute_searchdirection(self, 'Newt', tolcg)
             self._plotsrchdir(myplot, str(it))
             # perform line search
