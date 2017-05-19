@@ -550,7 +550,7 @@ class ObjectiveAcoustic(LinearOperator):
     def update_PDE(self, parameters): self.PDE.update(parameters)
 
     def update_ab(self, medparam):
-        """ medparam is a np.array containing both med parameters """
+        """ medparam contains both med parameters """
         setfct(self.ab, medparam)
         a, b = self.ab.split(deepcopy=True)
         self.update_PDE({'a':a, 'b':b})
@@ -592,10 +592,11 @@ class ObjectiveAcoustic(LinearOperator):
 
 
     # GETTERS:
-    def getmcopyarray(self):    return self.m_bkup.vector().array()
-    def getMGarray(self):   return self.MGv.array()
-    def getprecond(self):
-        return self.regularization.getprecond()
+    def getmcopy(self):         return self.m_bkup.vector()
+    def getmcopyarray(self):    return self.getmcopy().array()
+    def getMG(self):            return self.MGv
+    def getMGarray(self):       return self.MGv.array()
+    def getprecond(self):       return self.regularization.getprecond()
 
 
 
