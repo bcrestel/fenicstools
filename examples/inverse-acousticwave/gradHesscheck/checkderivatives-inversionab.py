@@ -125,7 +125,7 @@ if ALL:
         Medium.append(tmp.vector().copy())
     if mpirank == 0:    print 'check gradient with FD'
     checkgradfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-6, 1e-7], True)
-    if mpirank == 0:    print 'check Hessian with FD'
+    if mpirank == 0:    print '\ncheck Hessian with FD'
     checkhessabfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-6, 1e-7], True, 'all')
 else:
     Mediuma, Mediumb = [], []
@@ -142,7 +142,7 @@ else:
     if mpirank == 0:    print 'check b-gradient with FD'
     checkgradfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True)
 
-    if mpirank == 0:    print 'check a-Hessian with FD'
+    if mpirank == 0:    print '\ncheck a-Hessian with FD'
     checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7, 1e-8], True, 'a')
     #checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-4, 1e-5, 1e-6, 1e-7], False, 'a')
     if mpirank == 0:    print 'check b-Hessian with FD'
