@@ -103,7 +103,7 @@ class ObjectiveAcoustic(LinearOperator):
 
             self.wkformincrrhsABC = inner(
             (self.ahat*sqrt(self.PDE.b/self.PDE.a)
-             + self.bhat*sqrt(self.PDE.a/self.PDE.b))*self.phat,
+             + self.bhat*sqrt(self.PDE.a/self.PDE.b))*self.ptrial,
             self.ptest)*self.PDE.ds(1)
 
             self.wkformhessaABC = inner(
@@ -249,15 +249,16 @@ class ObjectiveAcoustic(LinearOperator):
 #        assert isequal(tt, self.solfwdi[index][1], 1e-16)
         setfct(self.p, self.solfwdi[index][0])
         self.q.vector().zero()
-        setfct(self.q, self.C*self.p.vector())
+        self.q.vector().axpy(1.0, self.C*self.p.vector())
 
         # ahat: ahat*p''*qtilde:
         setfct(self.p, self.solppfwdi[index][0])
         self.q.vector().axpy(1.0, self.get_incra(self.p.vector()))
 
+        # ABC:
         if self.PDE.parameters['abc']:
             setfct(self.phat, self.solpfwdi[index][0])
-            self.q.vector().axpy(0.5, assemble(self.wkformincrrhsABC))
+            self.q.vector().axpy(0.5, self.Dp*self.phat.vector())
         return -1.0*self.q.vector()
 
 
@@ -276,7 +277,7 @@ class ObjectiveAcoustic(LinearOperator):
         assert isequal(tt, self.soladji[indexa][1], 1e-16)
         setfct(self.q, self.soladji[indexa][0])
         self.qhat.vector().zero()
-        setfct(self.qhat, self.C*self.q.vector())
+        self.qhat.vector().axpy(1.0, self.C*self.q.vector())
 
         # ahat: ahat*ptilde*q'':
         setfct(self.q, self.solppadji[indexa][0])
@@ -287,9 +288,10 @@ class ObjectiveAcoustic(LinearOperator):
         setfct(self.phat, self.solincrfwd[indexf][0])
         self.qhat.vector().axpy(1.0, self.obsop.incradj(self.phat, tt))
 
+        # ABC:
         if self.PDE.parameters['abc']:
             setfct(self.phat, self.solpadji[indexa][0])
-            self.qhat.vector().axpy(-0.5, assemble(self.wkformincrrhsABC))
+            self.qhat.vector().axpy(-0.5, self.Dp*self.phat.vector())
         return -1.0*self.qhat.vector()
 
     def get_incra_full(self, pvector):
@@ -313,7 +315,7 @@ class ObjectiveAcoustic(LinearOperator):
 
         self.C = assemble(self.wkformrhsincrb)
         if not self.PDE.parameters['lumpM']:    self.E = assemble(self.wkformrhsincra)
-        #if self.PDE.abc:    self.Dp = assemble(self.wkformDprime)
+        if self.PDE.parameters['abc']:  self.Dp = assemble(self.wkformincrrhsABC)
 
         # Compute Hessian*abhat
         self.ab.vector().zero()
