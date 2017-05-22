@@ -303,7 +303,8 @@ class TimeObsPtwise():
         mycomm = MPI communicator
     """
 
-    def __init__(self, paramObsPtwise, timefilter=None, mycomm=mpi_comm_world()):
+    def __init__(self, paramObsPtwise, timefilter=None):
+        mycomm = paramObsPtwise['V'].mesh().mpi_comm()
         self.PtwiseObs = ObsPointwise(paramObsPtwise, mycomm)
         u = Function(self.PtwiseObs.V)
         self.outvec = u.vector()
@@ -313,7 +314,7 @@ class TimeObsPtwise():
         """ return result from pointwise observation w/o time-filtering """
         return  self.PtwiseObs.Bdot(uin)
 
-    def costfct(self, uin, udin, times):
+    def costfct(self, uin, udin, times, factors):
         """ compute cost functional
                 int_0^T s(t) | B u - udin |^2 dt
         uin, udin must be in np.array format of shape 'recv x time'
@@ -326,11 +327,8 @@ class TimeObsPtwise():
         if uin.shape[0] == len(times):  diffuinudinsq = (uin.T - udin.T)**2
         else:   diffuinudinsq = (uin - udin)**2
         #
-        factors = np.ones(len(times))
-        factors[0], factors[-1] = 0.5, 0.5
-        Dt = times[1] - times[0]
         diff = diffuinudinsq*factors*(self.st.evaluate(times))
-        return 0.5*Dt*(diff.sum().sum())
+        return 0.5*(diff.sum().sum())
 
     def assemble_rhsadj(self, uin, udin, times, bcadj):
         """ Assemble data for rhs of adj eqn 

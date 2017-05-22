@@ -85,7 +85,6 @@ class ObjectiveAcoustic(LinearOperator):
         self.solverM.parameters["nonzero_initial_guess"] = False # True?
         self.solverM.set_operator(self.Mass)
 
-        #TODO: use self.factors inside misfit object
         # Time-integration factors
         self.factors = np.ones(self.PDE.times.size)
         self.factors[0], self.factors[-1] = 0.5, 0.5
@@ -162,7 +161,7 @@ class ObjectiveAcoustic(LinearOperator):
             assert not self.dd == None, "Provide data observations to compute cost"
             self.cost_misfit = 0.0
             for Bp, dd in izip(self.Bp, self.dd):
-                self.cost_misfit += self.obsop.costfct(Bp, dd, self.PDE.times)
+                self.cost_misfit += self.obsop.costfct(Bp, dd, self.PDE.times, self.factors)
             self.cost_misfit /= len(self.Bp)
             self.cost_reg = self.regularization.costab(self.PDE.a, self.PDE.b)
             self.cost = self.cost_misfit + self.alpha_reg*self.cost_reg
