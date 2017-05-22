@@ -67,6 +67,7 @@ class ObjectiveAcoustic(LinearOperator):
             self.wkformrhsincra = inner(self.ahat*self.ptrial, self.ptest)*dx
             self.get_incra = self.get_incra_full
         self.wkformgradb = inner(self.mtest*nabla_grad(self.p), nabla_grad(self.q))*dx
+        self.wkformgradbout = assemble(self.wkformgradb)
         self.wkformrhsincrb = inner(self.bhat*nabla_grad(self.ptrial), nabla_grad(self.ptest))*dx
         self.wkformhessb = inner(nabla_grad(self.phat)*self.mtest, nabla_grad(self.q))*dx \
         + inner(nabla_grad(self.p)*self.mtest, nabla_grad(self.qhat))*dx
@@ -84,6 +85,7 @@ class ObjectiveAcoustic(LinearOperator):
         self.solverM.parameters["nonzero_initial_guess"] = False # True?
         self.solverM.set_operator(self.Mass)
 
+        #TODO: use self.factors inside misfit object
         # Time-integration factors
         self.factors = np.ones(self.PDE.times.size)
         self.factors[0], self.factors[-1] = 0.5, 0.5
@@ -100,6 +102,8 @@ class ObjectiveAcoustic(LinearOperator):
             self.wkformgradbABC = inner(
             self.mtest*sqrt(self.PDE.a/self.PDE.b)*self.p, 
             self.q)*self.PDE.ds(1)
+            self.wkformgradaABCout = assemble(self.wkformgradaABC)
+            self.wkformgradbABCout = assemble(self.wkformgradbABC)
 
             self.wkformincrrhsABC = inner(
             (self.ahat*sqrt(self.PDE.b/self.PDE.a)
@@ -196,12 +200,15 @@ class ObjectiveAcoustic(LinearOperator):
                     MGav.axpy(fact, self.get_gradienta()) 
                     # gradient b
                     setfct(self.p, fwd[0])
-                    MGbv.axpy(fact, assemble(self.wkformgradb))
+                    assemble(form=self.wkformgradb, tensor=self.wkformgradbout)
+                    MGbv.axpy(fact, self.wkformgradbout)
 
                     if self.PDE.parameters['abc']:
                         setfct(self.p, fwdp[0])
-                        MGav.axpy(0.5*fact, assemble(self.wkformgradaABC))
-                        MGbv.axpy(0.5*fact, assemble(self.wkformgradbABC))
+                        assemble(form=self.wkformgradaABC, tensor=self.wkformgradaABCout)
+                        MGav.axpy(0.5*fact, self.wkformgradaABCout)
+                        assemble(form=self.wkformgradbABC, tensor=self.wkformgradbABCout)
+                        MGbv.axpy(0.5*fact, self.wkformgradbABCout)
 
             setfct(MGa, MGav/len(self.Bp))
             setfct(MGb, MGbv/len(self.Bp))
@@ -215,7 +222,7 @@ class ObjectiveAcoustic(LinearOperator):
                 self.solverM.solve(self.Grad.vector(), self.MGv)
             except:
                 # if |G|<<1, first residuals may diverge
-                # Massive caveat: Hope that ALL processes throw an exception
+                # caveat: Hope that ALL processes throw an exception
                 pseudoGradnorm = np.sqrt(self.MGv.inner(self.MGv))
                 if pseudoGradnorm < 1e-8:
                     print '*** Warning: Increasing divergence_limit for Mass matrix solver'
@@ -324,8 +331,8 @@ class ObjectiveAcoustic(LinearOperator):
 
         # iterate over sources:
         for self.solfwdi, self.solpfwdi, self.solppfwdi, \
-        self.soladji, self.solpadji, self.solppadji in \
-        izip(self.solfwd, self.solpfwd, self.solppfwd, \
+        self.soladji, self.solpadji, self.solppadji \
+        in izip(self.solfwd, self.solpfwd, self.solppfwd, \
         self.soladj, self.solpadj, self.solppadj):
             # incr. fwd
             self.PDE.set_fwd()
@@ -338,14 +345,10 @@ class ObjectiveAcoustic(LinearOperator):
             solincradj,_,_,_ = self.PDE.solve()
 
             # assemble Hessian-vect product:
-            for fwd, adj, \
-            fwdp, incrfwdp, \
-            fwdpp, incrfwdpp, \
-            incrfwd, incradj, fact \
-            in izip(self.solfwdi, reversed(self.soladji), \
-            self.solpfwdi, solpincrfwd, \
-            self.solppfwdi, self.solppincrfwd, \
-            self.solincrfwd, reversed(solincradj), self.factors):
+            for fwd, adj, fwdp, incrfwdp, \
+            fwdpp, incrfwdpp, incrfwd, incradj, fact \
+            in izip(self.solfwdi, reversed(self.soladji), self.solpfwdi, solpincrfwd, \
+            self.solppfwdi, self.solppincrfwd, self.solincrfwd, reversed(solincradj), self.factors):
 #                ttf, tta, ttf2 = incrfwd[1], incradj[1], fwd[1]
 #                assert isequal(ttf, tta, 1e-16), 'tfwd={}, tadj={}, reldiff={}'.\
 #                format(ttf, tta, abs(ttf-tta)/ttf)
