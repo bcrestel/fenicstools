@@ -10,6 +10,10 @@ from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
 
 from dolfin import FacetFunction, Measure
 
+#TODO: 
+#   add option for GN Hessian
+#   create hippylib model for ObjectiveAcoustic object
+#   add callback function to hippylib ReduceSpaceNewtonCG object for the reducedHessian
 class ObjectiveAcoustic(LinearOperator):
     """
     Computes data misfit, gradient and Hessian evaluation for the seismic

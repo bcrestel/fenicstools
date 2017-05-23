@@ -25,7 +25,7 @@ from fenicstools.examples.acousticwave.mediumparameters import \
 targetmediumparameters, initmediumparameters
 
 ALL = False
-LARGE = False
+LARGE = True
 
 
 if LARGE:
