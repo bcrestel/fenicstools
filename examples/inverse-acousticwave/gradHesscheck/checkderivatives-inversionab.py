@@ -1,6 +1,6 @@
 """
 Acoustic wave inverse problem with a single low-frequency,
-and homogeneous Neumann boundary conditions everywhere.
+and absorbing boundary conditions on left, bottom, and right.
 Check gradient and Hessian for joint inverse problem a and b
 """
 
@@ -25,7 +25,7 @@ from fenicstools.examples.acousticwave.mediumparameters import \
 targetmediumparameters, initmediumparameters
 
 ALL = False
-LARGE = True
+LARGE = False
 
 
 if LARGE:
@@ -51,14 +51,14 @@ mpirank = MPI.rank(mpicomm)
 Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
 # Source term:
 Ricker = RickerWavelet(fpeak, 1e-6)
+r = 2   # polynomial degree for state and adj
+V = dl.FunctionSpace(mesh, 'Lagrange', r)
+Pt = PointSources(V, [[0.2*X,Y],[0.5*X,Y], [0.8*X,Y]])
+srcv = dl.Function(V).vector()
 # Boundary conditions:
 class ABCdom(dl.SubDomain):
     def inside(self, x, on_boundary):
         return on_boundary and (x[1] < Y)
-r = 2   # polynomial degree for state and adj
-V = dl.FunctionSpace(mesh, 'Lagrange', r)
-Pt = PointSources(V, [[0.5*X,Y]])
-srcv = dl.Function(V).vector()
 # Computation:
 if mpirank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 Wave = AcousticWave({'V':V, 'Vm':Vl}, 
