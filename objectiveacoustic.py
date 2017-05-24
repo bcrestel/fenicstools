@@ -414,6 +414,10 @@ class ObjectiveAcoustic(LinearOperator):
             self.Mprime.get_gradient(self.p.vector(), self.qhat.vector())
 
 
+    def assemble_hessian():
+        self.regularization.assemble_hessianab(self.PDE.a, self.PDE.b)
+
+
 
     # SETTERS + UPDATE:
     def update_PDE(self, parameters): self.PDE.update(parameters)
@@ -442,82 +446,99 @@ class ObjectiveAcoustic(LinearOperator):
     def getprecond(self):       return self.regularization.getprecond()
 
 
-    # SHOULD BE REMOVED:
-    def set_abc(self, mesh, class_bc_abc, lumpD):  
-        self.PDE.set_abc(mesh, class_bc_abc, lumpD)
-    def init_vector(self, x, dim):
-        self.Mass.init_vector(x, dim)
-    def getmcopyarray(self):    return self.getmcopy().array()
-    def getMGarray(self):       return self.MGv.array()
-    def setsrcterm(self, ftime):    self.PDE.ftime = ftime
 
+    # SOLVE INVERSE PROBLEM
+    def inversion(self, initial_medium, target_medium, parameters_in=None, \
+    boundsLS=None, myplot=None):
+        """ 
+        Solve inverse problem with that objective function 
+        """
+        parameters = {}
+        parameters['reltolgrad']        = 1e-10
+        parameters['abstolgrad']        = 1e-14
+        parameters['tolcost']           = 1e-14
+        parameters['maxiterNewt']       = 100
+        parameters['nbGNsteps']         = 10
+        parameters['maxtolcg']          = 0.5
+        parameters['inexactCG']         = True
+        parameters['isprint']           = False
+        parameters.update(parameters_in)
+        isprint = parameters['isprint']
+        maxiterNewt = parameters['maxiterNewt']
+        reltolgrad = parameters['reltolgrad']
+        abstolgrad = parameters['abstolgrad']
+        maxtolcg = parameters['maxtolcg']
+        tolcost = parameters['tolcost']
+        nbGNsteps = parameters['nbGNsteps']
 
-
-    def inversion(self, initial_medium, target_medium, mpicomm, \
-    tolgrad=1e-10, tolcost=1e-14, maxnbNewtiter=50, myplot=None):
-        """ solve inverse problem with that objective function """
-        tolcg = 0.5
-        mpirank = MPI.rank(mpicomm)
-        if mpirank == 0:
+        if isprint:
             print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t{:10s} {:12s} {:12s}'.format(\
             'iter', 'cost', 'misfit', 'reg', '|G|', 'medmisf', 'a_ls', 'tol_cg', 'n_cg')
-        # set medium to initial_medium, then plot
-        if self.invparam == 'a':    self.update_PDE({'a':initial_medium})
-        elif self.invparam == 'b':    self.update_PDE({'b':initial_medium})
-        elif self.invparam == 'ab':    
-            a_init, b_init = initial_medium.split(deepcopy=True)
-            self.update_PDE({'a':a_init, 'b':b_init})
+
+        a0, b0 = initial_medium.split(deepcopy=True)
+        self.update_PDE({'a':a0, 'b':b0})
         self._plotab(myplot, 'init')
 
-        # start inversion
         dtruenorm = np.sqrt(target_medium.vector().\
         inner(self.Mass*target_medium.vector()))
+
         self.solvefwd_cost()
-        for it in xrange(maxnbNewtiter):
-            # compute gradient
+        for it in xrange(maxiterNewt):
             self.solveadj_constructgrad()
             gradnorm = np.sqrt(self.MGv.inner(self.Grad.vector()))
             if it == 0:   gradnorm0 = gradnorm
-            if self.invparam == 'a':
-                diff = self.PDE.a.vector() - target_medium.vector()
-            elif self.invparam == 'b':
-                diff = self.PDE.b.vector() - target_medium.vector()
-            elif self.invparam == 'ab':
-                assign(self.ab.sub(0), self.PDE.a)
-                assign(self.ab.sub(1), self.PDE.b)
-                diff = self.ab.vector() - target_medium.vector()
+
+            assign(self.ab.sub(0), self.PDE.a)
+            assign(self.ab.sub(1), self.PDE.b)
+            diff = self.ab.vector() - target_medium.vector()
             medmisfit = np.sqrt(diff.inner(self.Mass*diff))
-            if mpirank == 0:
+
+            if isprint:
                 print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.2f})'.\
                 format(it, self.cost, self.cost_misfit, self.cost_reg, \
                 gradnorm, medmisfit, medmisfit/dtruenorm),
-            # plots
             self._plotab(myplot, str(it))
             self._plotgrad(myplot, str(it))
-            # stopping criterion (gradient)
-            if gradnorm < gradnorm0 * tolgrad or gradnorm < 1e-12:
-                if mpirank == 0:
-                    print '\nGradient sufficiently reduced -- optimization stopped'
-                break
-            # compute search direction and plot
-            #tolcg = min(0.5, np.sqrt(gradnorm/gradnorm0))
-            tolcg = min(tolcg, np.sqrt(gradnorm/gradnorm0))
-            self.regularization.assemble_hessianab(self.PDE.a, self.PDE.b)
-            cgiter, cgres, cgid, tolcg = compute_searchdirection(self, 'Newt', tolcg)
+
+            # Stopping criterion (gradient)
+            if gradnorm < gradnorm0*reltolgrad or gradnorm < abstolgrad:
+                if isprint:
+                    print '\nGradient sufficiently reduced'
+                    print 'Optimization converged'
+                return
+
+            # Compute search direction and plot
+            tolcg = min(maxtolcg, np.sqrt(gradnorm/gradnorm0))
+            if it < nbGNsteps:
+                self.GN = True
+            else:
+                self.GN = False
+            cgiter, cgres, cgid = compute_searchdirection(self,
+            {'method':'Newton', 'tolcg':tolcg})
             self._plotsrchdir(myplot, str(it))
-            # perform line search
+
+            # Backtracking line search
             cost_old = self.cost
-            statusLS, LScount, alpha = bcktrcklinesearch(self, 12)
+            statusLS, LScount, alpha = bcktrcklinesearch(self, parameters, boundsLS)
             cost = self.cost
-            if mpirank == 0:
+            if isprint:
                 print '{:11.3f} {:12.2e} {:10d}'.format(alpha, tolcg, cgiter)
-            # perform line search for dual variable (TV-PD):
-            if self.PD: self.regularization.update_w(self.srchdir.vector(), alpha)
-            # stopping criterion (cost)
+            # Perform line search for dual variable (TV-PD):
+            if self.PD: 
+                self.regularization.update_w(self.srchdir.vector(), alpha)
+
+            # Stopping criterion (cost)
             if np.abs(cost-cost_old)/np.abs(cost_old) < tolcost:
-                if mpirank == 0:
-                    print 'Cost function stagnates -- optimization stopped'
-                break
+                if isprint:
+                    print '\nCost function stagnates'
+                    print 'Optimization aborted'
+                return
+
+        if isprint:
+            print '\nMaximum number of Newton iterations reached'
+            print 'Optimization aborted'
+
+
 
 
     # PLOTS:
@@ -562,3 +583,15 @@ class ObjectiveAcoustic(LinearOperator):
                 myplot.plot_vtk(Ga)
                 myplot.set_varname('srchdir_b'+index)
                 myplot.plot_vtk(Gb)
+
+
+
+    # SHOULD BE REMOVED:
+    def set_abc(self, mesh, class_bc_abc, lumpD):  
+        self.PDE.set_abc(mesh, class_bc_abc, lumpD)
+    def init_vector(self, x, dim):
+        self.Mass.init_vector(x, dim)
+    def getmcopyarray(self):    return self.getmcopy().array()
+    def getMGarray(self):       return self.MGv.array()
+    def setsrcterm(self, ftime):    self.PDE.ftime = ftime
+

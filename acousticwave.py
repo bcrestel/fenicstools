@@ -127,18 +127,16 @@ class AcousticWave():
         # Medium parameters:
         if parameters_m.has_key('b'):
             setfct(self.b, parameters_m['b'])
-            if np.amin(self.b.vector().array()) < 1e-8:
-                if isprint: print 'negative value for parameter b'
-                sys.exit(1)
+            minb = self.b.vector().min()
+            assert minb > 1e-8, "negative value for parameter b"
             if isprint: print 'assemble K',
             self.K = assemble(self.weak_k)
             if isprint: print ' -- K assembled'
 
         if parameters_m.has_key('a'):
             setfct(self.a, parameters_m['a'])
-            if np.amin(self.a.vector().array()) < 1e-8:
-                if isprint: print 'negative value for parameter a'
-                sys.exit(1)
+            mina = self.a.vector().min()
+            assert mina > 1e-8, "negative value for parameter a"
             if isprint: print 'assemble M',
             Mfull = assemble(self.weak_m)
             if lumpM:

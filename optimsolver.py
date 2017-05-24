@@ -2,13 +2,9 @@
 Library of functions used to solve optimization problem
 """
 
-import sys
-import numpy as np
-
 import dolfin as dl
-from dolfin import MPI, mpi_comm_world
-from linalg.cgsolverSteihaug import CGSolverSteihaug
-from miscfenics import setfct
+from dolfin import MPI
+from hippylib.cgsolverSteihaug import CGSolverSteihaug
 
 
 def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doublesided=True):
@@ -157,82 +153,99 @@ def checkhessabfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
     ObjFctal.solveadj_constructgrad()
 
 
-#@profile
-def compute_searchdirection(objfctal, keyword, tolcg = 1e-8):
-    """Compute search direction for Line Search based on keyword.
-    keyword can be 'sd' (steepest descent) or 'Newt' (Newton's method).
-    Whether we use full Hessian or GN Hessian in Newton's method depend on
-    parameter objfctal.GN
-    Inputs:
-        objfctal = object for objective functional; should contain methods:
-            - setsrchdir: set search direction from np.array
-            for Newton's method, should also contain methods:
-            - mult: matrix operation A.x from fenics class LinearOperator
-            - getprecond: return preconditioner for computation Newton's step
-            and members:
-            - srchdir: search direction
-            - MGv: Mass*Gradient in vector format
-        keyword = 'sd' or 'Newt'
+
+def compute_searchdirection(objfctal, parameters_in=None):
     """
-    if keyword == 'sd':
-        objfctal.setsrchdir(-1.0*objfctal.getGradarray())
-    elif keyword == 'Newt':
+    Compute search direction for Line Search
+    """
+    parameters = {}
+    parameters['method']        = 'Newton'
+    parameters['tolcg']         = 1e-8
+    parameters['tolGxD']        = 1e-24
+    parameters.update(parameters_in)
+    method = parameters['method']
+    tolcg = parameters['tolcg']
+    tolGxD = parameters['tolGxD']
+
+    if method == 'sd':
+        objfctal.srchdir.vector().zero()
+        objfctal.srchdir.vector().axpy(-1.0, objfctal.MGv)
+        return 0, 0.0, 0
+
+    elif method == 'Newt':
         objfctal.assemble_hessian()
-        # Define solver
         solver = CGSolverSteihaug()
         solver.set_operator(objfctal)
         solver.set_preconditioner(objfctal.getprecond())
         solver.parameters["rel_tolerance"] = tolcg
         solver.parameters["zero_initial_guess"] = True
         solver.parameters["print_level"] = -1
-        solver.solve(objfctal.srchdir.vector(), -objfctal.MGv)  # all cpu time spent here
-    else:
-        raise ValueError("Wrong keyword")
+        solver.solve(objfctal.srchdir.vector(), -1.0*objfctal.MGv)  # all cpu time spent here
+
+    else:   raise ValueError("Wrong keyword")
+
     # check it is a descent direction
     GradxDir = objfctal.MGv.inner(objfctal.srchdir.vector())
-    if GradxDir > 0.0: 
-        raise ValueError("Search direction is not a descent direction")
-        sys.exit(1)
-    if keyword == 'Newt':
-        return [solver.iter, solver.final_norm, solver.reasonid, tolcg]
+    assert GradxDir > tolGxD, "Search direction is not a descent direction"
+
+    return solver.iter, solver.final_norm, solver.reasonid
 
 
-def bcktrcklinesearch(objfctal, nbLS, alpha_init=1.0, rho=0.5, c=5e-5):
-    """Run backtracking line search in 'search_direction'. 
-    Default 'search_direction is steepest descent.
-    'rho' is multiplicative factor for alpha.
-    objfctal should contain methods:
-        - backup_m
-        - getmcopyarray
-        - update_m
-        - solvefwd_cost
-        - getgradxdir
+
+def bcktrcklinesearch(objfctal, parameters_in=None, bounds=None):
     """
-    # Check input parameters are correct:
+    Backtracking line search with bound check
+    bounds = [[mina, maxa], [minb, maxb]]
+    """
+    parameters = {}
+    parameters['alpha0']        = 1.0
+    parameters['rho']           = 0.5
+    parameters['c']             = 5e-5
+    parameters['nbLS']          = 20
+    parametes.update(parameters_in)
+    nbLS = parameters['nbLS']
+    alpha0 = parameters['alpha0']
+    rho = parameters['rho']
+    c = parameters['c']
+
     if c < 0. or c > 1.:    raise ValueError("c must be between 0 and 1")
     if rho < 0. or rho > 0.99:  
         raise ValueError("rho must be between 0 and 1")
-    if alpha_init < 1e-16:    raise ValueError("alpha must be positive")
-    # Prelim steps:
+    if alpha0 < 1e-16:    raise ValueError("alpha must be positive")
+
     objfctal.backup_m()
-    cost_mk = objfctal.cost
-    LScount = 0
+    m0 = objfctal.m_bkup.vector()
+    new_m = m0.copy()
+    cost_m0 = objfctal.cost
+
+    srch_dir = objfctal.srchdir.vector()
+    GradxDir = objfctal.MGv.inner(srch_dir)
+
     success = False
-    alpha = alpha_init
-    srch_dir = objfctal.srchdir.vector().array()
-    GradxDir = objfctal.MGv.inner(objfctal.srchdir.vector())
-    # Start Line Search:
+    LScount = 0
+    alpha = alpha0
     while LScount < nbLS:
         LScount += 1
-        new_m = objfctal.getmcopyarray() + alpha*srch_dir
-        if np.amin(new_m) > 1e-14:
-            objfctal.update_m(new_m)
-            objfctal.solvefwd_cost()
-            if objfctal.cost < (cost_mk + alpha*c*GradxDir):
-                success = True
-                break
+        new_m.zero()
+        new_m.axpy(1.0, m0)
+        new_m.axpy(alpha, srch_dir)
+        objfctal.update_m(new_m)
+        if bounds is not None:
+            mina = objfctal.PDE.a.vector().min()
+            maxa = objfctal.PDE.a.vector().max()
+            minb = objfctal.PDE.b.vector().min()
+            maxb = objfctal.PDE.b.vector().max()
+            if mina < bounds[0][0] or maxa > bounds[0][1] or \
+            minb < bounds[1][0] or maxb > bounds[1][1]:
+                alpha *= rho
+                continue
+        objfctal.solvefwd_cost()
+        if objfctal.cost < (cost_m0 + alpha*c*GradxDir):
+            success = True
+            break
         alpha *= rho
-    return [success, LScount, alpha]
+
+    return success, LScount, alpha
 
 
 
