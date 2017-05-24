@@ -115,13 +115,16 @@ def checkhessabfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
 
             if normhess < 1e-16:
                 err = (HessVecFD.vector() - HessVec.vector()).norm('l2')
-                HessVecaFD, HessVecbFD = HessVecFD.split(deepcopy=True)
-                erra = (HessVecaFD.vector() - HessVeca.vector()).norm('l2')
-                errb = (HessVecbFD.vector() - HessVecb.vector()).norm('l2')
             else:
                 err = (HessVecFD.vector() - HessVec.vector()).norm('l2') / normhess
-                HessVecaFD, HessVecbFD = HessVecFD.split(deepcopy=True)
+            HessVecaFD, HessVecbFD = HessVecFD.split(deepcopy=True)
+            if normhessa < 1e-16:
+                erra = (HessVecaFD.vector() - HessVeca.vector()).norm('l2')
+            else:
                 erra = (HessVecaFD.vector() - HessVeca.vector()).norm('l2') / normhessa
+            if normhessb < 1e-16:
+                errb = (HessVecbFD.vector() - HessVecb.vector()).norm('l2')
+            else:
                 errb = (HessVecbFD.vector() - HessVecb.vector()).norm('l2') / normhessb
 
             FDHxa = HessVecaFD.vector().norm('l2')

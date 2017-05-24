@@ -26,6 +26,8 @@ targetmediumparameters, initmediumparameters
 
 ALL = False
 LARGE = False
+PARAM = 'b'
+if not PARAM == 'ab':   ALL = False
 
 
 if LARGE:
@@ -76,7 +78,7 @@ tfilterpts = [t0, t1, t2, tf]
 obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
 
 # define objective function:
-waveobj = ObjectiveAcoustic(Wave, [Ricker, Pt, srcv], 'ab')
+waveobj = ObjectiveAcoustic(Wave, [Ricker, Pt, srcv], PARAM)
 waveobj.obsop = obsop
 #waveobj.GN = True
 
@@ -138,12 +140,17 @@ else:
         tmp.vector().zero()
         dl.assign(tmp.sub(1), dl.interpolate(MPb[ii], Vl))
         Mediumb.append(tmp.vector().copy())
-    if mpirank == 0:    print 'check a-gradient with FD'
-    checkgradfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7], True)
-    if mpirank == 0:    print 'check b-gradient with FD'
-    checkgradfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True)
+    if 'a' in PARAM:
+        if mpirank == 0:    print 'check a-gradient with FD'
+        checkgradfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7], True)
+    if 'b' in PARAM:
+        if mpirank == 0:    print 'check b-gradient with FD'
+        checkgradfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True)
 
-    if mpirank == 0:    print '\ncheck a-Hessian with FD'
-    checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7, 1e-8], True, 'a')
-    if mpirank == 0:    print 'check b-Hessian with FD'
-    checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7, 1e-8], True, 'b')
+    print '\n'
+    if 'a' in PARAM:
+        if mpirank == 0:    print 'check a-Hessian with FD'
+        checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7, 1e-8], True, 'a')
+    if 'b' in PARAM:
+        if mpirank == 0:    print 'check b-Hessian with FD'
+        checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7, 1e-8], True, 'b')
