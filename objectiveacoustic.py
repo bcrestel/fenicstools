@@ -468,7 +468,7 @@ class ObjectiveAcoustic(LinearOperator):
 
 
     # GETTERS:
-    def getmcopy(self):         return self.m_bkup.vector()
+    def getmbkup(self):         return self.m_bkup.vector()
     def getMG(self):            return self.MGv
     def getprecond(self):       return self.regularization.getprecond()
 

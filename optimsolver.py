@@ -34,7 +34,7 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doub
         for hh in H:
             cost = []
             for fact in factor:
-                modifparam = ObjFctal.getmcopy().copy()
+                modifparam = ObjFctal.getmbkup().copy()
                 modifparam.axpy(fact*hh, med)
                 ObjFctal.update_m(modifparam)
                 ObjFctal.solvefwd_cost()
@@ -84,7 +84,7 @@ def checkhessabfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
     else:   factor = [1.0]
 
     for textnb, med in enumerate(Medium):
-        ObjFctal.update_m(ObjFctal.getmcopy())
+        ObjFctal.update_m(ObjFctal.getmbkup())
         ObjFctal.solvefwd_cost()
         ObjFctal.solveadj_constructgrad()
         ObjFctal.mult(med, HessVec.vector())
@@ -101,7 +101,7 @@ def checkhessabfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
         for hh in H:
             MG = []
             for fact in factor:
-                modifparam = ObjFctal.getmcopy().copy()
+                modifparam = ObjFctal.getmbkup().copy()
                 modifparam.axpy(fact*hh, med)
                 ObjFctal.update_m(modifparam)
                 ObjFctal.solvefwd_cost()
