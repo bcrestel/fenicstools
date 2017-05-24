@@ -18,6 +18,11 @@ def createparam(CC, Vl, X, H1, H2, H3, TT):
 
 
 def targetmediumparameters(Vl, X, myplot=None):
+    """
+    Arguments:
+        Vl = function space
+        X = x dimension of domain
+    """
     # medium parameters:
     H1, H2, H3, TT = 0.8, 0.2, 0.6, 0.1
     CC = [5.0, 2.0, 3.0, 4.0]
