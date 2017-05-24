@@ -10,10 +10,7 @@ from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
 
 from dolfin import FacetFunction, Measure
 
-#TODO: 
-#   add option for GN Hessian
-#   create hippylib model for ObjectiveAcoustic object
-#   add callback function to hippylib ReduceSpaceNewtonCG object for the reducedHessian
+
 class ObjectiveAcoustic(LinearOperator):
     """
     Computes data misfit, gradient and Hessian evaluation for the seismic
@@ -43,6 +40,7 @@ class ObjectiveAcoustic(LinearOperator):
         self.delta_m = Function(Vm*Vm)
         self.m_bkup = Function(Vm*Vm)
         LinearOperator.__init__(self, self.MGv, self.MGv)
+        self.GN = False
 
         if regularization == None:  
             print '*** Warning: Using zero regularization'
@@ -67,6 +65,7 @@ class ObjectiveAcoustic(LinearOperator):
             self.get_gradienta = self.get_gradienta_full
             self.wkformhessa = inner(self.phat*self.mtest, self.q)*dx \
             + inner(self.p*self.mtest, self.qhat)*dx
+            self.wkformhessaGN = inner(self.p*self.mtest, self.qhat)*dx
             self.get_hessiana = self.get_hessiana_full
             self.wkformrhsincra = inner(self.ahat*self.ptrial, self.ptest)*dx
             self.get_incra = self.get_incra_full
@@ -75,6 +74,7 @@ class ObjectiveAcoustic(LinearOperator):
         self.wkformrhsincrb = inner(self.bhat*nabla_grad(self.ptrial), nabla_grad(self.ptest))*dx
         self.wkformhessb = inner(nabla_grad(self.phat)*self.mtest, nabla_grad(self.q))*dx \
         + inner(nabla_grad(self.p)*self.mtest, nabla_grad(self.qhat))*dx
+        self.wkformhessbGN = inner(nabla_grad(self.p)*self.mtest, nabla_grad(self.qhat))*dx
 
         # Mass matrix:
         self.mmtest, self.mmtrial = TestFunction(Vm*Vm), TrialFunction(Vm*Vm)
@@ -269,6 +269,7 @@ class ObjectiveAcoustic(LinearOperator):
         if self.PDE.parameters['abc']:
             setfct(self.phat, self.solpfwdi[index][0])
             self.q.vector().axpy(0.5, self.Dp*self.phat.vector())
+
         return -1.0*self.q.vector()
 
 
@@ -283,25 +284,27 @@ class ObjectiveAcoustic(LinearOperator):
             print np.min(np.abs(self.PDE.times-tt))
             sys.exit(0)
 
-        # bhat: bhat*grad(ptilde).grad(v)
-        assert isequal(tt, self.soladji[indexa][1], 1e-16)
-        setfct(self.q, self.soladji[indexa][0])
-        self.qhat.vector().zero()
-        self.qhat.vector().axpy(1.0, self.C*self.q.vector())
-
-        # ahat: ahat*ptilde*q'':
-        setfct(self.q, self.solppadji[indexa][0])
-        self.qhat.vector().axpy(1.0, self.get_incra(self.q.vector()))
-
         # B* B phat
-        assert isequal(tt, self.solincrfwd[indexf][1], 1e-16)
+#        assert isequal(tt, self.solincrfwd[indexf][1], 1e-16)
         setfct(self.phat, self.solincrfwd[indexf][0])
+        self.qhat.vector().zero()
         self.qhat.vector().axpy(1.0, self.obsop.incradj(self.phat, tt))
 
-        # ABC:
-        if self.PDE.parameters['abc']:
-            setfct(self.phat, self.solpadji[indexa][0])
-            self.qhat.vector().axpy(-0.5, self.Dp*self.phat.vector())
+        if not self.GN:
+            # bhat: bhat*grad(ptilde).grad(v)
+#            assert isequal(tt, self.soladji[indexa][1], 1e-16)
+            setfct(self.q, self.soladji[indexa][0])
+            self.qhat.vector().axpy(1.0, self.C*self.q.vector())
+
+            # ahat: ahat*ptilde*q'':
+            setfct(self.q, self.solppadji[indexa][0])
+            self.qhat.vector().axpy(1.0, self.get_incra(self.q.vector()))
+
+            # ABC:
+            if self.PDE.parameters['abc']:
+                setfct(self.phat, self.solpadji[indexa][0])
+                self.qhat.vector().axpy(-0.5, self.Dp*self.phat.vector())
+
         return -1.0*self.qhat.vector()
 
     def get_incra_full(self, pvector):
@@ -363,7 +366,10 @@ class ObjectiveAcoustic(LinearOperator):
                 setfct(self.q, adj[0])
                 setfct(self.phat, incrfwd[0])
                 setfct(self.qhat, incradj[0])
-                yb.axpy(fact, assemble(self.wkformhessb))
+                if self.GN:
+                    yb.axpy(fact, assemble(self.wkformhessbGN))
+                else:
+                    yb.axpy(fact, assemble(self.wkformhessb))
 
                 # Hessian a
                 setfct(self.p, fwdpp[0])
@@ -371,18 +377,20 @@ class ObjectiveAcoustic(LinearOperator):
                 ya.axpy(fact, self.get_hessiana())
 
                 if self.PDE.parameters['abc']:
-                    setfct(self.p, incrfwdp[0])
-                    ya.axpy(0.5*fact, assemble(self.wkformgradaABC))
-                    yb.axpy(0.5*fact, assemble(self.wkformgradbABC))
+                    if not self.GN:
+                        setfct(self.p, incrfwdp[0])
+                        ya.axpy(0.5*fact, assemble(self.wkformgradaABC))
+                        yb.axpy(0.5*fact, assemble(self.wkformgradbABC))
 
                     setfct(self.p, fwdp[0])
                     setfct(self.q, incradj[0])
                     ya.axpy(0.5*fact, assemble(self.wkformgradaABC))
                     yb.axpy(0.5*fact, assemble(self.wkformgradbABC))
 
-                    setfct(self.q, adj[0])
-                    ya.axpy(0.25*fact, assemble(self.wkformhessaABC))
-                    yb.axpy(0.25*fact, assemble(self.wkformhessbABC))
+                    if not self.GN:
+                        setfct(self.q, adj[0])
+                        ya.axpy(0.25*fact, assemble(self.wkformhessaABC))
+                        yb.axpy(0.25*fact, assemble(self.wkformhessbABC))
 
         y.zero()
         assign(self.ab.sub(0), yaF)
@@ -393,18 +401,21 @@ class ObjectiveAcoustic(LinearOperator):
         self.regularization.hessianab(self.ahat.vector(), self.bhat.vector()))
 
     def get_hessiana_full(self):
-        return assemble(self.wkformhessa)
+        if self.GN:
+            return assemble(self.wkformhessaGN)
+        else:
+            return assemble(self.wkformhessa)
 
     def get_hessiana_lumped(self):
-        return self.Mprime.get_gradient(self.phat.vector(), self.q.vector()) +\
-        self.Mprime.get_gradient(self.p.vector(), self.qhat.vector())
+        if self.GN:
+            return self.Mprime.get_gradient(self.p.vector(), self.qhat.vector())
+        else:
+            return self.Mprime.get_gradient(self.phat.vector(), self.q.vector()) +\
+            self.Mprime.get_gradient(self.p.vector(), self.qhat.vector())
 
 
 
     # SETTERS + UPDATE:
-    def init_vector(self, x, dim):
-        self.Mass.init_vector(x, dim)
-
     def update_PDE(self, parameters): self.PDE.update(parameters)
 
     def update_m(self, medparam):
@@ -412,9 +423,6 @@ class ObjectiveAcoustic(LinearOperator):
         setfct(self.ab, medparam)
         a, b = self.ab.split(deepcopy=True)
         self.update_PDE({'a':a, 'b':b})
-
-    def set_abc(self, mesh, class_bc_abc, lumpD):  
-        self.PDE.set_abc(mesh, class_bc_abc, lumpD)
 
     def backup_m(self): 
         """ back-up current value of med param a and b """
@@ -426,16 +434,22 @@ class ObjectiveAcoustic(LinearOperator):
         a, b = self.m_bkup.split(deepcopy=True)
         self.update_PDE({'a':a, 'b':b})
 
-    def setsrcterm(self, ftime):    self.PDE.ftime = ftime
-
 
 
     # GETTERS:
     def getmcopy(self):         return self.m_bkup.vector()
-    def getmcopyarray(self):    return self.getmcopy().array()
     def getMG(self):            return self.MGv
-    def getMGarray(self):       return self.MGv.array()
     def getprecond(self):       return self.regularization.getprecond()
+
+
+    # SHOULD BE REMOVED:
+    def set_abc(self, mesh, class_bc_abc, lumpD):  
+        self.PDE.set_abc(mesh, class_bc_abc, lumpD)
+    def init_vector(self, x, dim):
+        self.Mass.init_vector(x, dim)
+    def getmcopyarray(self):    return self.getmcopy().array()
+    def getMGarray(self):       return self.MGv.array()
+    def setsrcterm(self, ftime):    self.PDE.ftime = ftime
 
 
 
@@ -506,6 +520,7 @@ class ObjectiveAcoustic(LinearOperator):
                 break
 
 
+    # PLOTS:
     def _plotab(self, myplot, index):
         """ plot media during inversion """
         if not myplot == None:
