@@ -47,7 +47,10 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doub
             if doublesided: FDgrad = (cost[0] - cost[1])/(2.0*hh)
             else:   FDgrad = (cost[0] - costref)/hh
 
-            err = abs(mgdir - FDgrad) / abs(mgdir)
+            if abs(mgdir) < 1e-16:
+                err = abs(mgdir - FDgrad)
+            else:
+                err = abs(mgdir - FDgrad) / abs(mgdir)
             if err < tolgradchk:   
                 if mpirank == 0:
                     print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e} -> OK!'\
@@ -114,10 +117,16 @@ def checkhessabfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
             HessVecFD.vector().zero()
             HessVecFD.vector().axpy(1.0, FDHessx)
 
-            err = (HessVecFD.vector() - HessVec.vector()).norm('l2') / normhess
-            HessVecaFD, HessVecbFD = HessVecFD.split(deepcopy=True)
-            erra = (HessVecaFD.vector() - HessVeca.vector()).norm('l2') / normhessa
-            errb = (HessVecbFD.vector() - HessVecb.vector()).norm('l2') / normhessb
+            if normhess < 1e-16:
+                err = (HessVecFD.vector() - HessVec.vector()).norm('l2')
+                HessVecaFD, HessVecbFD = HessVecFD.split(deepcopy=True)
+                erra = (HessVecaFD.vector() - HessVeca.vector()).norm('l2')
+                errb = (HessVecbFD.vector() - HessVecb.vector()).norm('l2')
+            else:
+                err = (HessVecFD.vector() - HessVec.vector()).norm('l2') / normhess
+                HessVecaFD, HessVecbFD = HessVecFD.split(deepcopy=True)
+                erra = (HessVecaFD.vector() - HessVeca.vector()).norm('l2') / normhessa
+                errb = (HessVecbFD.vector() - HessVecb.vector()).norm('l2') / normhessb
 
             FDHxa = HessVecaFD.vector().norm('l2')
             FDHxb = HessVecbFD.vector().norm('l2')
