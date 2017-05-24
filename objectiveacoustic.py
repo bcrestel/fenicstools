@@ -26,8 +26,15 @@ class ObjectiveAcoustic(LinearOperator):
         self.PDE.exact = None
         self.obsop = None   # Observation operator
         self.dd = None  # observations
-
         self.fwdsource = sources
+
+        self.inverta = False
+        self.invertb = False
+        if 'a' in invparam:
+            self.inverta = True
+        if 'b' in invparam:
+            self.invertb = True
+        assert self.inverta + self.invertb > 0
 
         Vm = self.PDE.Vm
         V = self.PDE.V
@@ -42,6 +49,8 @@ class ObjectiveAcoustic(LinearOperator):
         LinearOperator.__init__(self, self.MGv, self.MGv)
         self.GN = False
 
+        #TODO: check that ZeroRegularization is applied in direction that is not
+        #inverted for
         if regularization == None:  
             print '*** Warning: Using zero regularization'
             self.regularization = ZeroRegularization()
@@ -188,7 +197,7 @@ class ObjectiveAcoustic(LinearOperator):
             self.solppadj.append(solppadj)
 
         if grad:
-            self.MGv.zero()
+            self.MG.vector().zero()
             MGa, MGb = self.MG.split(deepcopy=True)
             MGav, MGbv = MGa.vector(), MGb.vector()
 
@@ -198,31 +207,38 @@ class ObjectiveAcoustic(LinearOperator):
                 for fwd, fwdp, fwdpp, adj, fact in \
                 izip(solfwd, solpfwd, solppfwd, reversed(soladj), self.factors):
                     setfct(self.q, adj[0])
-                    # gradient a
-                    setfct(self.p, fwdpp[0])
-                    MGav.axpy(fact, self.get_gradienta()) 
-                    # gradient b
-                    setfct(self.p, fwd[0])
-                    assemble(form=self.wkformgradb, tensor=self.wkformgradbout)
-                    MGbv.axpy(fact, self.wkformgradbout)
+                    if self.inverta:
+                        # gradient a
+                        setfct(self.p, fwdpp[0])
+                        MGav.axpy(fact, self.get_gradienta()) 
+                    if self.invertb:
+                        # gradient b
+                        setfct(self.p, fwd[0])
+                        assemble(form=self.wkformgradb, tensor=self.wkformgradbout)
+                        MGbv.axpy(fact, self.wkformgradbout)
 
                     if self.PDE.parameters['abc']:
                         setfct(self.p, fwdp[0])
-                        assemble(form=self.wkformgradaABC, tensor=self.wkformgradaABCout)
-                        MGav.axpy(0.5*fact, self.wkformgradaABCout)
-                        assemble(form=self.wkformgradbABC, tensor=self.wkformgradbABCout)
-                        MGbv.axpy(0.5*fact, self.wkformgradbABCout)
+                        if self.inverta:
+                            assemble(form=self.wkformgradaABC, tensor=self.wkformgradaABCout)
+                            MGav.axpy(0.5*fact, self.wkformgradaABCout)
+                        if self.invertb:
+                            assemble(form=self.wkformgradbABC, tensor=self.wkformgradbABCout)
+                            MGbv.axpy(0.5*fact, self.wkformgradbABCout)
 
             setfct(MGa, MGav/len(self.Bp))
             setfct(MGb, MGbv/len(self.Bp))
-            assign(self.MG.sub(0), MGa)
-            assign(self.MG.sub(1), MGb)
+            self.MG.vector().zero()
+            if self.inverta:
+                assign(self.MG.sub(0), MGa)
+            if self.invertb:
+                assign(self.MG.sub(1), MGb)
 
-            self.MGv.axpy(self.alpha_reg, \
+            self.MG.vector().axpy(self.alpha_reg, \
             self.regularization.gradab(self.PDE.a, self.PDE.b))
 
             try:
-                self.solverM.solve(self.Grad.vector(), self.MGv)
+                self.solverM.solve(self.Grad.vector(), self.MG.vector())
             except:
                 # if |G|<<1, first residuals may diverge
                 # caveat: Hope that ALL processes throw an exception
@@ -230,7 +246,7 @@ class ObjectiveAcoustic(LinearOperator):
                 if pseudoGradnorm < 1e-8:
                     print '*** Warning: Increasing divergence_limit for Mass matrix solver'
                     self.solverM.parameters["divergence_limit"] = 1e6
-                    self.solverM.solve(self.Grad.vector(), self.MGv)
+                    self.solverM.solve(self.Grad.vector(), self.MG.vector())
                 else:
                     print '*** Error: Problem with Mass matrix solver'
                     sys.exit(1)
@@ -361,40 +377,51 @@ class ObjectiveAcoustic(LinearOperator):
 #                assert isequal(ttf, ttf2, 1e-16), 'tfwd={}, tadj={}, reldiff={}'.\
 #                format(ttf, ttf2, abs(ttf-ttf2)/ttf)
 
-                # Hessian b
-                setfct(self.p, fwd[0])
                 setfct(self.q, adj[0])
-                setfct(self.phat, incrfwd[0])
                 setfct(self.qhat, incradj[0])
-                if self.GN:
-                    yb.axpy(fact, assemble(self.wkformhessbGN))
-                else:
-                    yb.axpy(fact, assemble(self.wkformhessb))
+                if self.invertb:
+                    # Hessian b
+                    setfct(self.p, fwd[0])
+                    setfct(self.phat, incrfwd[0])
+                    if self.GN:
+                        yb.axpy(fact, assemble(self.wkformhessbGN))
+                    else:
+                        yb.axpy(fact, assemble(self.wkformhessb))
 
-                # Hessian a
-                setfct(self.p, fwdpp[0])
-                setfct(self.phat, incrfwdpp[0])
-                ya.axpy(fact, self.get_hessiana())
+                if self.inverta:
+                    # Hessian a
+                    setfct(self.p, fwdpp[0])
+                    setfct(self.phat, incrfwdpp[0])
+                    ya.axpy(fact, self.get_hessiana())
 
                 if self.PDE.parameters['abc']:
                     if not self.GN:
                         setfct(self.p, incrfwdp[0])
-                        ya.axpy(0.5*fact, assemble(self.wkformgradaABC))
-                        yb.axpy(0.5*fact, assemble(self.wkformgradbABC))
+                        if self.inverta:
+                            ya.axpy(0.5*fact, assemble(self.wkformgradaABC))
+                        if self.invertb:
+                            yb.axpy(0.5*fact, assemble(self.wkformgradbABC))
 
                     setfct(self.p, fwdp[0])
                     setfct(self.q, incradj[0])
-                    ya.axpy(0.5*fact, assemble(self.wkformgradaABC))
-                    yb.axpy(0.5*fact, assemble(self.wkformgradbABC))
+                    if self.inverta:
+                        ya.axpy(0.5*fact, assemble(self.wkformgradaABC))
+                    if self.invertb:
+                        yb.axpy(0.5*fact, assemble(self.wkformgradbABC))
 
                     if not self.GN:
                         setfct(self.q, adj[0])
-                        ya.axpy(0.25*fact, assemble(self.wkformhessaABC))
-                        yb.axpy(0.25*fact, assemble(self.wkformhessbABC))
+                        if self.inverta:
+                            ya.axpy(0.25*fact, assemble(self.wkformhessaABC))
+                        if self.invertb:
+                            yb.axpy(0.25*fact, assemble(self.wkformhessbABC))
 
+        self.ab.vector().zero()
+        if self.inverta:
+            assign(self.ab.sub(0), yaF)
+        if self.invertb:
+            assign(self.ab.sub(1), ybF)
         y.zero()
-        assign(self.ab.sub(0), yaF)
-        assign(self.ab.sub(1), ybF)
         y.axpy(1.0/len(self.Bp), self.ab.vector())
 
         y.axpy(self.alpha_reg, \
@@ -479,6 +506,7 @@ class ObjectiveAcoustic(LinearOperator):
         self.update_PDE({'a':a0, 'b':b0})
         self._plotab(myplot, 'init')
 
+        #TODO: compute that for 'a' and 'b' separately
         dtruenorm = np.sqrt(target_medium.vector().\
         inner(self.Mass*target_medium.vector()))
 
@@ -488,6 +516,7 @@ class ObjectiveAcoustic(LinearOperator):
             gradnorm = np.sqrt(self.MGv.inner(self.Grad.vector()))
             if it == 0:   gradnorm0 = gradnorm
 
+            #TODO: compute that for 'a' and 'b' separately
             assign(self.ab.sub(0), self.PDE.a)
             assign(self.ab.sub(1), self.PDE.b)
             diff = self.ab.vector() - target_medium.vector()
@@ -515,6 +544,14 @@ class ObjectiveAcoustic(LinearOperator):
                 self.GN = False
             cgiter, cgres, cgid = compute_searchdirection(self,
             {'method':'Newton', 'tolcg':tolcg})
+            if not self.inverta*self.invertb:
+                srcha, srchb = self.srchdir.split(deepcopy=True)
+                if not self.inverta:
+                    srcha.vector().zero()
+                    assign(self.srchdir.sub(0), srcha)
+                if not self.invertb:
+                    srchb.vector().zero()
+                    assign(self.srchdir.sub(1), srchb)
             self._plotsrchdir(myplot, str(it))
 
             # Backtracking line search
