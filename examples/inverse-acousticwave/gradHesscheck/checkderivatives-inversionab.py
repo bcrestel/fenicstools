@@ -78,6 +78,7 @@ obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
 # define objective function:
 waveobj = ObjectiveAcoustic(Wave, [Ricker, Pt, srcv], 'ab')
 waveobj.obsop = obsop
+#waveobj.GN = True
 
 # Generate synthetic observations
 if mpirank == 0:    print 'generate noisy data'
@@ -144,7 +145,5 @@ else:
 
     if mpirank == 0:    print '\ncheck a-Hessian with FD'
     checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7, 1e-8], True, 'a')
-    #checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-4, 1e-5, 1e-6, 1e-7], False, 'a')
     if mpirank == 0:    print 'check b-Hessian with FD'
     checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7, 1e-8], True, 'b')
-    #checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-3, 1e-4, 1e-5, 1e-6], False, 'b')
