@@ -341,6 +341,10 @@ class ObjectiveAcoustic(LinearOperator):
         ahat, bhat = self.ab.split(deepcopy=True)
         setfct(self.ahat, ahat)
         setfct(self.bhat, bhat)
+        if not self.inverta:
+            self.ahat.vector().zero()
+        if not self.invertb:
+            self.bhat.vector().zero()
 
         self.C = assemble(self.wkformrhsincrb)
         if not self.PDE.parameters['lumpM']:    self.E = assemble(self.wkformrhsincra)
