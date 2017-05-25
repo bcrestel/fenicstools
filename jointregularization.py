@@ -6,8 +6,8 @@ from dolfin import inner, nabla_grad, dx, interpolate, cells, \
 Function, TestFunction, TrialFunction, assemble, project, \
 PETScKrylovSolver, assign, sqrt, Constant, as_backend_type, \
 FunctionSpace, VectorFunctionSpace, norm, MPI, Vector, split, derivative
-from miscfenics import setfct
-from linalg.splitandassign import BlockDiagonal
+from miscfenics import setfct, ZeroRegularization
+from linalg.splitandassign import BlockDiagonal, PrecondPlusIdentity
 from linalg.miscroutines import setglobalvalue
 try:
     from regularization import TV, TVPD
@@ -16,9 +16,101 @@ except:
     pass
 
 
+
+class SingleRegularization():
+    """
+    Implement regularization for a single parameter
+    Used to solve single inverse problem with code for joint inverse problem
+    Parameter fixed has zero cost, zero gradient, and zero Hessian, but identity
+    preconditioner
+    """
+    def __init__(self, regul, param, isprint=False):
+        """
+        Arguments:
+            regul = regularization for inversion parameters
+            param = inversion parameters (either 'a' or 'b')
+            isprint = boolean
+        """
+        self.param = param
+        if self.param == 'a':
+            self.regul1 = regul
+            self.regul2 = ZeroRegularization(regul.Vm)
+        elif self.param == 'b':
+            self.regul1 = ZeroRegularization(regul.Vm)
+            self.regul2 = regul
+        self.isprint = isprint
+
+        Vm = regul.Vm
+        self.VmVm = Vm*Vm
+        self.ab = Function(self.VmVm)
+        bd = BlockDiagonal(Vm, Vm, Vm.mesh().mpi_comm())
+        self.saa = bd.saa
+
+        if isprint:
+            print 'Using jointregularization.SingleRegularization for inversion parameter {}'.format(self.param)
+            if self.isPD():
+                print 'Using primal-dual TV'
+
+
+    def isTV(self):
+        return self.regul1.isTV() or self.regul2.isTV()
+    def isPD(self):
+        return self.regul1.isPD() or self.regul2.isPD()
+
+
+    def costab(self, m1, m2):
+        return self.regul1.cost(m1) + self.regul2.cost(m2)
+
+    def costabvect(self, m1, m2):
+        return self.regul1.costvect(m1) + self.regul2.costvect(m2)
+
+
+    def gradab(self, m1, m2):
+        grad1 = self.regul1.grad(m1)
+        grad2 = self.regul2.grad(m2)
+        return self.saa.assign(grad1, grad2)
+
+    def gradabvect(self, m1, m2):
+        """ relies on gradvect method from regularization instead of grad
+        gradvect takes a Vector() as input argument """
+        grad1 = self.regul1.gradvect(m1)
+        grad2 = self.regul2.gradvect(m2)
+        return self.saa.assign(grad1, grad2)
+
+
+    def assemble_hessianab(self, m1, m2):
+        self.regul1.assemble_hessian(m1)
+        self.regul2.assemble_hessian(m2)
+
+    def hessianab(self, m1, m2):
+        Hx1 = self.regul1.hessian(m1)
+        Hx2 = self.regul2.hessian(m2)
+        return self.saa.assign(Hx1, Hx2)
+
+
+    def getprecond(self):
+        if self.param == 'a':
+            precondsolver = self.regul1.getprecond()
+        elif self.param == 'b':
+            precondsolver = self.regul2.getprecond()
+        return PrecondPlusIdentity(precondsolver, self.param, self.VmVm)
+
+
+    def update_w(self, mhat, alphaLS, compute_what=True):
+        """ update dual variable in direction what 
+        and update re-scaled version """
+        mhat1, mhat2 = self.saa.split(mhat)
+        self.regul1.update_w(mhat1, alphaLS, compute_what)
+        self.regul2.update_w(mhat2, alphaLS, compute_what)
+
+
+
+
 class SumRegularization():
-    """ Sum of independent regularizations for each med. param, 
-    potentially connected by cross-gradient or VTV """
+    """ 
+    Sum of independent regularizations for each med. param, 
+    potentially connected by cross-gradient or VTV 
+    """
 
     def __init__(self, regul1, regul2, mpicomm, coeff_cg=0.0, 
     coeff_ncg=0.0, parameters_ncg=[],

@@ -110,35 +110,50 @@ def isequal(a, b, rtol=1e-14):
     if abs(b) > 1e-16:  return np.abs(a-b) <= rtol*np.abs(b)
     else:   return np.abs(a-b) <= rtol
 
+
 class ZeroRegularization():
 
+    def __init__(self, V):
+        f1 = Function(V)
+        self.out = f1.vector()
+
+        f2 = Function(V*V)
+        self.outab = f2.vector()
+
+        self.gradabvect = self.gradab
+
     def cost(self, m_in):
+        return 0.0
+
+    def costvect(self, m_in):
         return 0.0
 
     def costab(self, ma_in, mb_int):  
         return self.cost(ma_in)
 
     def grad(self, m_in):
-        out = m_in.copy(deepcopy=True)
-        out.vector().zero()
-        return out.vector()
+        self.out.zero()
+        return self.out
 
     def gradab(self, ma_in, mb_in):  
-        self.Va = ma_in.function_space()
-        self.Vb = mb_in.function_space()
-        u = Function(self.Va*self.Vb)
-        u.vector().zero()
-        return u.vector()
+        self.outab.zero()
+        return self.outab
 
     def assemble_hessian(self, m_in):
         pass
 
     def hessian(self, mhat):
-        out = mhat.copy()
-        out.zero()
-        return out
+        self.out.zero()
+        return self.out
 
     def hessianab(self, ahat, bhat):
-        u = Function(self.Va*self.Vb)
-        u.vector().zero()
-        return u.vector()
+        self.outab.zero()
+        return self.outab
+
+    def update_w(self, mhat, alpha, compute):
+        pass
+
+    def isTV(self):
+        return False
+    def isPD(self):
+        return False

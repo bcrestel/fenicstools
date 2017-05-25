@@ -74,3 +74,50 @@ class BlockDiagonal():
         return MatPtAP(A, self.saa.SplitOperator1) + \
         MatPtAP(B, self.saa.SplitOperator2)
 
+
+
+
+class PrecondPlusIdentity():
+    """
+    Define block-diagonal preconditioner made of a preconditioner and the
+    identity matrix, i.e. if param == 'a'
+    [   B   |   0   ]
+    ----------------
+    [   0   |   I   ]
+    """
+
+    def __init__(self, precondsolver, param, VV):
+        self.solver = precondsolver
+        self.param = param
+        self.ab = dl.Function(VV)
+        self.X = dl.Function(VV)
+
+
+    def solve(self, sol, rhs):
+        """
+        Solve A.sol = rhs
+        Arguments:
+            sol = solution
+            rhs = rhs
+        """
+        self.ab.vector().zero()
+        self.ab.vector().axpy(1.0, rhs)
+        a, b = self.ab.split(deepcopy=True)
+        xa, xb = self.X.split(deepcopy=True)
+
+        if self.param == 'a':
+            self.solver.solve(xa.vector(),a.vector())
+
+            xb.vector().zero()
+            xb.vector().axpy(1.0, b.vector())
+        elif self.param == 'b':
+            xa.vector().zero()
+            xa.vector().axpy(1.0, a.vector())
+
+            self.solver.solve(xb.vector(),b.vector())
+
+        dl.assign(self.X.sub(0), xa)
+        dl.assign(self.X.sub(1), xb)
+
+        sol.zero()
+        sol.axpy(1.0, self.X.vector())

@@ -49,11 +49,9 @@ class ObjectiveAcoustic(LinearOperator):
         LinearOperator.__init__(self, self.MGv, self.MGv)
         self.GN = False
 
-        #TODO: check that ZeroRegularization is applied in direction that is not
-        #inverted for
         if regularization == None:  
             print '*** Warning: Using zero regularization'
-            self.regularization = ZeroRegularization()
+            self.regularization = ZeroRegularization(Vm)
         else:   
             self.regularization = regularization
             self.PD = self.regularization.isPD()
