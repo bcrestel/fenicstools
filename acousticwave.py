@@ -303,13 +303,13 @@ class AcousticWave():
             diff = self.exact.vector() - self.u1.vector()
             if norm_ex > 1e-16: return np.sqrt((MM*diff).inner(diff))/norm_ex
             else:   return np.sqrt((MM*diff).inner(diff))
-        else:   return []
+        else:   return -1.0
 
     def computeabserror(self):
         if not self.exact == None:
             MM = assemble(inner(self.trial, self.test)*dx)
             diff = self.exact.vector() - self.u1.vector()
             return np.sqrt((MM*diff).inner(diff))
-        else:   return []
+        else:   return -1.0
 
 

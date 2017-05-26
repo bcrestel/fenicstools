@@ -68,7 +68,7 @@ def targetmediumparameters(Vl, X, myplot=None):
     errb = dl.norm(check2 - ones.vector())
     assert errb < 1e-16
 
-    return af, bf
+    return af, bf, c, lam, rho
 
 
 
@@ -118,7 +118,7 @@ def initmediumparameters(Vl, X, myplot=None):
     errb = dl.norm(check2 - ones.vector())
     assert errb < 1e-16
 
-    return af, bf
+    return af, bf, c, lam, rho
 
 
 
@@ -128,11 +128,9 @@ def loadparameters(LARGE):
         Dt = 1.0e-4   #Dt = h/(r*alpha)
         fpeak = 6.0
         t0, t1, t2, tf = 0.0, 0.2, 0.8, 1.0
-        nbtest = 5
     else:
         Nxy = 10
         Dt = 2.0e-3
         fpeak = 1.0
         t0, t1, t2, tf = 0.0, 0.5, 2.5, 3.0
-        nbtest = 2
     return Nxy, Dt, fpeak, t0, t1, t2, tf

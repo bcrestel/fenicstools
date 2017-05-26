@@ -24,25 +24,30 @@ from fenicstools.optimsolver import checkgradfd_med, checkhessabfd_med
 from fenicstools.prior import LaplacianPrior
 from fenicstools.jointregularization import SingleRegularization
 
-from fenicstools.examples.acousticwave.mediumparameters import \
+#from fenicstools.examples.acousticwave.mediumparameters import \
+from fenicstools.examples.acousticwave.mediumparameters0 import \
 targetmediumparameters, initmediumparameters, loadparameters
 
-FDGRAD = True
-ALL = True
-LARGE = True
-PARAM = 'ab'
+
+LARGE = False
+PARAM = 'a'
 NOISE = True
 PLOTTS = False
 
+FDGRAD = True
+ALL = False
+nbtest = 3
+
+
 
 Nxy, Dt, fpeak, t0, t1, t2, tf = loadparameters(LARGE)
-nbtest = 2
 
 # Define PDE:
 h = 1./Nxy
 # dist is in [km]
 X, Y = 1, 1
-mesh = dl.RectangleMesh(dl.Point(0.0,0.0),dl.Point(X,Y),X*Nxy,Y*Nxy)
+#mesh = dl.RectangleMesh(dl.Point(0.0,0.0),dl.Point(X,Y),X*Nxy,Y*Nxy)
+mesh = dl.UnitSquareMesh(Nxy, Nxy)
 mpicomm = mesh.mpi_comm()
 mpirank = MPI.rank(mpicomm)
 Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
@@ -62,9 +67,9 @@ Wave = AcousticWave({'V':V, 'Vm':Vl},
 {'print':False, 'lumpM':True, 'timestepper':'backward'})
 Wave.set_abc(mesh, ABCdom(), lumpD=False)
 #
-af, bf = targetmediumparameters(Vl, X)
+at, bt,_,_,_ = targetmediumparameters(Vl, X)
 #
-Wave.update({'b':bf, 'a':af, 't0':0.0, 'tf':tf, 'Dt':Dt,\
+Wave.update({'b':bt, 'a':at, 't0':0.0, 'tf':tf, 'Dt':Dt,\
 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
 
 # observation operator:
@@ -113,7 +118,7 @@ if mpirank == 0:    print 'misfit at target = {}'.format(costmisfit)
 #assert costmisfit < 1e-14, costmisfit
 
 # Compute gradient at initial parameters
-a0, b0 = initmediumparameters(Vl, X)
+a0, b0,_,_,_ = initmediumparameters(Vl, X)
 waveobj.update_PDE({'a':a0, 'b':b0})
 waveobj.solvefwd_cost()
 if mpirank == 0:    print 'misfit at initial state = {}'.format(waveobj.cost_misfit)
@@ -125,6 +130,8 @@ if PLOTTS:
     sys.exit(0)
 
 if FDGRAD:
+    if ALL and (PARAM == 'a' or PARAM == 'b') and mpirank == 0:
+        print '*** Warning: Single inversion but changing both parameters'
     # Medium perturbations
     MPa = [
     dl.Expression('1.0'), 
@@ -163,15 +170,16 @@ if FDGRAD:
         if 'a' in PARAM:
             checkgradfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7], True)
         else:
-            checkgradfd_med(waveobj, Mediuma, 1e-6, [1e-5], True)
+            checkgradfd_med(waveobj, Mediuma[:1], 1e-6, [1e-5], True)
         if mpirank == 0:    print 'check b-gradient with FD'
         if 'b' in PARAM:
             checkgradfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True)
         else:
-            checkgradfd_med(waveobj, Mediumb, 1e-6, [1e-5], True)
+            checkgradfd_med(waveobj, Mediumb[:1], 1e-6, [1e-5], True)
 
-        print '\n'
-        if mpirank == 0:    print 'check a-Hessian with FD'
+        if mpirank == 0:    
+            print '\n'
+            print 'check a-Hessian with FD'
         checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7], True, 'a')
         if mpirank == 0:    print 'check b-Hessian with FD'
         checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True, 'b')
@@ -181,7 +189,7 @@ else:
     dl.assign(m0.sub(1), b0)
 
     mt = dl.Function(Vl*Vl)
-    dl.assign(mt.sub(0), af)
-    dl.assign(mt.sub(1), bf)
+    dl.assign(mt.sub(0), at)
+    dl.assign(mt.sub(1), bt)
 
-    waveobj.inversion(m0, mt)
+    waveobj.inversion(m0, mt, boundsLS=[[0.005, 5.0], [0.02, 5.0]])

@@ -14,28 +14,20 @@ from fenicstools.plotfenics import PlotFenics
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
 
-from mediumparameters import targetmediumparameters
+#from mediumparameters import targetmediumparameters, loadparameters
+from mediumparameters0 import targetmediumparameters, loadparameters
 
 
 LARGE = False
-
-if LARGE:
-    Nxy = 100
-    Dt = 1.0e-4   #Dt = h/(r*alpha)
-    tf = 1.0
-    fpeak = 6.0
-else:
-    Nxy = 10
-    Dt = 2.0e-3
-    tf = 3.0
-    fpeak = 1.0
+Nxy, Dt, fpeak, t0, t1, t2, tf = loadparameters(LARGE)
 
 
 # Inputs:
 h = 1./Nxy
 # dist is in [km]
 X, Y = 1, 1
-mesh = dl.RectangleMesh(dl.Point(0.0,0.0),dl.Point(X,Y),X*Nxy,Y*Nxy)
+#mesh = dl.RectangleMesh(dl.Point(0.0,0.0),dl.Point(X,Y),X*Nxy,Y*Nxy)
+mesh = dl.UnitSquareMesh(Nxy, Nxy)
 mpicomm = mesh.mpi_comm()
 mpirank = MPI.rank(mpicomm)
 Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
@@ -65,16 +57,16 @@ def mysrc(tt):
 if mpirank == 0: print '\n\th = {}, Dt = {}'.format(h, Dt)
 Wave = AcousticWave({'V':V, 'Vm':Vl}, 
 {'print':(not mpirank), 'lumpM':True, 'timestepper':'backward'})
-#Wave.set_abc(mesh, ABCdom(), lumpD=True)
-Wave.exact = dl.Function(V)
+Wave.set_abc(mesh, ABCdom(), lumpD=False)
+#Wave.exact = dl.Function(V)
 Wave.ftime = mysrc
 #
-af, bf = targetmediumparameters(Vl, X, myplot)
+af, bf,_,_,_ = targetmediumparameters(Vl, X, myplot)
 #
 Wave.update({'b':bf, 'a':af, 't0':0.0, 'tf':tf, 'Dt':Dt,\
 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
 
-sol, error = Wave.solve()
+sol,_,_, error = Wave.solve()
 if mpirank == 0: print 'relative error = {:.5e}'.format(error)
 MPI.barrier(mesh.mpi_comm())
 

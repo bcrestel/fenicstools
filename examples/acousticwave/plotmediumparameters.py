@@ -7,23 +7,15 @@ from shutil import rmtree
 import dolfin as dl
 from dolfin import MPI
 from fenicstools.plotfenics import PlotFenics
-from mediumparameters import targetmediumparameters, initmediumparameters
+from mediumparameters0 import \
+targetmediumparameters, initmediumparameters, loadparameters
 
 LARGE = True
-
-if LARGE:
-    Nxy = 100
-    Dt = 1.0e-4   #Dt = h/(r*alpha)
-    tf = 1.0
-    fpeak = 6.0
-else:
-    Nxy = 10
-    Dt = 2.0e-3
-    tf = 3.0
-    fpeak = 1.0
+Nxy, Dt, fpeak,_,_,_,tf = loadparameters(LARGE)
 
 X, Y = 1, 1
-mesh = dl.RectangleMesh(dl.Point(0.0,0.0),dl.Point(X,Y),X*Nxy,Y*Nxy)
+#mesh = dl.RectangleMesh(dl.Point(0.0,0.0),dl.Point(X,Y),X*Nxy,Y*Nxy)
+mesh = dl.UnitSquareMesh(Nxy, Nxy)
 Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
 
 mpicomm = mesh.mpi_comm()
@@ -34,5 +26,5 @@ if mpirank == 0:
 MPI.barrier(mpicomm)
 myplot = PlotFenics(filename)
 
-af, bf = targetmediumparameters(Vl, X, myplot)
-a0, b0 = initmediumparameters(Vl, X, myplot)
+at, bt, c, lam, rho = targetmediumparameters(Vl, X, myplot)
+a0, b0,_,_,_ = initmediumparameters(Vl, X, myplot)
