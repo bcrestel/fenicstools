@@ -203,11 +203,13 @@ else:
     if 'b' in PARAM:
         dl.assign(m0.sub(1), b0)
 
+    myplot = PlotFenics(Outputfolder='Debug/' + PARAM + '/Plots', comm=mesh.mpi_comm())
+
     if mpirank == 0:
         print '\n\nStart solution of inverse problem for parameter(s) {}'.format(PARAM)
     MPI.barrier(mpicomm)
     waveobj.inversion(m0, mt, {'isprint':(not mpirank)}, \
-    boundsLS=[[0.005, 5.0], [0.02, 5.0]])
+    boundsLS=[[0.005, 5.0], [0.02, 5.0]], myplot=myplot)
 
     minat = at.vector().min()
     maxat = at.vector().max()
