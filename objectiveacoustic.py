@@ -496,21 +496,24 @@ class ObjectiveAcoustic(LinearOperator):
         maxiterNewt = parameters['maxiterNewt']
         reltolgrad = parameters['reltolgrad']
         abstolgrad = parameters['abstolgrad']
-        maxtolcg = parameters['maxtolcg']
         tolcost = parameters['tolcost']
         nbGNsteps = parameters['nbGNsteps']
+        if parameters['inexactCG']:
+            maxtolcg = parameters['maxtolcg']
+        else:
+            maxtolcg = 1e-12
 
         if isprint:
-            print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t{:10s} {:12s} {:12s}'.format(\
+            print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t\t{:10s} {:12s} {:12s}'.format(\
             'iter', 'cost', 'misfit', 'reg', '|G|', 'medmisf', 'a_ls', 'tol_cg', 'n_cg')
 
         a0, b0 = initial_medium.split(deepcopy=True)
         self.update_PDE({'a':a0, 'b':b0})
         self._plotab(myplot, 'init')
 
-        #TODO: compute that for 'a' and 'b' separately
-        dtruenorm = np.sqrt(target_medium.vector().\
-        inner(self.Mass*target_medium.vector()))
+        at, bt = target_medium.split(deepcopy=True)
+        atnorm = np.sqrt(at.vector().inner(self.Mass*at.vector()))
+        btnorm = np.sqrt(bt.vector().inner(self.Mass*bt.vector()))
 
         self.solvefwd_cost()
         for it in xrange(maxiterNewt):
@@ -518,16 +521,15 @@ class ObjectiveAcoustic(LinearOperator):
             gradnorm = np.sqrt(self.MGv.inner(self.Grad.vector()))
             if it == 0:   gradnorm0 = gradnorm
 
-            #TODO: compute that for 'a' and 'b' separately
-            assign(self.ab.sub(0), self.PDE.a)
-            assign(self.ab.sub(1), self.PDE.b)
-            diff = self.ab.vector() - target_medium.vector()
-            medmisfit = np.sqrt(diff.inner(self.Mass*diff))
+            diffa = self.PDE.a.vector() - at.vector()
+            medmisfita = np.sqrt(diffa.inner(self.Mass*diffa))
+            diffb = self.PDE.b.vector() - bt.vector()
+            medmisfitb = np.sqrt(diffb.inner(self.Mass*diffb))
 
             if isprint:
-                print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.2f})'.\
-                format(it, self.cost, self.cost_misfit, self.cost_reg, \
-                gradnorm, medmisfit, medmisfit/dtruenorm),
+                print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.2f}) {:10.2e} ({:4.2f})'.\
+                format(it, self.cost, self.cost_misfit, self.cost_reg, gradnorm,\
+                medmisfita, medmisfita/atnorm, medmisfitb, medmisfitb/btnorm),
             self._plotab(myplot, str(it))
             self._plotgrad(myplot, str(it))
 
@@ -540,10 +542,7 @@ class ObjectiveAcoustic(LinearOperator):
 
             # Compute search direction and plot
             tolcg = min(maxtolcg, np.sqrt(gradnorm/gradnorm0))
-            if it < nbGNsteps:
-                self.GN = True
-            else:
-                self.GN = False
+            self.GN = (it < nbGNsteps)
             cgiter, cgres, cgid = compute_searchdirection(self,
             {'method':'Newton', 'tolcg':tolcg})
             if not self.inverta*self.invertb:
