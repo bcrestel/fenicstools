@@ -206,11 +206,13 @@ def bcktrcklinesearch(objfctal, parameters_in=None, bounds=None):
     parameters['rho']           = 0.5
     parameters['c']             = 5e-5
     parameters['nbLS']          = 20
+    parameters['isprint']       = False
     parameters.update(parameters_in)
     nbLS = parameters['nbLS']
     alpha0 = parameters['alpha0']
     rho = parameters['rho']
     c = parameters['c']
+    isprint = parameters['isprint']
 
     if c < 0. or c > 1.:    raise ValueError("c must be between 0 and 1")
     if rho < 0. or rho > 0.99:  
@@ -219,7 +221,7 @@ def bcktrcklinesearch(objfctal, parameters_in=None, bounds=None):
 
     objfctal.backup_m()
     m0 = objfctal.m_bkup.vector()
-    new_m = m0.copy()
+    new_m = objfctal.ab.copy(deepcopy=True)
     cost_m0 = objfctal.cost
 
     srch_dir = objfctal.srchdir.vector()
@@ -230,19 +232,23 @@ def bcktrcklinesearch(objfctal, parameters_in=None, bounds=None):
     alpha = alpha0
     while LScount < nbLS:
         LScount += 1
-        new_m.zero()
-        new_m.axpy(1.0, m0)
-        new_m.axpy(alpha, srch_dir)
-        objfctal.update_m(new_m)
+        new_m.vector().zero()
+        new_m.vector().axpy(1.0, m0)
+        new_m.vector().axpy(alpha, srch_dir)
         if bounds is not None:
-            mina = objfctal.PDE.a.vector().min()
-            maxa = objfctal.PDE.a.vector().max()
-            minb = objfctal.PDE.b.vector().min()
-            maxb = objfctal.PDE.b.vector().max()
+            a, b = new_m.split(deepcopy=True)
+            mina = a.vector().min()
+            maxa = a.vector().max()
+            minb = b.vector().min()
+            maxb = b.vector().max()
             if mina < bounds[0][0] or maxa > bounds[0][1] or \
             minb < bounds[1][0] or maxb > bounds[1][1]:
                 alpha *= rho
+#                if isprint:
+#                    print 'Parameter out of bounds in line-search: {}'.format(\
+#                    [mina, maxa, minb, maxb])
                 continue
+        objfctal.update_m(new_m)
         objfctal.solvefwd_cost()
         if objfctal.cost < (cost_m0 + alpha*c*GradxDir):
             success = True
