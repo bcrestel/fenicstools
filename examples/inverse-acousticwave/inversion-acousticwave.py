@@ -22,6 +22,7 @@ from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.optimsolver import checkgradfd_med, checkhessabfd_med
 
 from fenicstools.prior import LaplacianPrior
+from fenicstools.regularization import TVPD
 from fenicstools.jointregularization import SingleRegularization
 
 #from fenicstools.examples.acousticwave.mediumparameters import \
@@ -34,11 +35,12 @@ PARAM = 'a'
 NOISE = True
 PLOTTS = False
 
-FDGRAD = True
+FDGRAD = False
 ALL = False
 nbtest = 3
 
 
+dl.set_log_active(False)
 
 Nxy, Dt, fpeak, t0, t1, t2, tf = loadparameters(LARGE)
 
@@ -81,7 +83,8 @@ obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
 if FDGRAD:
     waveobj = ObjectiveAcoustic(Wave, [Ricker, Pt, srcv], PARAM)
 else:
-    reg = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
+    reg = LaplacianPrior({'Vm':Vl, 'gamma':1e-6, 'beta':1e-8})
+    #reg = TVPD({'Vm':Vl, 'k':1e-5, 'print':(not mpirank)})
     regul = SingleRegularization(reg, PARAM, (not mpirank))
 
     waveobj = ObjectiveAcoustic(Wave, [Ricker, Pt, srcv], PARAM, regul)
@@ -96,6 +99,7 @@ if NOISE:
     SNRdB = 15.0   # [dB], i.e, log10(mu/sigma) = SNRdB/10
     np.random.seed(11)
     for ii, dd in enumerate(DD):
+        if mpirank == 0:    print 'source {}'.format(ii)
         nbobspt, dimsol = dd.shape
         mu = np.abs(dd).mean(axis=1)
         sigmas = mu/(10**(SNRdB/10.))
@@ -104,7 +108,6 @@ if NOISE:
         mpirank, sigmas.sum()/len(sigmas), (rndnoise**2).sum().sum())
         DD[ii] = dd + sigmas.reshape((nbobspt,1))*rndnoise
         MPI.barrier(mpicomm)
-        if mpirank == 0:    print ''
 waveobj.dd = DD
 if PLOTTS:
     if mpirank == 0:
@@ -114,14 +117,14 @@ if PLOTTS:
 # check:
 waveobj.solvefwd_cost()
 costmisfit = waveobj.cost_misfit
-if mpirank == 0:    print 'misfit at target = {}'.format(costmisfit)
+if mpirank == 0:    print 'misfit at target = {:.4e}'.format(costmisfit)
 #assert costmisfit < 1e-14, costmisfit
 
 # Compute gradient at initial parameters
 a0, b0,_,_,_ = initmediumparameters(Vl, X)
 waveobj.update_PDE({'a':a0, 'b':b0})
 waveobj.solvefwd_cost()
-if mpirank == 0:    print 'misfit at initial state = {}'.format(waveobj.cost_misfit)
+if mpirank == 0:    print 'misfit at initial state = {:.4e}'.format(waveobj.cost_misfit)
 if PLOTTS:
     if mpirank == 0:
         fig = plotobservations(waveobj.PDE.times, waveobj.Bp[1], waveobj.dd[1], 9)
@@ -184,12 +187,20 @@ if FDGRAD:
         if mpirank == 0:    print 'check b-Hessian with FD'
         checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True, 'b')
 else:
-    m0 = dl.Function(Vl*Vl)
-    dl.assign(m0.sub(0), a0)
-    dl.assign(m0.sub(1), b0)
-
     mt = dl.Function(Vl*Vl)
     dl.assign(mt.sub(0), at)
     dl.assign(mt.sub(1), bt)
 
-    waveobj.inversion(m0, mt, boundsLS=[[0.005, 5.0], [0.02, 5.0]])
+    m0 = dl.Function(Vl*Vl)
+    m0.vector().zero()
+    m0.vector().axpy(1.0, mt.vector())
+    if 'a' in PARAM:
+        dl.assign(m0.sub(0), a0)
+    if 'b' in PARAM:
+        dl.assign(m0.sub(1), b0)
+
+    if mpirank == 0:
+        print '\n\nStart solution of inverse problem for parameter(s) {}'.format(PARAM)
+    MPI.barrier(mpicomm)
+    waveobj.inversion(m0, mt, {'isprint':(not mpirank)}, \
+    boundsLS=[[0.005, 5.0], [0.02, 5.0]])
