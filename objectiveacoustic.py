@@ -38,7 +38,7 @@ class ObjectiveAcoustic(LinearOperator):
 
         Vm = self.PDE.Vm
         V = self.PDE.V
-        self.ab = Function(Vm*Vm)
+        self.ab = Function(Vm*Vm)   # used for conversion (V,V)->VV
         self.invparam = invparam
         self.MG = Function(Vm*Vm)
         self.MGv = self.MG.vector()
@@ -443,7 +443,7 @@ class ObjectiveAcoustic(LinearOperator):
             self.Mprime.get_gradient(self.p.vector(), self.qhat.vector())
 
 
-    def assemble_hessian():
+    def assemble_hessian(self):
         self.regularization.assemble_hessianab(self.PDE.a, self.PDE.b)
 
 
@@ -477,7 +477,7 @@ class ObjectiveAcoustic(LinearOperator):
 
 
     # SOLVE INVERSE PROBLEM
-    def inversion(self, initial_medium, target_medium, parameters_in=None, \
+    def inversion(self, initial_medium, target_medium, parameters_in=[], \
     boundsLS=None, myplot=None):
         """ 
         Solve inverse problem with that objective function 
@@ -504,16 +504,20 @@ class ObjectiveAcoustic(LinearOperator):
             maxtolcg = 1e-12
 
         if isprint:
-            print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t\t{:10s} {:12s} {:12s}'.format(\
+            print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t\t\t{:10s} {:12s} {:12s}'.format(\
             'iter', 'cost', 'misfit', 'reg', '|G|', 'medmisf', 'a_ls', 'tol_cg', 'n_cg')
 
         a0, b0 = initial_medium.split(deepcopy=True)
         self.update_PDE({'a':a0, 'b':b0})
         self._plotab(myplot, 'init')
 
+        Mab = self.Mass*target_medium.vector()
+        self.ab.vector().zero()
+        self.ab.vector().axpy(1.0, Mab)
+        Ma, Mb = self.ab.split(deepcopy=True)
         at, bt = target_medium.split(deepcopy=True)
-        atnorm = np.sqrt(at.vector().inner(self.Mass*at.vector()))
-        btnorm = np.sqrt(bt.vector().inner(self.Mass*bt.vector()))
+        atnorm = np.sqrt(at.vector().inner(Ma.vector()))
+        btnorm = np.sqrt(bt.vector().inner(Mb.vector()))
 
         self.solvefwd_cost()
         for it in xrange(maxiterNewt):
@@ -521,10 +525,18 @@ class ObjectiveAcoustic(LinearOperator):
             gradnorm = np.sqrt(self.MGv.inner(self.Grad.vector()))
             if it == 0:   gradnorm0 = gradnorm
 
-            diffa = self.PDE.a.vector() - at.vector()
-            medmisfita = np.sqrt(diffa.inner(self.Mass*diffa))
-            diffb = self.PDE.b.vector() - bt.vector()
-            medmisfitb = np.sqrt(diffb.inner(self.Mass*diffb))
+            assign(self.ab.sub(0), self.PDE.a)
+            assign(self.ab.sub(1), self.PDE.b)
+            diff = self.ab.vector() - target_medium.vector()
+            Md = self.Mass*diff
+            self.ab.vector().zero()
+            self.ab.vector().axpy(1.0, Md)
+            Mda, Mdb = self.ab.split(deepcopy=True)
+            self.ab.vector().zero()
+            self.ab.vector().axpy(1.0, diff)
+            da, db = self.ab.split(deepcopy=True)
+            medmisfita = np.sqrt(da.vector().inner(Mda.vector()))
+            medmisfitb = np.sqrt(db.vector().inner(Mdb.vector()))
 
             if isprint:
                 print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.2f}) {:10.2e} ({:4.2f})'.\

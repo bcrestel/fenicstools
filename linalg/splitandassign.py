@@ -106,7 +106,7 @@ class PrecondPlusIdentity():
         xa, xb = self.X.split(deepcopy=True)
 
         if self.param == 'a':
-            self.solver.solve(xa.vector(),a.vector())
+            n_pcg = self.solver.solve(xa.vector(),a.vector())
 
             xb.vector().zero()
             xb.vector().axpy(1.0, b.vector())
@@ -114,10 +114,12 @@ class PrecondPlusIdentity():
             xa.vector().zero()
             xa.vector().axpy(1.0, a.vector())
 
-            self.solver.solve(xb.vector(),b.vector())
+            n_pcg = self.solver.solve(xb.vector(),b.vector())
 
         dl.assign(self.X.sub(0), xa)
         dl.assign(self.X.sub(1), xb)
 
         sol.zero()
         sol.axpy(1.0, self.X.vector())
+
+        return n_pcg

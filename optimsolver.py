@@ -164,32 +164,33 @@ def compute_searchdirection(objfctal, parameters_in=None):
     parameters = {}
     parameters['method']        = 'Newton'
     parameters['tolcg']         = 1e-8
-    parameters['tolGxD']        = 1e-24
+    parameters['tolGxD']        = -1e-24
     parameters.update(parameters_in)
     method = parameters['method']
     tolcg = parameters['tolcg']
     tolGxD = parameters['tolGxD']
 
-    if method == 'sd':
+    if method == 'steepest':
         objfctal.srchdir.vector().zero()
         objfctal.srchdir.vector().axpy(-1.0, objfctal.MGv)
         return 0, 0.0, 0
 
-    elif method == 'Newt':
+    elif method == 'Newton':
         objfctal.assemble_hessian()
         solver = CGSolverSteihaug()
         solver.set_operator(objfctal)
         solver.set_preconditioner(objfctal.getprecond())
         solver.parameters["rel_tolerance"] = tolcg
         solver.parameters["zero_initial_guess"] = True
-        solver.parameters["print_level"] = -1
+        solver.parameters["print_level"] = -2
         solver.solve(objfctal.srchdir.vector(), -1.0*objfctal.MGv)  # all cpu time spent here
 
     else:   raise ValueError("Wrong keyword")
 
     # check it is a descent direction
     GradxDir = objfctal.MGv.inner(objfctal.srchdir.vector())
-    assert GradxDir > tolGxD, "Search direction is not a descent direction"
+    assert GradxDir < tolGxD, \
+    "Search direction not a descent direction: {}".format(GradxDir)
 
     return solver.iter, solver.final_norm, solver.reasonid
 
@@ -205,7 +206,7 @@ def bcktrcklinesearch(objfctal, parameters_in=None, bounds=None):
     parameters['rho']           = 0.5
     parameters['c']             = 5e-5
     parameters['nbLS']          = 20
-    parametes.update(parameters_in)
+    parameters.update(parameters_in)
     nbLS = parameters['nbLS']
     alpha0 = parameters['alpha0']
     rho = parameters['rho']
