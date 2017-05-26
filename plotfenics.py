@@ -87,26 +87,31 @@ class PlotFenics:
             raise NoIndicesError("No indices defined")
 
 
-def plotobservations(times, Bp, dd):
+def plotobservations(times, Bp, dd, nbplots=None):
     """ Plot observations Bp along with data dd
     Input:
         times = numpy arrays (time steps)
         Bp, dd = numpy arrays (time-series)
     """
-
     assert Bp.shape == dd.shape, \
     "Both input arrays should have same dimensions"
     nbobspts, timesteps = Bp.shape
     assert len(times) == timesteps, \
     "Time steps and time-series sizes do not coincide"
     
-    griddim = np.ceil(np.sqrt(nbobspts))
+    if nbplots is None:
+        nbplots = nbobspts
+
+    griddim = int(np.ceil(np.sqrt(nbplots)))
     fig = plt.figure()
     fig.set_size_inches(20., 15.)
-    for ii in range(nbobspts):
-        ax = fig.add_subplot(griddim, griddim, ii+1)
+    fignb = 1
+    listplots = [int(ii) for ii in np.linspace(0, nbobspts-1, nbplots)]
+    for ii in listplots:
+        ax = fig.add_subplot(griddim, griddim, fignb)
+        fignb += 1
         ax.plot(times, dd[ii,:], 'k--')
         ax.plot(times, Bp[ii,:], 'b')
-        ax.set_title('obs'+str(ii))
+        ax.set_title('obs'+str(ii+1))
 
     return fig
