@@ -132,10 +132,13 @@ if PLOTTS:
     MPI.barrier(mpicomm)
     sys.exit(0)
 
+
+
+
+# Finite difference check of gradient and Hessian
 if FDGRAD:
     if ALL and (PARAM == 'a' or PARAM == 'b') and mpirank == 0:
         print '*** Warning: Single inversion but changing both parameters'
-    # Medium perturbations
     MPa = [
     dl.Expression('1.0'), 
     dl. Expression('sin(pi*x[0])*sin(pi*x[1])'),
@@ -186,6 +189,7 @@ if FDGRAD:
         checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7], True, 'a')
         if mpirank == 0:    print 'check b-Hessian with FD'
         checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True, 'b')
+# Solve inverse problem
 else:
     mt = dl.Function(Vl*Vl)
     dl.assign(mt.sub(0), at)
@@ -204,3 +208,21 @@ else:
     MPI.barrier(mpicomm)
     waveobj.inversion(m0, mt, {'isprint':(not mpirank)}, \
     boundsLS=[[0.005, 5.0], [0.02, 5.0]])
+
+    minat = at.vector().min()
+    maxat = at.vector().max()
+    minbt = bt.vector().min()
+    maxbt = bt.vector().max()
+    mina0 = a0.vector().min()
+    maxa0 = a0.vector().max()
+    minb0 = b0.vector().min()
+    maxb0 = b0.vector().max()
+    mina = waveobj.PDE.a.vector().min()
+    maxa = waveobj.PDE.a.vector().max()
+    minb = waveobj.PDE.b.vector().min()
+    maxb = waveobj.PDE.b.vector().max()
+    if mpirank == 0:
+        print 'target: min(a)={}, max(a)={}\nMAP: min(a)={}, max(a)={}\n'.format(\
+        minat, maxat, mina, maxa)
+        print 'target: min(b)={}, max(b)={}\nMAP: min(b)={}, max(b)={}'.format(\
+        minbt, maxbt, minb, maxb)

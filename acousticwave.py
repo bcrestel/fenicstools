@@ -128,7 +128,8 @@ class AcousticWave():
         if parameters_m.has_key('b'):
             setfct(self.b, parameters_m['b'])
             minb = self.b.vector().min()
-            assert minb > 1e-8, "negative value for parameter b"
+            assert minb > 1e-12, \
+            "negative value for parameter b: {}".format(minb)
             if isprint: print 'assemble K',
             self.K = assemble(self.weak_k)
             if isprint: print ' -- K assembled'
@@ -136,7 +137,8 @@ class AcousticWave():
         if parameters_m.has_key('a'):
             setfct(self.a, parameters_m['a'])
             mina = self.a.vector().min()
-            assert mina > 1e-8, "negative value for parameter a"
+            assert mina > 1e-12, \
+            "negative value for parameter a: {}".format(mina)
             if isprint: print 'assemble M',
             Mfull = assemble(self.weak_m)
             if lumpM:
