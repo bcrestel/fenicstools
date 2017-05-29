@@ -77,7 +77,7 @@ class ABCdom(dl.SubDomain):
 # Computation:
 Wave = AcousticWave({'V':V, 'Vm':Vl}, 
 {'print':False, 'lumpM':True, 'timestepper':'backward'})
-#Wave.set_abc(mesh, ABCdom(), lumpD=False)
+Wave.set_abc(mesh, ABCdom(), lumpD=False)
 
 #
 at, bt,_,_,_ = targetmediumparameters(Vl, X)
@@ -104,7 +104,7 @@ else:
     #reg = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6, 'm0':at})
     #reg = TVPD({'Vm':Vl, 'k':1e-5, 'print':(not mpirank)})
     #regul = SingleRegularization(reg, PARAM, (not mpirank))
-    regul = V_TVPD(Vl, {'eps':1e-3, 'k':5e-5, 'print': (not mpirank)})
+    regul = V_TVPD(Vl, {'eps':1e-3, 'k':1e-5, 'print': (not mpirank)})
 
     waveobj = ObjectiveAcoustic(Wave, [Ricker, Pt, srcv], PARAM, regul)
 waveobj.obsop = obsop
@@ -232,8 +232,8 @@ else:
         print 'Regularization at target={:.2e}, at initial state={:.2e}'.format(\
         regt, reg0)
 
-    #myplot = PlotFenics(Outputfolder='Debug/' + PARAM + '/Plots', comm=mesh.mpi_comm())
-    myplot = None
+    #myplotf = PlotFenics(Outputfolder='Debug/' + PARAM + '/Plots', comm=mesh.mpi_comm())
+    myplotf = None
 
     if mpirank == 0:
         print '\n\nStart solution of inverse problem for parameter(s) {}'.format(PARAM)
@@ -241,11 +241,12 @@ else:
 
     parameters = {}
     parameters['isprint'] = (not mpirank)
-    parameters['nbGNsteps'] = 0
+    parameters['nbGNsteps'] = 10
     #parameters['maxiterNewt'] = 2
 
-    waveobj.inversion(m0, mt, {'isprint':(not mpirank)})#, \
-    #boundsLS=[[0.005, 5.0], [0.02, 5.0]], myplot=myplot)
+    waveobj.inversion(m0, mt, parameters,
+    boundsLS=[[0.1, 5.0], [0.1, 5.0]], myplot=myplotf)
+    #boundsLS=[[0.005, 5.0], [0.02, 5.0]], myplot=myplotf)
 
     minat = at.vector().min()
     maxat = at.vector().max()
