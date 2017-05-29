@@ -8,8 +8,6 @@ from miscfenics import setfct, isequal, ZeroRegularization
 from linalg.lumpedmatrixsolver import LumpedMassMatrixPrime
 from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
 
-from dolfin import FacetFunction, Measure
-
 
 class ObjectiveAcoustic(LinearOperator):
     """
@@ -38,7 +36,7 @@ class ObjectiveAcoustic(LinearOperator):
 
         Vm = self.PDE.Vm
         V = self.PDE.V
-        self.ab = Function(Vm*Vm)   # used for conversion (V,V)->VV
+        self.ab = Function(Vm*Vm)   # used for conversion (Vm,Vm)->Vm*Vm
         self.invparam = invparam
         self.MG = Function(Vm*Vm)
         self.MGv = self.MG.vector()
@@ -477,6 +475,7 @@ class ObjectiveAcoustic(LinearOperator):
 
 
     # SOLVE INVERSE PROBLEM
+    #@profile
     def inversion(self, initial_medium, target_medium, parameters_in=[], \
     boundsLS=None, myplot=None):
         """ 
@@ -485,7 +484,7 @@ class ObjectiveAcoustic(LinearOperator):
         parameters = {}
         parameters['reltolgrad']        = 1e-10
         parameters['abstolgrad']        = 1e-14
-        parameters['tolcost']           = 1e-14
+        parameters['tolcost']           = 1e-16
         parameters['maxiterNewt']       = 100
         parameters['nbGNsteps']         = 10
         parameters['maxtolcg']          = 0.5
@@ -539,9 +538,9 @@ class ObjectiveAcoustic(LinearOperator):
             medmisfitb = np.sqrt(db.vector().inner(Mdb.vector()))
 
             if isprint:
-                print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.2f}) {:10.2e} ({:4.2f})'.\
+                print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.1f}%) {:10.2e} ({:4.1f}%)'.\
                 format(it, self.cost, self.cost_misfit, self.cost_reg, gradnorm,\
-                medmisfita, medmisfita/atnorm, medmisfitb, medmisfitb/btnorm),
+                medmisfita, 100.0*medmisfita/atnorm, medmisfitb, 100.0*medmisfitb/btnorm),
             self._plotab(myplot, str(it))
             self._plotgrad(myplot, str(it))
 
@@ -556,7 +555,7 @@ class ObjectiveAcoustic(LinearOperator):
             tolcg = min(maxtolcg, np.sqrt(gradnorm/gradnorm0))
             self.GN = (it < nbGNsteps)
             cgiter, cgres, cgid = compute_searchdirection(self,
-            {'method':'Newton', 'tolcg':tolcg})
+            {'method':'Newton', 'tolcg':tolcg}) # most time spent here
             if not self.inverta*self.invertb:
                 srcha, srchb = self.srchdir.split(deepcopy=True)
                 if not self.inverta:
