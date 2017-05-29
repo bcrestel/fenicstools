@@ -88,8 +88,8 @@ class TV():
             print ' -- k={}, eps={}'.format(self.parameters['k'], self.parameters['eps'])
 
         try:
-            solver = PETScKrylovSolver('cg', 'ml_amg')
-            self.amgprecond = 'ml_amg'
+            solver = PETScKrylovSolver('cg', 'hypre_amg')
+            self.amgprecond = 'hypre_amg'
         except:
             self.amgprecond = 'petsc_amg'
 
@@ -292,8 +292,8 @@ class TVPD():
                 print ' -- PCGN',
             print ' -- k={}, eps={}'.format(self.parameters['k'], self.parameters['eps'])
         try:
-            solver = PETScKrylovSolver('cg', 'ml_amg')
-            self.amgprecond = 'ml_amg'
+            solver = PETScKrylovSolver('cg', 'hypre_amg')
+            self.amgprecond = 'hypre_amg'
         except:
             self.amgprecond = 'petsc_amg'
 
