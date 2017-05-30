@@ -11,6 +11,10 @@ from fenicstools.regularization import TVPD
 dl.set_log_active(False)
 
 def test1():
+    """
+    Test whether SingleRegularization returns same output as
+    underlying regularization
+    """
     mesh = dl.UnitSquareMesh(40,40)
     Vm = dl.FunctionSpace(mesh, 'CG', 1)
     ab = dl.Function(Vm*Vm)
@@ -18,12 +22,14 @@ def test1():
     x = dl.Function(Vm)
     regul = LaplacianPrior({'Vm':Vm, 'gamma':1e-4, 'beta':1e-4})
     regula = LaplacianPrior({'Vm':Vm, 'gamma':1e-4, 'beta':1e-4})
-    regulb = LaplacianPrior({'Vm':Vm, 'gamma':1e-4, 'beta':1e-4})
     jointregula = SingleRegularization(regula, 'a')
+    regulb = LaplacianPrior({'Vm':Vm, 'gamma':1e-4, 'beta':1e-4})
     jointregulb = SingleRegularization(regulb, 'b')
 
     for ii in range(4):
-        ab.vector()[:] = (ii+1.0)*np.random.randn(2*Vm.dim())
+        #ab.vector()[:] = (ii+1.0)*np.random.randn(2*Vm.dim())
+        ab = dl.interpolate(dl.Expression(('sin(nn*pi*x[0])*sin(nn*pi*x[1])',
+        'sin(nn*pi*x[0])*sin(nn*pi*x[1])'), nn=ii+1), Vm*Vm)
         a, b = ab.split(deepcopy=True)
 
         print '\nTest a'
@@ -55,7 +61,6 @@ def test1():
 
         solvera = regul.getprecond()
         solveraiter = solvera.solve(x.vector(), a.vector())
-
         solverab = jointregula.getprecond()
         solverabiter = solverab.solve(xab.vector(), ab.vector())
         xa, xb = xab.split(deepcopy=True)
@@ -109,6 +114,9 @@ def test1():
 
 
 def test2():
+    """
+    Test what Krylov solver are completely deterministic
+    """
     mesh = dl.UnitSquareMesh(40,40)
     Vm = dl.FunctionSpace(mesh, 'CG', 1)
     x1 = dl.Function(Vm)
@@ -161,4 +169,5 @@ def test2():
         print '|x3|={}, |diff|={}, iter={}'.format(x3n, diffn, iter3)
 
 if __name__ == "__main__":
-    test2()
+    test1()
+    #test2()
