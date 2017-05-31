@@ -7,8 +7,7 @@ from numpy import sqrt
 from numpy.linalg import norm
 from numpy.random import randn
 
-from dolfin import Function, GenericVector, mpi_comm_world, MPI,
-PETScKrylovSolver
+from dolfin import Function, GenericVector, mpi_comm_world, MPI, PETScKrylovSolver
 from exceptionsfenics import WrongInstanceError
 
 def apply_noise(UD, noisepercent, mycomm=None):
