@@ -1,7 +1,5 @@
 """
-Acoustic wave inverse problem with a single low-frequency,
-and absorbing boundary conditions on left, bottom, and right.
-Check gradient and Hessian for joint inverse problem a and b
+Compare solution to Newton system when inverting for a single parameters
 """
 
 import numpy as np
@@ -10,6 +8,7 @@ import dolfin as dl
 from dolfin import MPI
 
 from fenicstools.acousticwave import AcousticWave
+from fenicstools.optimsolver import bcktrcklinesearch
 from fenicstools.sourceterms import PointSources, RickerWavelet
 from fenicstools.observationoperator import TimeObsPtwise
 from fenicstools.objectiveacoustic import ObjectiveAcoustic
@@ -99,7 +98,7 @@ tfilterpts = [t0, t1, t2, tf]
 obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
 
 # Regularization
-regula = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-4})
+regula = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-4, 'm0':at})
 regulab = SingleRegularization(regula, 'a', (not mpirank))
 
 # define objective function:
@@ -120,7 +119,7 @@ if NOISE:
 
         #mu = np.abs(dd).mean(axis=1)
         #sigmas = mu/(10**(SNRdB/10.))
-        sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*0.1
+        sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*0.01
 
         rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
         print 'mpirank={}, sigmas={}, |rndnoise|={}'.format(\
@@ -134,25 +133,23 @@ waveobjab.solvefwd_cost()
 costmisfit = waveobjab.cost_misfit
 waveobjabnoregul.solvefwd_cost()
 costmisfitnoregul = waveobjabnoregul.cost_misfit
-# Compute gradient at initial parameters
+
+# Compare cost functionals from both objective functions
 waveobjab.update_PDE({'a':a0, 'b':b0})
 waveobjab.solvefwd_cost()
 waveobjabnoregul.update_PDE({'a':a0, 'b':b0})
 waveobjabnoregul.solvefwd_cost()
 if mpirank == 0:    
-    print 'misfit at target={:.4e}; at initial state = {:.4e}'.format(\
+    print 'misfit at target={:.6e}; at initial state={:.6e}'.format(\
     costmisfit, waveobjab.cost_misfit)
-    print 'misfit at target={:.4e}; at initial state = {:.4e} [noregul]'.format(\
-    costmisfitnoregul, waveobjabnoregul.cost_misfit)
+    print '[noregul] misfit at target={:.6e} (df={:.2e}), at initial state={:.6e} (df={:.2e})'.format(\
+    costmisfitnoregul, np.abs(costmisfit-costmisfitnoregul)/costmisfit,\
+    waveobjabnoregul.cost_misfit, \
+    np.abs(waveobjabnoregul.cost_misfit-waveobjab.cost_misfit)/waveobjab.cost_misfit)
 
 mt = dl.Function(Vl*Vl)
 dl.assign(mt.sub(0), at)
 dl.assign(mt.sub(1), bt)
-
-m0 = dl.Function(Vl*Vl)
-m0.vector().zero()
-m0.vector().axpy(1.0, mt.vector())
-dl.assign(m0.sub(0), a0)
 
 # check regularizations are the same
 regt = regulab.costab(at,bt)
@@ -166,7 +163,8 @@ if mpirank == 0:
     regta, reg0a)
 
 # check gradients are the same
-waveobjab.update_PDE({'a':a0, 'b':bt})
+evaluationpoint = {'a':at, 'b':bt}
+waveobjab.update_PDE(evaluationpoint)
 waveobjab.solvefwd_cost()
 waveobjab.solveadj_constructgrad()
 MGa, MGb = waveobjab.MG.split(deepcopy=True)
@@ -175,11 +173,11 @@ MGbnorm = MGb.vector().norm('l2')
 if mpirank == 0:
     print '|MGa|={}, |MGb|={}'.format(MGanorm, MGbnorm)
 
-waveobjabnoregul.update_PDE({'a':a0, 'b':bt})
+waveobjabnoregul.update_PDE(evaluationpoint)
 waveobjabnoregul.solvefwd_cost()
 waveobjabnoregul.solveadj_constructgrad()
 MGaa, MGba = waveobjabnoregul.MG.split(deepcopy=True)
-MGaa.vector().axpy(1.0, regula.grad(a0))
+MGaa.vector().axpy(1.0, regula.grad(evaluationpoint['a']))
 diffa = MGa.vector() - MGaa.vector()
 diffb = MGb.vector() - MGba.vector()
 MGaanorm = MGaa.vector().norm('l2')
@@ -187,24 +185,22 @@ MGbanorm = MGba.vector().norm('l2')
 diffanorm = diffa.norm('l2')
 diffbnorm = diffb.norm('l2')
 if mpirank == 0:
-    print '|MGaa|={} ({:.2e}), |MGba|={} ({:.2e})'.format(\
+    print '|MGaa|={} (df={:.2e}), |MGba|={} (df={:.2e})'.format(\
     MGaanorm, diffanorm, MGbanorm, diffbnorm)
 
 waveobjab.assemble_hessian()
-regula.assemble_hessian(a0)
+regula.assemble_hessian(evaluationpoint['a'])
 
 waveobja = restrictobjabtoa(waveobjabnoregul, regula)
 
-"""
 print ' Check Hessian are the same'
 yy = dl.Function(Vl*Vl)
 xx = dl.Function(Vl*Vl)
 xx.vector().zero()
 xx.vector().axpy(-1.0, waveobjab.MGv)
-for ii in range(5):
-    waveobjab.mult(xx.vector(), yy.vector())
-    xx.vector().zero()
-    xx.vector().axpy(1.0, yy.vector())
+waveobjab.mult(xx.vector(), yy.vector())
+xx.vector().zero()
+xx.vector().axpy(1.0, yy.vector())
 ya, yb = yy.split(deepcopy=True)
 yan = ya.vector().norm('l2')
 ybn = yb.vector().norm('l2')
@@ -213,16 +209,15 @@ y = dl.Function(Vl)
 x = dl.Function(Vl)
 x.vector().zero()
 x.vector().axpy(-1.0, MGaa.vector())
-for ii in range(5):
-    waveobja.mult(x.vector(), y.vector())
-    x.vector().zero()
-    x.vector().axpy(1.0, y.vector())
+waveobja.mult(x.vector(), y.vector())
+x.vector().zero()
+x.vector().axpy(1.0, y.vector())
 yn = y.vector().norm('l2')
 diff = y.vector() - ya.vector()
 diffn = diff.norm('l2')
 
 if mpirank == 0:
-    print '|ya|={}, |yb|={}, |yaa|={} ({:.2e})'.format(yan, ybn, yn, diffn)
+    print '|ya|={}, |yb|={}, |yaa|={} (df={:.2e})'.format(yan, ybn, yn, diffn)
 
 waveobjab.mult(mt.vector(), yy.vector())
 ya, yb = yy.split(deepcopy=True)
@@ -235,10 +230,11 @@ diff = y.vector() - ya.vector()
 diffn = diff.norm('l2')
 
 if mpirank == 0:
-    print '|ya|={}, |yb|={}, |yaa|={} ({:.2e})'.format(yan, ybn, yn, diffn)
+    print '|ya|={}, |yb|={}, |yaa|={} (df={:.2e})'.format(yan, ybn, yn, diffn)
 
 # Solve Newton system using CGSolverSteihaug
-TOLCG = [0.5, 1e-2, 1e-4, 1e-6, 1e-12]
+#TOLCG = [0.5, 1e-2, 1e-4, 1e-6, 1e-12]
+TOLCG = [1e-4]
 for tolcg in TOLCG:
     print '\ntolcg={}'.format(tolcg)
     solverab = CGSolverSteihaug()
@@ -248,8 +244,10 @@ for tolcg in TOLCG:
     solverab.parameters["zero_initial_guess"] = True
     solverab.parameters["print_level"] = 1
     print '|MGv|={:.20e}'.format(waveobjab.MGv.norm('l2'))
-    solverab.solve(waveobjab.srchdir.vector(), -1.0*waveobjab.MGv)
-    print 'iter={}, final norm={} [ab]'.format(solverab.iter, solverab.final_norm)
+    solverab.solve(waveobjab.srchdir.vector(), -1.0*waveobjab.MGv, False)
+    print '[ab]: iter={}, final norm={}, <dp,MG>={}'.format(\
+    solverab.iter, solverab.final_norm, \
+    waveobjab.srchdir.vector().inner(waveobjab.MGv))
     sola, solb = waveobjab.srchdir.split(deepcopy=True)
     solanorm = sola.vector().norm('l2')
     solbnorm = solb.vector().norm('l2')
@@ -262,25 +260,55 @@ for tolcg in TOLCG:
     solvera.parameters["zero_initial_guess"] = True
     solvera.parameters["print_level"] = 1
     print '|MGaa|={:.20e}'.format(MGaa.vector().norm('l2'))
-    solvera.solve(waveobja.srchdir.vector(), -1.0*MGaa.vector())
-    print 'iter={}, final norm={} [a]'.format(solvera.iter, solvera.final_norm)
+    solvera.solve(waveobja.srchdir.vector(), -1.0*MGaa.vector(), False)
+    print '[a]: iter={}, final norm={}, <dp,MG>={}'.format(\
+    solvera.iter, solvera.final_norm,\
+    waveobja.srchdir.vector().inner(MGaa.vector()))
 
     diffa = sola.vector() - waveobja.srchdir.vector()
     diffanorm = diffa.norm('l2')
     srchanorm = waveobja.srchdir.vector().norm('l2')
     if mpirank == 0:
-        print '|sola|={}, |srcha|={}, reldiff={:.2e}'.format(\
+        print '|sola|={:.16e}, |srcha|={:.16e}, reldiff={:.2e}'.format(\
         solanorm, srchanorm, diffanorm/srchanorm)
+
+
+# Test each search direction
+dpMG = waveobjab.srchdir.vector().inner(waveobjab.MGv)
+print '[ab]: <dp,MG>={}'.format(dpMG)
+_, LScount, alpha = bcktrcklinesearch(waveobjab)
+meda, medb = waveobjab.mediummisfit(mt)
+print '[ab]: LScount={}, alpha={}'.format(LScount, alpha)
+print '[ab]: meda={:.16e}, medb={:.6e}'.format(meda, medb)
+waveobjab.solveadj_constructgrad()
+gradnorm = np.sqrt(waveobjab.MGv.inner(waveobjab.Grad.vector()))
+print '[ab]: |G|={:.16e}'.format(gradnorm)
+
+waveobjab.update_PDE(evaluationpoint)
+waveobjab.solvefwd_cost()
+waveobjab.solveadj_constructgrad()
+waveobjab.srchdir.vector().zero()
+dl.assign(waveobjab.srchdir.sub(0), waveobja.srchdir)
+dpMG = waveobjab.srchdir.vector().inner(waveobjab.MGv)
+print '[a]: <dp,MG>={}'.format(dpMG)
+_, LScount, alpha = bcktrcklinesearch(waveobjab)
+meda, medb = waveobjab.mediummisfit(mt)
+print '[a]: LScount={}, alpha={}'.format(LScount, alpha)
+print '[a]: meda={:.16e}, medb={:.6e}'.format(meda, medb)
+waveobjab.solveadj_constructgrad()
+gradnorm = np.sqrt(waveobjab.MGv.inner(waveobjab.Grad.vector()))
+print '[a]: |G|={:.16e}'.format(gradnorm)
+
+
+
 """
-
-
-
 # reproduce CG solver to compare:
 rabf = dl.Function(Vl*Vl)
 rab = rabf.vector()
 rab.zero()
 rab.axpy(-1.0, waveobjab.MGv)
-xab = dl.Function(Vl*Vl).vector()
+xabf = dl.Function(Vl*Vl)
+xab = xabf.vector()
 xab.zero()
 #
 r = dl.Function(Vl).vector()
@@ -316,13 +344,18 @@ waveobja.mult(d, z)
 denab = zab.inner(dab)
 den = z.inner(d)
 
-for ii in range(3):
+for ii in range(5):
     print '\nii={}'.format(ii)
     alphaab = nomab/denab
     alpha = nom/den
 
     xab.axpy(alphaab, dab)
     x.axpy(alpha, d)
+    xabn = xab.norm('l2')
+    xn = x.norm('l2')
+    xaba, xabb = xabf.split(deepcopy=True)
+    diffn = (xaba.vector()-x).norm('l2')
+    print '|x|={:.16e}, reldiff={}'.format(xn, diffn/xn)
 
     rab.axpy(-alphaab, zab)
     r.axpy(-alpha, z)
@@ -340,7 +373,7 @@ for ii in range(3):
     diffa = raba.vector() - r
     diffan = diffa.norm('l2')
 
-    print 'alphaab={:.6e} ({:.2e}), nomab={:.6e} ({:.2e}), |raba|={:.6e} ({:.2e}), |rabb|={:.6e}'.format(\
+    print 'alphaab={:.6e} ({:.2e}), nomab={:.16e} ({:.2e}), |raba|={:.6e} ({:.2e}), |rabb|={:.6e}'.format(\
     alphaab, np.abs(alpha-alphaab), nomab, np.abs(nom-nomab), nra, diffan, nrb)
     ###############################
 
@@ -352,13 +385,25 @@ for ii in range(3):
     print 'Preconditioner: |dza|={}, |zb|={}'.format(dzan, dzbn)
     
 
-    betanomab = rab.inner(zab)
+    zabn = max(zab.max(), np.abs(zab.min()))
+    rabn = max(rab.max(), np.abs(rab.min()))
+    zabsc = zab/zabn
+    rabsc = rab/rabn
+    betanomab = (rabsc.inner(zabsc))*zabn*rabn
+    #betanomab = rab.inner(zab)
+
     betaab = betanomab/nomab
     dab *= betaab
     dab.axpy(1.0, zab)
     #
-    betanom = r.inner(z)
-    print 'Diff betanom={}'.format(np.abs(betanomab-betanom))
+    zn = max(z.max(), np.abs(z.min()))
+    rn = max(r.max(), np.abs(r.min()))
+    zsc = z/zn
+    rsc = r/rn
+    betanom = (rsc.inner(zsc))*zn*rn
+    #betanom = r.inner(z)
+
+    print 'betanom={:.16e}, diff={}'.format(betanom, np.abs(betanomab-betanom))
     beta = betanom/nom
     d *= beta
     d.axpy(1.0, z)
@@ -374,11 +419,6 @@ for ii in range(3):
     dzbn = zabb.vector().norm('l2')
     print 'z (Hessian-vect): |dza|={}, |zb|={}'.format(dzan, dzbn)
     
-    denab = zab.inner(dab)
-    den = z.inner(d)
-
-    #TODO: Test and implement (if this works)
-    """
     zabn = max(zab.max(), np.abs(zab.min()))
     dabn = max(dab.max(), np.abs(dab.min()))
     zabsc = zab/zabn
@@ -390,15 +430,21 @@ for ii in range(3):
     zsc = z/zn
     dsc = d/dn
     den = (zsc.inner(dsc))*zn*dn
-    """
 
-    print 'Diff den={} (den={}, denab={})'.format(np.abs(denab-den), den, denab)
+    #denab = zab.inner(dab)
+    #den = z.inner(d)
+
+    print 'Diff den={} (den={:.16e})'.format(np.abs(denab-den), den)
 
     nomab = betanomab
     nom = betanom
 
 
-
+diffxa = (waveobja.srchdir.vector() - x).norm('l2')
+diffxab = (sola.vector() - xaba.vector()).norm('l2')
+xaban = xaba.vector().norm('l2')
+print 'diff x: [a]={:.2e}, [ab]={:.2e}'.format(diffxa/xn, diffxab/xaban)
+"""
 
 
 
