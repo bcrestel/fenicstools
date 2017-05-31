@@ -129,8 +129,8 @@ def loadparameters(LARGE):
         fpeak = 6.0
         t0, t1, t2, tf = 0.0, 0.2, 0.8, 1.0
     else:
-        Nxy = 10
-        Dt = 2.0e-3
+        Nxy = 20
+        Dt = 1.0e-3
         fpeak = 1.0
         t0, t1, t2, tf = 0.0, 0.5, 2.5, 3.0
     return Nxy, Dt, fpeak, t0, t1, t2, tf
