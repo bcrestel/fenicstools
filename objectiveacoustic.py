@@ -465,6 +465,24 @@ class ObjectiveAcoustic(LinearOperator):
         a, b = self.m_bkup.split(deepcopy=True)
         self.update_PDE({'a':a, 'b':b})
 
+    def mediummisfit(self, target_medium):
+        """
+        Compute medium misfit at current position
+        """
+        assign(self.ab.sub(0), self.PDE.a)
+        assign(self.ab.sub(1), self.PDE.b)
+        diff = self.ab.vector() - target_medium.vector()
+        Md = self.Mass*diff
+        self.ab.vector().zero()
+        self.ab.vector().axpy(1.0, Md)
+        Mda, Mdb = self.ab.split(deepcopy=True)
+        self.ab.vector().zero()
+        self.ab.vector().axpy(1.0, diff)
+        da, db = self.ab.split(deepcopy=True)
+        medmisfita = np.sqrt(da.vector().inner(Mda.vector()))
+        medmisfitb = np.sqrt(db.vector().inner(Mdb.vector()))
+        return medmisfita, medmisfitb 
+
 
 
     # GETTERS:
@@ -524,18 +542,7 @@ class ObjectiveAcoustic(LinearOperator):
             gradnorm = np.sqrt(self.MGv.inner(self.Grad.vector()))
             if it == 0:   gradnorm0 = gradnorm
 
-            assign(self.ab.sub(0), self.PDE.a)
-            assign(self.ab.sub(1), self.PDE.b)
-            diff = self.ab.vector() - target_medium.vector()
-            Md = self.Mass*diff
-            self.ab.vector().zero()
-            self.ab.vector().axpy(1.0, Md)
-            Mda, Mdb = self.ab.split(deepcopy=True)
-            self.ab.vector().zero()
-            self.ab.vector().axpy(1.0, diff)
-            da, db = self.ab.split(deepcopy=True)
-            medmisfita = np.sqrt(da.vector().inner(Mda.vector()))
-            medmisfitb = np.sqrt(db.vector().inner(Mdb.vector()))
+            medmisfita, medmisfitb = self.mediummisfit(target_medium)
 
             if isprint:
                 print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.1f}%) {:10.2e} ({:4.1f}%)'.\
