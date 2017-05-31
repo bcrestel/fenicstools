@@ -242,7 +242,7 @@ class ObjectiveFunctional(LinearOperator):
     def _assemble_solverM(self, Vm):
 
         self.MM = assemble(inner(self.mtrial, self.mtest)*dx)
-        self.solverM = PETScKrylovSolver("cg", "hypre_amg")
+        self.solverM = PETScKrylovSolver('cg', 'jacobi')
         self.solverM.parameters["maximum_iterations"] = 1000
         self.solverM.parameters["relative_tolerance"] = 1e-12
         self.solverM.parameters["error_on_nonconvergence"] = True 

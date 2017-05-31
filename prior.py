@@ -8,7 +8,7 @@ try:
     from dolfin import SLEPcEigenSolver
 except:
     pass
-from miscfenics import isFunction, isVector, setfct
+from miscfenics import isFunction, isVector, setfct, amg_solver
 
 
 class GaussianPrior():
@@ -21,6 +21,7 @@ class GaussianPrior():
     def __init__(self, Parameters=None):
         self.Parameters = Parameters
         self._assemble()
+        self.amgsolver = amg_solver()
 
     def update_Parameters(self, Parameters):
         self.Parameters = Parameters
@@ -43,7 +44,7 @@ class GaussianPrior():
         solver.parameters["error_on_nonconvergence"] = False
         solver.parameters["nonzero_initial_guess"] = False
         """
-        solver = PETScKrylovSolver("cg", "hypre_amg")
+        solver = PETScKrylovSolver('cg', self.amgsolver)
         solver.parameters["maximum_iterations"] = 1000
         solver.parameters["relative_tolerance"] = 1e-24
         solver.parameters["absolute_tolerance"] = 1e-24

@@ -6,7 +6,7 @@ from dolfin import inner, nabla_grad, dx, interpolate, cells, \
 Function, TestFunction, TrialFunction, assemble, project, \
 PETScKrylovSolver, assign, sqrt, Constant, as_backend_type, \
 FunctionSpace, VectorFunctionSpace, norm, MPI, Vector, split, derivative
-from miscfenics import setfct, ZeroRegularization
+from miscfenics import setfct, ZeroRegularization, amg_solver
 from linalg.splitandassign import BlockDiagonal, PrecondPlusIdentity
 from linalg.miscroutines import setglobalvalue
 try:
@@ -156,11 +156,7 @@ class SumRegularization():
             print 'coeff cg={}, ncg={}, vtv={}'.format(
             self.coeff_cg, self.coeff_ncg, self.coeff_vtv)
 
-        try:
-            solver = PETScKrylovSolver('cg', 'ml_amg')
-            self.amgprecond = 'ml_amg'
-        except:
-            self.amgprecond = 'petsc_amg'
+        self.amgprecond = amg_solver()
 
 
     def isTV(self):
@@ -541,11 +537,7 @@ class VTV():
         self.hessian = H11 + H12 + H21 + H22
 
         # for preconditioning
-        try:
-            solver = PETScKrylovSolver('cg', 'ml_amg')
-            self.amgprecond = 'ml_amg'
-        except:
-            self.amgprecond = 'petsc_amg'
+        self.amgprecond = amg_solver()
         M = assemble(inner(testm, trialm)*dx)
         factM = 1e-2*k
         self.sMass = M*factM
@@ -950,11 +942,7 @@ class NuclearNormformula():
 
         self.hessian = derivative(self.grad, self.m, self.mtrial)
 
-        try:
-            solver = PETScKrylovSolver('cg', 'ml_amg')
-            self.amgprecond = 'ml_amg'
-        except:
-            self.amgprecond = 'petsc_amg'
+        self.amgprecond = amg_solver()
 
         M = assemble(inner(self.mtest, self.mtrial)*dx)
         factM = 1e-2*k

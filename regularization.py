@@ -6,7 +6,7 @@ Function, TestFunction, TrialFunction, Vector, assemble, solve, \
 Constant, plot, interactive, assign, FunctionSpace, interpolate, Expression, \
 PETScKrylovSolver, PETScLUSolver, LUSolver, mpi_comm_world, PETScMatrix, \
 as_backend_type, norm
-from miscfenics import isVector, setfct
+from miscfenics import isVector, setfct, amg_solver
 from linalg.miscroutines import get_diagonal, setupPETScmatrix, compute_eigfenics
 from hippylib.linalg import MatMatMult, Transpose, pointwiseMaxCount
 
@@ -87,11 +87,7 @@ class TV():
                 print ' -- PCGN',
             print ' -- k={}, eps={}'.format(self.parameters['k'], self.parameters['eps'])
 
-        try:
-            solver = PETScKrylovSolver('cg', 'hypre_amg')
-            self.amgprecond = 'hypre_amg'
-        except:
-            self.amgprecond = 'petsc_amg'
+        self.amgprecond = amg_solver()
 
 
     def isTV(self): return True
@@ -291,11 +287,8 @@ class TVPD():
             if self.parameters['PCGN']:
                 print ' -- PCGN',
             print ' -- k={}, eps={}'.format(self.parameters['k'], self.parameters['eps'])
-        try:
-            solver = PETScKrylovSolver('cg', 'hypre_amg')
-            self.amgprecond = 'hypre_amg'
-        except:
-            self.amgprecond = 'petsc_amg'
+
+        self.amgprecond = amg_solver()
 
 
     def isTV(self): return True

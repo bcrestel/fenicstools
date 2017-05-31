@@ -7,10 +7,8 @@ from numpy import sqrt
 from numpy.linalg import norm
 from numpy.random import randn
 
-try:
-    from dolfin import Function, GenericVector, mpi_comm_world, MPI
-except:
-    from dolfin import Function, GenericVector
+from dolfin import Function, GenericVector, mpi_comm_world, MPI,
+PETScKrylovSolver
 from exceptionsfenics import WrongInstanceError
 
 def apply_noise(UD, noisepercent, mycomm=None):
@@ -157,3 +155,12 @@ class ZeroRegularization():
         return False
     def isPD(self):
         return False
+
+
+def amg_solver():
+    try:
+        solver = PETScKrylovSolver('cg', 'ml_amg')
+        amgsolver = 'ml_amg'
+    except:
+        amgsolver = 'petsc_amg'
+    return amgsolver
