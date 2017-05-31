@@ -158,7 +158,7 @@ def checkhessabfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
 
 
 #@profile
-def compute_searchdirection(objfctal, parameters_in=None):
+def compute_searchdirection(objfctal, parameters_in=[]):
     """
     Compute search direction for Line Search
     """
