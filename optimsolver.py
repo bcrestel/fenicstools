@@ -197,7 +197,7 @@ def compute_searchdirection(objfctal, parameters_in=None):
 
 
 
-def bcktrcklinesearch(objfctal, parameters_in=None, bounds=None):
+def bcktrcklinesearch(objfctal, parameters_in=[], bounds=None):
     """
     Backtracking line search with bound check
     bounds = [[mina, maxa], [minb, maxb]]
