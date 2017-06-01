@@ -56,6 +56,10 @@ class PointSources():
         """ Overload [] operator """
         return self.PtSrc[index]
 
+    def __len__(self):
+        """ Overload len() operator """
+        return len(self.PtSrc)
+
 
 
 class RickerWavelet():
