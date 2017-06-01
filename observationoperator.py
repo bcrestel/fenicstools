@@ -6,14 +6,12 @@ import sys
 import abc
 import numpy as np
 from numpy import sqrt
-from numpy.linalg import norm
-from numpy.random import randn
+#from numpy.linalg import norm
+#from numpy.random import randn
 import matplotlib.pyplot as plt
 
 from dolfin import Function, TrialFunction, TestFunction, \
-Constant, Point, as_backend_type, assemble, inner, dx, \
-MPI, mpi_comm_world
-from exceptionsfenics import WrongInstanceError
+Constant, Point, as_backend_type, assemble, inner, dx
 from miscfenics import isFunction, isVector, isarray, arearrays, isequal, setfct
 from sourceterms import PointSources
 
@@ -114,21 +112,21 @@ class ObservationOperator():
     @abc.abstractmethod
     def incradj(self, uin):    print "Needs to be implemented"
 
-    def apply_noise(self, uin):
-        """Apply Gaussian noise to np.array of data.
-        noisepercent = 0.02 => 2% noise level, i.e.,
-        || u - ud || / || ud || = || noise || / || ud || = 0.02"""
-        isarray(uin)
-        noisevect = randn(len(uin))
-        # Get norm of entire random vector and
-        # Get norm of entire vector ud (not just local part):
-        normrand = sqrt(MPI.sum(self.mycomm, norm(noisevect)**2))
-        normud = sqrt(MPI.sum(self.mycomm, norm(uin)**2))
-        noisevect /= normrand
-        noisevect *= self.noisepercent * normud
-        objnoise_glob = (self.noisepercent * normud)**2
-        UDnoise = uin + noisevect
-        return UDnoise, objnoise_glob
+#    def apply_noise(self, uin):
+#        """Apply Gaussian noise to np.array of data.
+#        noisepercent = 0.02 => 2% noise level, i.e.,
+#        || u - ud || / || ud || = || noise || / || ud || = 0.02"""
+#        isarray(uin)
+#        noisevect = randn(len(uin))
+#        # Get norm of entire random vector and
+#        # Get norm of entire vector ud (not just local part):
+#        normrand = sqrt(MPI.sum(self.mycomm, norm(noisevect)**2))
+#        normud = sqrt(MPI.sum(self.mycomm, norm(uin)**2))
+#        noisevect /= normrand
+#        noisevect *= self.noisepercent * normud
+#        objnoise_glob = (self.noisepercent * normud)**2
+#        UDnoise = uin + noisevect
+#        return UDnoise, objnoise_glob
 
 
 ###########################################################
@@ -249,18 +247,19 @@ class ObsPointwise(ObservationOperator):
         uin must be a Function(V)"""
         if not(self.noise): return self.Bdot(uin), 0.0
         else:
-            Bref = self.Bdot(uin)
-            uin_noise, tmp = self.apply_noise(uin.vector().array())
-            unoise = Function(self.V)
-            unoise.vector()[:] = uin_noise
-            Bnoise = self.Bdot(unoise)
-            diff = Bref - Bnoise
-            noiselevel = np.dot(diff, diff)
-            try:
-                noiselevel_glob = MPI.sum(self.mycomm, noiselevel)
-            except:
-                noiselevel_glob = noiselevel
-            return Bnoise, noiselevel_glob
+            sys.exit(1)
+#            Bref = self.Bdot(uin)
+#            uin_noise, tmp = self.apply_noise(uin.vector().array())
+#            unoise = Function(self.V)
+#            unoise.vector()[:] = uin_noise
+#            Bnoise = self.Bdot(unoise)
+#            diff = Bref - Bnoise
+#            noiselevel = np.dot(diff, diff)
+#            try:
+#                noiselevel_glob = MPI.sum(self.mycomm, noiselevel)
+#            except:
+#                noiselevel_glob = noiselevel
+#            return Bnoise, noiselevel_glob
 
     def costfct(self, uin, udin):
         """Compute cost functional from observed fwd and data, i.e.,
@@ -300,7 +299,6 @@ class TimeObsPtwise():
     Arguments to assemble:
         paramObsPtwise = parameters used to create ptwise observation operator
         timefilter = [t0, t1, t2, T], times to initialize time-filtering function
-        mycomm = MPI communicator
     """
 
     def __init__(self, paramObsPtwise, timefilter=None):

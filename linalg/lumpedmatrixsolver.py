@@ -5,10 +5,6 @@ from miscroutines import *
 from fenicstools.miscfenics import setfct
 from fenicstools.linalg.miscroutines import setglobalvalue, setupPETScmatrix
 
-#import petsc4py, sys
-#petsc4py.init(sys.argv)    # done in linalg/miscroutines
-from petsc4py import PETSc
-
 
 class LumpedMatrixSolver(dl.GenericLinearSolver):
     """ Lump matrix by row-sum technique """
@@ -128,7 +124,7 @@ class LumpedMassMatrixPrime():
     we consider a lumping by diagonal scaling, i.e., corresponding to Lumped MatrixSolverS
     we consider the derivative wrt parameter alpha """
 
-    def __init__(self, Va, Vphi, ratioM=None, mpicomm=PETSc.COMM_WORLD):
+    def __init__(self, Va, Vphi, ratioM=None):
         """ Va = FunctionSpace for weight-parameter in mass matrix
         Vphi = FunctionSpace for test and trial functions in mass matrix
         ratioM = ratio used for the lumping of mass matrix """
@@ -141,6 +137,7 @@ class LumpedMassMatrixPrime():
         self.ratioM = ratioM
         wkform = dl.inner(alpha*test, trial)*dl.dx
         M = dl.assemble(wkform)
+        mpicomm = Va.mesh().mpi_comm()
         MprimePETSc, VaDM, VphiDM = setupPETScmatrix(Va, Vphi, 'aij', mpicomm)
         # populate the PETSc matrix
         for ii in xrange(Va.dim()):

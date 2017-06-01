@@ -4,7 +4,7 @@ import matplotlib.pyplot as plt
 plt.ioff()
 import numpy as np
 
-from dolfin import File, MPI, mpi_comm_world
+from dolfin import File, MPI
 from exceptionsfenics import *
 from miscfenics import setfct
 
@@ -16,7 +16,7 @@ class PlotFenics:
     Fenics_vtu_correction = '000000'
 
     # Instantiation
-    def __init__(self, Outputfolder=None, comm=mpi_comm_world()):
+    def __init__(self, comm, Outputfolder=None):
         self.mpirank = MPI.rank(comm)
         mpisize = MPI.size(comm)
         if Outputfolder == None:    self.set_outdir('Output/', comm)

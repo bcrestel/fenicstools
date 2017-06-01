@@ -4,15 +4,11 @@ import numpy as np
 from dolfin import sqrt, inner, nabla_grad, grad, dx, \
 Function, TestFunction, TrialFunction, Vector, assemble, solve, \
 Constant, plot, interactive, assign, FunctionSpace, interpolate, Expression, \
-PETScKrylovSolver, PETScLUSolver, LUSolver, mpi_comm_world, PETScMatrix, \
+PETScKrylovSolver, PETScLUSolver, PETScMatrix, \
 as_backend_type, norm
 from miscfenics import isVector, setfct, amg_solver
 from linalg.miscroutines import get_diagonal, setupPETScmatrix, compute_eigfenics
 from hippylib.linalg import MatMatMult, Transpose, pointwiseMaxCount
-
-import petsc4py, sys
-petsc4py.init(sys.argv)
-from petsc4py import PETSc
 
 
 #----------------------------------------------------------------------
@@ -165,7 +161,7 @@ class TV():
 class TVPD():
     """ Total variation using primal-dual Newton """
 
-    def __init__(self, parameters, mpicomm=PETSc.COMM_WORLD):
+    def __init__(self, parameters):
         """ 
         TV regularization in primal-dual format
         Input parameters:
@@ -236,6 +232,7 @@ class TVPD():
 
         self.massw = inner(TVnorm*testw, trialw)*dx
 
+        mpicomm = self.Vm.mesh().mpi_comm()
         invMwMat, VDM, VDM = setupPETScmatrix(Vw, Vw, 'aij', mpicomm)
         for ii in VDM.dofs():
             invMwMat[ii, ii] = 1.0
