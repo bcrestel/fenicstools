@@ -236,6 +236,8 @@ def bcktrcklinesearch(objfctal, parameters_in=[], bounds=None):
         new_m.vector().zero()
         new_m.vector().axpy(1.0, m0)
         new_m.vector().axpy(alpha, srch_dir)
+        #TODO: should we project (pointwise) the search direction, 
+        # instead of backtracking?
         if bounds is not None:
             a, b = new_m.split(deepcopy=True)
             mina = a.vector().min()
