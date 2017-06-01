@@ -7,17 +7,24 @@ from dolfin import MPI
 from hippylib.cgsolverSteihaug import CGSolverSteihaug
 
 
-def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doublesided=True):
-    mpicomm = ObjFctal.MG.vector().mpi_comm()
-    mpirank = MPI.rank(mpicomm)
-
+def checkgradfd_med(ObjFctal, Medium, PRINT, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doublesided=True):
+    """
+    Check gradient for joint inversion
+    Arguments:
+        ObjFctal = objective functional (must provide gradient, and Hessian-Vect product
+        Medium = directions along which the gradient will be tested
+        PRINT = boolean
+        tolgradchk = tolerance for relative error
+        H = size of FD approx
+        doublesided = boolean; use second-order FD approx
+    """
     ObjFctal.backup_m()
     ObjFctal.solvefwd_cost()
     costref = ObjFctal.cost
     ObjFctal.solveadj_constructgrad()
     MG = ObjFctal.getMG().copy()
     normMG = MG.norm('l2')
-    if mpirank == 0:
+    if PRINT:
         print 'Norm of gradient: |MG|={:.6e}'.format(normMG)
 
     if doublesided: factor = [1.0, -1.0]
@@ -27,7 +34,7 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doub
         mgdir = MG.inner(med)
         normmed = med.norm('l2')
 
-        if mpirank == 0:  
+        if PRINT:  
             print 'Gradient check -- direction {}: |dir|={:.2e}, MGdir={:.6e}'\
             .format(textnb+1, normmed, mgdir)
 
@@ -48,11 +55,11 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doub
             else:
                 err = abs(mgdir - FDgrad) / abs(mgdir)
             if err < tolgradchk:   
-                if mpirank == 0:
+                if PRINT:
                     print '\th={0:.1e}: FDgrad={1:.6e}, error={2:.2e} -> OK!'\
                     .format(hh, FDgrad, err)
                 break
-            elif mpirank == 0:
+            elif PRINT:
                 print '\th={0:.1e}: FDgrad={1:.6e}, error={2:.2e}'\
                 .format(hh, FDgrad, err)
 
@@ -63,19 +70,16 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doub
 
 
 
-def checkhessabfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
+def checkhessabfd_med(ObjFctal, Medium, PRINT, tolgradchk=1e-6, \
     H = [1e-5, 1e-6, 1e-4], doublesided=True, direction='b'):
     """
     Finite-difference check for the Hessian of an ObjectiveFunctional object
     """
-    mpicomm = ObjFctal.MG.vector().mpi_comm()
-    mpirank = MPI.rank(mpicomm)
-
     ObjFctal.backup_m()
     ObjFctal.solveadj_constructgrad()
     MGref = ObjFctal.getMG().copy()
     normMG = MGref.norm('l2')
-    if mpirank == 0:
+    if PRINT:
         print 'Norm of gradient: |MG|={:.6e}'.format(normMG)
     HessVec = ObjFctal.srchdir.copy(deepcopy=True)
     HessVecFD = ObjFctal.srchdir.copy(deepcopy=True)
@@ -93,7 +97,7 @@ def checkhessabfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
         normhessb = HessVecb.vector().norm('l2')
         normhess = HessVec.vector().norm('l2')
         normmed = med.norm('l2')
-        if mpirank == 0:
+        if PRINT:
             print 'Hessian check -- direction {}: '.format(textnb+1),
             print '|med|={:.2e}, |H.x|a={:.6e}, |H.x|b={:.6e}, |H.x|={:.6e}'.format(\
             normmed, normhessa, normhessb, normhess)
@@ -130,25 +134,25 @@ def checkhessabfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
             FDHxa = HessVecaFD.vector().norm('l2')
             FDHxb = HessVecbFD.vector().norm('l2')
             FDHx = HessVecFD.vector().norm('l2')
-            if mpirank == 0:
+            if PRINT:
                 print '\t\th={:.1e}: |FDH.x|a={:.6e}, |FDH.x|b={:.6e}, |FDH.x|={:.6e}'\
                 .format( hh, FDHxa, FDHxb, FDHx)
                 print '\t\t\t\terra={:.2e}, errb={:.2e}, err={:.2e}'.format(erra, errb, err),
             if direction == 'a':
                 if erra < tolgradchk:
-                    if mpirank == 0:    print '\t =>> OK!'
+                    if PRINT:    print '\t =>> OK!'
                     break
-                elif mpirank == 0:   print ''
+                elif PRINT:   print ''
             elif direction == 'b':
                 if errb < tolgradchk:
-                    if mpirank == 0:    print '\t =>> OK!'
+                    if PRINT:    print '\t =>> OK!'
                     break
-                elif  mpirank == 0:   print ''
+                elif  PRINT:   print ''
             else:
                 if err < tolgradchk:
-                    if mpirank == 0:    print '\t =>> OK!'
+                    if PRINT:    print '\t =>> OK!'
                     break
-                elif mpirank == 0:   print ''
+                elif PRINT:   print ''
 
     # Restore initial value of m:
     ObjFctal.restore_m()

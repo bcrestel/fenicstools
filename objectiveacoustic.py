@@ -15,11 +15,14 @@ class ObjectiveAcoustic(LinearOperator):
     inverse problem using acoustic wave data
     """
     # CONSTRUCTORS:
-    def __init__(self, acousticwavePDE, sources, invparam='ab', regularization=None):
+    def __init__(self, mpicomm_global, acousticwavePDE, sources, \
+    invparam='ab', regularization=None):
         """ 
         Input:
             acousticwavePDE should be an instantiation from class AcousticWave
         """
+        self.mpicomm_global = mpicomm_global
+
         self.PDE = acousticwavePDE
         self.PDE.exact = None
         self.obsop = None   # Observation operator

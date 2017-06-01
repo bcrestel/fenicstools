@@ -137,8 +137,8 @@ if NOISE:
         sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*0.1
 
         rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
-        print 'mpirank={}, sigmas={}, |rndnoise|={}'.format(\
-        mpilocalrank, sigmas.sum()/len(sigmas), (rndnoise**2).sum().sum())
+        print 'mpiglobalrank={}, sigmas={}, |rndnoise|={}'.format(\
+        mpiglobalrank, sigmas.sum()/len(sigmas), (rndnoise**2).sum().sum())
         DD[ii] = dd + sigmas.reshape((nbobspt,1))*rndnoise
         MPI.barrier(mpicommbarrier)
 waveobj.dd = DD
@@ -192,9 +192,9 @@ if FDGRAD:
             dl.assign(tmp.sub(1), dl.interpolate(MPb[ii], Vl))
             Medium.append(tmp.vector().copy())
         if PRINT:    print 'check gradient with FD'
-        checkgradfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-6, 1e-7], True)
+        checkgradfd_med(waveobj, Medium, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True)
         if PRINT:    print '\ncheck Hessian with FD'
-        checkhessabfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-6, 1e-7], True, 'all')
+        checkhessabfd_med(waveobj, Medium, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'all')
     else:
         Mediuma, Mediumb = [], []
         tmp = dl.Function(Vl*Vl)
@@ -207,21 +207,21 @@ if FDGRAD:
             Mediumb.append(tmp.vector().copy())
         if PRINT:    print 'check a-gradient with FD'
         if 'a' in PARAM:
-            checkgradfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7], True)
+            checkgradfd_med(waveobj, Mediuma, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True)
         else:
-            checkgradfd_med(waveobj, Mediuma[:1], 1e-6, [1e-5], True)
+            checkgradfd_med(waveobj, Mediuma[:1], PRINT, 1e-6, [1e-5], True)
         if PRINT:    print 'check b-gradient with FD'
         if 'b' in PARAM:
-            checkgradfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True)
+            checkgradfd_med(waveobj, Mediumb, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True)
         else:
-            checkgradfd_med(waveobj, Mediumb[:1], 1e-6, [1e-5], True)
+            checkgradfd_med(waveobj, Mediumb[:1], PRINT, 1e-6, [1e-5], True)
 
         if PRINT:    
             print '\n'
             print 'check a-Hessian with FD'
-        checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7], True, 'a')
+        checkhessabfd_med(waveobj, Mediuma, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'a')
         if PRINT:    print 'check b-Hessian with FD'
-        checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True, 'b')
+        checkhessabfd_med(waveobj, Mediumb, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'b')
 ##################################################
 # Solve inverse problem
 else:
