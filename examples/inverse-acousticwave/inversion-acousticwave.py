@@ -40,7 +40,7 @@ PARAM = 'ab'
 NOISE = True
 PLOTTS = False
 
-FDGRAD = False
+FDGRAD = True
 ALL = False
 nbtest = 3
 ##############

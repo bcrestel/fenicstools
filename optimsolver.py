@@ -18,7 +18,7 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doub
     MG = ObjFctal.getMG().copy()
     normMG = MG.norm('l2')
     if mpirank == 0:
-        print 'Norm of gradient: |MG|={:.5e}'.format(normMG)
+        print 'Norm of gradient: |MG|={:.6e}'.format(normMG)
 
     if doublesided: factor = [1.0, -1.0]
     else:   factor = [1.0]
@@ -28,7 +28,7 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doub
         normmed = med.norm('l2')
 
         if mpirank == 0:  
-            print 'Gradient check -- direction {}: |dir|={}, MGdir={:.5e}'\
+            print 'Gradient check -- direction {}: |dir|={:.2e}, MGdir={:.6e}'\
             .format(textnb+1, normmed, mgdir)
 
         for hh in H:
@@ -49,11 +49,11 @@ def checkgradfd_med(ObjFctal, Medium, tolgradchk=1e-6, H=[1e-5, 1e-6,1e-4], doub
                 err = abs(mgdir - FDgrad) / abs(mgdir)
             if err < tolgradchk:   
                 if mpirank == 0:
-                    print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e} -> OK!'\
+                    print '\th={0:.1e}: FDgrad={1:.6e}, error={2:.2e} -> OK!'\
                     .format(hh, FDgrad, err)
                 break
             elif mpirank == 0:
-                print '\th={0:.1e}: FDgrad={1:.5e}, error={2:.2e}'\
+                print '\th={0:.1e}: FDgrad={1:.6e}, error={2:.2e}'\
                 .format(hh, FDgrad, err)
 
     # Restore initial value of m:
@@ -76,7 +76,7 @@ def checkhessabfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
     MGref = ObjFctal.getMG().copy()
     normMG = MGref.norm('l2')
     if mpirank == 0:
-        print 'Norm of gradient: |MG|={:.5e}'.format(normMG)
+        print 'Norm of gradient: |MG|={:.6e}'.format(normMG)
     HessVec = ObjFctal.srchdir.copy(deepcopy=True)
     HessVecFD = ObjFctal.srchdir.copy(deepcopy=True)
 
@@ -95,7 +95,7 @@ def checkhessabfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
         normmed = med.norm('l2')
         if mpirank == 0:
             print 'Hessian check -- direction {}: '.format(textnb+1),
-            print '|med|={}, |H.x|a={:.5e}, |H.x|b={:.5e}, |H.x|={:.5e}'.format(\
+            print '|med|={:.2e}, |H.x|a={:.6e}, |H.x|b={:.6e}, |H.x|={:.6e}'.format(\
             normmed, normhessa, normhessb, normhess)
 
         for hh in H:
@@ -131,7 +131,7 @@ def checkhessabfd_med(ObjFctal, Medium, tolgradchk=1e-6, \
             FDHxb = HessVecbFD.vector().norm('l2')
             FDHx = HessVecFD.vector().norm('l2')
             if mpirank == 0:
-                print '\t\th={:.1e}: |FDH.x|a={:.5e}, |FDH.x|b={:.5e}, |FDH.x|={:.5e}'\
+                print '\t\th={:.1e}: |FDH.x|a={:.6e}, |FDH.x|b={:.6e}, |FDH.x|={:.6e}'\
                 .format( hh, FDHxa, FDHxb, FDHx)
                 print '\t\t\t\terra={:.2e}, errb={:.2e}, err={:.2e}'.format(erra, errb, err),
             if direction == 'a':
