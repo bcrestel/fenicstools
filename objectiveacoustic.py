@@ -4,9 +4,12 @@ from itertools import izip
 from dolfin import LinearOperator, Function, TestFunction, TrialFunction, \
 assemble, inner, nabla_grad, dx, sqrt, LUSolver, assign, Constant, \
 PETScKrylovSolver, MPI
+
 from miscfenics import setfct, isequal, ZeroRegularization
 from linalg.lumpedmatrixsolver import LumpedMassMatrixPrime
-from fenicstools.optimsolver import compute_searchdirection, bcktrcklinesearch
+from optimsolver import compute_searchdirection, bcktrcklinesearch
+
+#from hippylib.linalg import MPIAllReduceVector
 
 
 class ObjectiveAcoustic(LinearOperator):
@@ -16,6 +19,7 @@ class ObjectiveAcoustic(LinearOperator):
     """
     # CONSTRUCTORS:
     def __init__(self, mpicomm_global, acousticwavePDE, sources, \
+    sourcesindex, timestepsindex, \
     invparam='ab', regularization=None):
         """ 
         Input:
@@ -28,6 +32,8 @@ class ObjectiveAcoustic(LinearOperator):
         self.obsop = None   # Observation operator
         self.dd = None  # observations
         self.fwdsource = sources
+        self.srcindex = sourcesindex
+        self.tsteps = timestepsindex
 
         self.inverta = False
         self.invertb = False
@@ -139,6 +145,9 @@ class ObjectiveAcoustic(LinearOperator):
         setfct(newobj.srchdir, self.srchdir)
         newobj.obsop = self.obsop
         newobj.dd = self.dd
+        newobj.fwdsource = self.fwdsource
+        newobj.srcindex = self.srcindex
+        newobj.tsteps = self.tsteps
         return newobj
 
 
@@ -152,7 +161,8 @@ class ObjectiveAcoustic(LinearOperator):
         #TODO: make fwdsource iterable to return source term
         Ricker = self.fwdsource[0]
         srcv = self.fwdsource[2]
-        for ptsrc in self.fwdsource[1]:
+        for sii in self.srcindex:
+            ptsrc = self.fwdsource[1][sii]
             def srcterm(tt):
                 srcv.zero()
                 srcv.axpy(Ricker(tt), ptsrc)
@@ -163,6 +173,7 @@ class ObjectiveAcoustic(LinearOperator):
             self.solpfwd.append(solpfwd)
             self.solppfwd.append(solppfwd)
 
+            #TODO: come back and parallellize this too (over time steps)
             Bp = np.zeros((len(self.obsop.PtwiseObs.Points),len(solfwd)))
             for index, sol in enumerate(solfwd):
                 setfct(self.p, sol[0])
@@ -171,10 +182,13 @@ class ObjectiveAcoustic(LinearOperator):
 
         if cost:
             assert not self.dd == None, "Provide data observations to compute cost"
-            self.cost_misfit = 0.0
+            self.cost_misfit_local = 0.0
             for Bp, dd in izip(self.Bp, self.dd):
-                self.cost_misfit += self.obsop.costfct(Bp, dd, self.PDE.times, self.factors)
-            self.cost_misfit /= len(self.Bp)
+                self.cost_misfit_local += self.obsop.costfct(\
+                Bp[:,self.tsteps], dd[:,self.tsteps],\
+                self.PDE.times[self.tsteps], self.factors[self.tsteps])
+            self.cost_misfit = MPI.sum(self.mpicomm_global, self.cost_misfit_local)
+            self.cost_misfit /= len(self.fwdsource[1])
             self.cost_reg = self.regularization.costab(self.PDE.a, self.PDE.b)
             self.cost = self.cost_misfit + self.alpha_reg*self.cost_reg
 
@@ -197,14 +211,17 @@ class ObjectiveAcoustic(LinearOperator):
 
         if grad:
             self.MG.vector().zero()
-            MGa, MGb = self.MG.split(deepcopy=True)
-            MGav, MGbv = MGa.vector(), MGb.vector()
+            MGa_local, MGb_local = self.MG.split(deepcopy=True)
+            MGav, MGbv = MGa_local.vector(), MGb_local.vector()
+
+            t0, t1 = self.tsteps[0], self.tsteps[-1]+1
 
             for solfwd, solpfwd, solppfwd, soladj in \
             izip(self.solfwd, self.solpfwd, self.solppfwd, self.soladj):
 
                 for fwd, fwdp, fwdpp, adj, fact in \
-                izip(solfwd, solpfwd, solppfwd, reversed(soladj), self.factors):
+                izip(solfwd[t0:t1], solpfwd[t0:t1], solppfwd[t0:t1],\
+                soladj[::-1][t0:t1], self.factors[t0:t1]):
                     setfct(self.q, adj[0])
                     if self.inverta:
                         # gradient a
@@ -225,8 +242,15 @@ class ObjectiveAcoustic(LinearOperator):
                             assemble(form=self.wkformgradbABC, tensor=self.wkformgradbABCout)
                             MGbv.axpy(0.5*fact, self.wkformgradbABCout)
 
-            setfct(MGa, MGav/len(self.Bp))
-            setfct(MGb, MGbv/len(self.Bp))
+            MGa, MGb = self.MG.split(deepcopy=True)
+            #TODO: continue here
+            #MPIAllReduceVector(MGa.vector(), MGav, self.mpicomm_global)
+            #MPIAllReduceVector(MGb.vector(), MGbv, self.mpicomm_global)
+            MGa.vector().axpy(1.0, MGav)
+            MGb.vector().axpy(1.0, MGbv)
+
+            setfct(MGa, MGa.vector()/len(self.Bp))
+            setfct(MGb, MGb.vector()/len(self.Bp))
             self.MG.vector().zero()
             if self.inverta:
                 assign(self.MG.sub(0), MGa)

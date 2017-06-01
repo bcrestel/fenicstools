@@ -109,7 +109,8 @@ obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
 
 # define objective function:
 if FDGRAD:
-    waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv], PARAM)
+    waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv],\
+    sources, timesteps, PARAM)
 else:
     # REGULARIZATION:
     #reg = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6, 'm0':at})
@@ -117,7 +118,8 @@ else:
     #regul = SingleRegularization(reg, PARAM, PRINT)
     regul = V_TVPD(Vl, {'eps':1e-1, 'k':1e-5, 'print':PRINT})
 
-    waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv], PARAM, regul)
+    waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv], \
+    sources, timesteps, PARAM, regul)
 waveobj.obsop = obsop
 #waveobj.GN = True
 
