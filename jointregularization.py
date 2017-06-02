@@ -112,7 +112,8 @@ class SumRegularization():
     potentially connected by cross-gradient or VTV 
     """
 
-    def __init__(self, regul1, regul2, mpicomm, coeff_cg=0.0, 
+    def __init__(self, regul1, regul2, 
+    coeff_cg=0.0, 
     coeff_ncg=0.0, parameters_ncg=[],
     coeff_vtv=0.0, parameters_vtv=[],
     isprint=False):
@@ -134,6 +135,7 @@ class SumRegularization():
         self.V1V2 = V1*V2
         self.a, self.b = Function(V1), Function(V2)
         self.ab = Function(self.V1V2)
+        mpicomm = V1.mesh().mpi_comm()
         self.bd = BlockDiagonal(V1, V2, mpicomm)
         self.saa = self.bd.saa
 
