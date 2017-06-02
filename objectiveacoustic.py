@@ -477,10 +477,8 @@ class ObjectiveAcoustic(LinearOperator):
 
 
     # SETTERS + UPDATE:
-    #TODO: uniformize parameters across proc before updaing PDE?
     def update_PDE(self, parameters): self.PDE.update(parameters)
 
-    #TODO: uniformize medparam across proc before updating PDE
     def update_m(self, medparam):
         """ medparam contains both med parameters """
         setfct(self.ab, medparam)
@@ -515,6 +513,20 @@ class ObjectiveAcoustic(LinearOperator):
         medmisfitb = np.sqrt(db.vector().inner(Mdb.vector()))
         return medmisfita, medmisfitb 
 
+    def compare_ab_global(self):
+        """
+        Check that med param (a, b) are the same across all proc
+        """
+        assign(self.ab.sub(0), self.PDE.a)
+        assign(self.ab.sub(1), self.PDE.b)
+        ab_recv = self.ab.vector().copy()
+        normabloc = np.linalg.norm(self.ab.vector().array())
+        MPIAllReduceVector(self.ab.vector(), ab_recv, self.mpicomm_global)
+        ab_recv /= MPI.size(self.mpicomm_global)
+        diff = ab_recv - self.ab.vector()
+        reldiff = np.linalg.norm(diff.vector())/normabloc
+        assert reldiff < 1e-16, 'Diff in (a,b) across proc: {:.2e}'.format(reldiff)
+
 
 
     # GETTERS:
@@ -538,6 +550,7 @@ class ObjectiveAcoustic(LinearOperator):
         parameters['maxiterNewt']       = 100
         parameters['nbGNsteps']         = 10
         parameters['maxtolcg']          = 0.5
+        parameters['checkab']           = 10
         parameters['inexactCG']         = True
         parameters['isprint']           = False
         parameters.update(parameters_in)
@@ -547,6 +560,7 @@ class ObjectiveAcoustic(LinearOperator):
         abstolgrad = parameters['abstolgrad']
         tolcost = parameters['tolcost']
         nbGNsteps = parameters['nbGNsteps']
+        checkab = parameters['checkab']
         if parameters['inexactCG']:
             maxtolcg = parameters['maxtolcg']
         else:
@@ -592,9 +606,12 @@ class ObjectiveAcoustic(LinearOperator):
 
             # Compute search direction and plot
             tolcg = min(maxtolcg, np.sqrt(gradnorm/gradnorm0))
-            self.GN = (it < nbGNsteps)
+            self.GN = (it < nbGNsteps)  # use GN or full Hessian?
             cgiter, cgres, cgid = compute_searchdirection(self,
             {'method':'Newton', 'tolcg':tolcg}) # most time spent here
+
+            # addt'l safety: zero-out entries of 'srchdir' corresponding to
+            # param that are not inverted for
             if not self.inverta*self.invertb:
                 srcha, srchb = self.srchdir.split(deepcopy=True)
                 if not self.inverta:
@@ -614,6 +631,9 @@ class ObjectiveAcoustic(LinearOperator):
             # Perform line search for dual variable (TV-PD):
             if self.PD: 
                 self.regularization.update_w(self.srchdir.vector(), alpha)
+
+            if it%checkab == 0:
+                self.compare_ab_global()
 
             # Stopping criterion (cost)
             if np.abs(cost-cost_old)/np.abs(cost_old) < tolcost:

@@ -162,9 +162,13 @@ def checkhessabfd_med(ObjFctal, Medium, PRINT, tolgradchk=1e-6, \
 
 
 #@profile
-def compute_searchdirection(objfctal, parameters_in=[]):
+def compute_searchdirection(objfctal, parameters_in=[], comm=dl.mpi_comm_self()):
     """
     Compute search direction for Line Search
+    Arguments:
+        objfctal = objective functional (compute cost, grad, Hessian-vect)
+        parameters_in = options for the Newton solver
+        comm = MPI communicator to average z in CGSolverSteihaug
     """
     parameters = {}
     parameters['method']        = 'Newton'
@@ -188,7 +192,7 @@ def compute_searchdirection(objfctal, parameters_in=[]):
         solver.parameters["rel_tolerance"] = tolcg
         solver.parameters["zero_initial_guess"] = True
         solver.parameters["print_level"] = -2
-        solver.solve(objfctal.srchdir.vector(), -1.0*objfctal.MGv)  # all cpu time spent here
+        solver.solve(objfctal.srchdir.vector(), -1.0*objfctal.MGv, comm)  # all cpu time spent here
 
     else:   raise ValueError("Wrong keyword")
 
