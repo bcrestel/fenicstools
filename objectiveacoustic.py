@@ -9,7 +9,7 @@ from miscfenics import setfct, isequal, ZeroRegularization
 from linalg.lumpedmatrixsolver import LumpedMassMatrixPrime
 from optimsolver import compute_searchdirection, bcktrcklinesearch
 
-#from hippylib.linalg import MPIAllReduceVector
+from hippylib.linalg import MPIAllReduceVector
 
 
 class ObjectiveAcoustic(LinearOperator):
@@ -212,7 +212,7 @@ class ObjectiveAcoustic(LinearOperator):
         if grad:
             self.MG.vector().zero()
             MGa_local, MGb_local = self.MG.split(deepcopy=True)
-            MGav, MGbv = MGa_local.vector(), MGb_local.vector()
+            MGav_local, MGbv_local = MGa_local.vector(), MGb_local.vector()
 
             t0, t1 = self.tsteps[0], self.tsteps[-1]+1
 
@@ -226,31 +226,27 @@ class ObjectiveAcoustic(LinearOperator):
                     if self.inverta:
                         # gradient a
                         setfct(self.p, fwdpp[0])
-                        MGav.axpy(fact, self.get_gradienta()) 
+                        MGav_local.axpy(fact, self.get_gradienta()) 
                     if self.invertb:
                         # gradient b
                         setfct(self.p, fwd[0])
                         assemble(form=self.wkformgradb, tensor=self.wkformgradbout)
-                        MGbv.axpy(fact, self.wkformgradbout)
+                        MGbv_local.axpy(fact, self.wkformgradbout)
 
                     if self.PDE.parameters['abc']:
                         setfct(self.p, fwdp[0])
                         if self.inverta:
                             assemble(form=self.wkformgradaABC, tensor=self.wkformgradaABCout)
-                            MGav.axpy(0.5*fact, self.wkformgradaABCout)
+                            MGav_local.axpy(0.5*fact, self.wkformgradaABCout)
                         if self.invertb:
                             assemble(form=self.wkformgradbABC, tensor=self.wkformgradbABCout)
-                            MGbv.axpy(0.5*fact, self.wkformgradbABCout)
+                            MGbv_local.axpy(0.5*fact, self.wkformgradbABCout)
 
             MGa, MGb = self.MG.split(deepcopy=True)
-            #TODO: continue here
-            #MPIAllReduceVector(MGa.vector(), MGav, self.mpicomm_global)
-            #MPIAllReduceVector(MGb.vector(), MGbv, self.mpicomm_global)
-            MGa.vector().axpy(1.0, MGav)
-            MGb.vector().axpy(1.0, MGbv)
-
-            setfct(MGa, MGa.vector()/len(self.Bp))
-            setfct(MGb, MGb.vector()/len(self.Bp))
+            MPIAllReduceVector(MGav_local, MGa.vector(), self.mpicomm_global)
+            MPIAllReduceVector(MGbv_local, MGb.vector(), self.mpicomm_global)
+            setfct(MGa, MGa.vector()/len(self.fwdsource[1]))
+            setfct(MGb, MGb.vector()/len(self.fwdsource[1]))
             self.MG.vector().zero()
             if self.inverta:
                 assign(self.MG.sub(0), MGa)
@@ -529,7 +525,7 @@ class ObjectiveAcoustic(LinearOperator):
         parameters = {}
         parameters['reltolgrad']        = 1e-10
         parameters['abstolgrad']        = 1e-14
-        parameters['tolcost']           = 1e-16
+        parameters['tolcost']           = 1e-24
         parameters['maxiterNewt']       = 100
         parameters['nbGNsteps']         = 10
         parameters['maxtolcg']          = 0.5
