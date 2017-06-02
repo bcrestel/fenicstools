@@ -369,10 +369,12 @@ class ObjectiveAcoustic(LinearOperator):
         if not self.PDE.parameters['lumpM']:    self.E = assemble(self.wkformrhsincra)
         if self.PDE.parameters['abc']:  self.Dp = assemble(self.wkformincrrhsABC)
 
+        t0, t1 = self.tsteps[0], self.tsteps[-1]+1
+
         # Compute Hessian*abhat
         self.ab.vector().zero()
-        yaF, ybF = self.ab.split(deepcopy=True)
-        ya, yb = yaF.vector(), ybF.vector()
+        yaF_local, ybF_local = self.ab.split(deepcopy=True)
+        ya_local, yb_local = yaF_local.vector(), ybF_local.vector()
 
         # iterate over sources:
         for self.solfwdi, self.solpfwdi, self.solppfwdi, \
@@ -392,8 +394,10 @@ class ObjectiveAcoustic(LinearOperator):
             # assemble Hessian-vect product:
             for fwd, adj, fwdp, incrfwdp, \
             fwdpp, incrfwdpp, incrfwd, incradj, fact \
-            in izip(self.solfwdi, reversed(self.soladji), self.solpfwdi, solpincrfwd, \
-            self.solppfwdi, self.solppincrfwd, self.solincrfwd, reversed(solincradj), self.factors):
+            in izip(self.solfwdi[t0:t1], self.soladji[::-1][t0:t1],\
+            self.solpfwdi[t0:t1], solpincrfwd[t0:t1], \
+            self.solppfwdi[t0:t1], self.solppincrfwd[t0:t1],\
+            self.solincrfwd[t0:t1], solincradj[::-1][t0:t1], self.factors[t0:t1]):
 #                ttf, tta, ttf2 = incrfwd[1], incradj[1], fwd[1]
 #                assert isequal(ttf, tta, 1e-16), 'tfwd={}, tadj={}, reldiff={}'.\
 #                format(ttf, tta, abs(ttf-tta)/ttf)
@@ -407,45 +411,48 @@ class ObjectiveAcoustic(LinearOperator):
                     setfct(self.p, fwd[0])
                     setfct(self.phat, incrfwd[0])
                     if self.GN:
-                        yb.axpy(fact, assemble(self.wkformhessbGN))
+                        yb_local.axpy(fact, assemble(self.wkformhessbGN))
                     else:
-                        yb.axpy(fact, assemble(self.wkformhessb))
+                        yb_local.axpy(fact, assemble(self.wkformhessb))
 
                 if self.inverta:
                     # Hessian a
                     setfct(self.p, fwdpp[0])
                     setfct(self.phat, incrfwdpp[0])
-                    ya.axpy(fact, self.get_hessiana())
+                    ya_local.axpy(fact, self.get_hessiana())
 
                 if self.PDE.parameters['abc']:
                     if not self.GN:
                         setfct(self.p, incrfwdp[0])
                         if self.inverta:
-                            ya.axpy(0.5*fact, assemble(self.wkformgradaABC))
+                            ya_local.axpy(0.5*fact, assemble(self.wkformgradaABC))
                         if self.invertb:
-                            yb.axpy(0.5*fact, assemble(self.wkformgradbABC))
+                            yb_local.axpy(0.5*fact, assemble(self.wkformgradbABC))
 
                     setfct(self.p, fwdp[0])
                     setfct(self.q, incradj[0])
                     if self.inverta:
-                        ya.axpy(0.5*fact, assemble(self.wkformgradaABC))
+                        ya_local.axpy(0.5*fact, assemble(self.wkformgradaABC))
                     if self.invertb:
-                        yb.axpy(0.5*fact, assemble(self.wkformgradbABC))
+                        yb_local.axpy(0.5*fact, assemble(self.wkformgradbABC))
 
                     if not self.GN:
                         setfct(self.q, adj[0])
                         if self.inverta:
-                            ya.axpy(0.25*fact, assemble(self.wkformhessaABC))
+                            ya_local.axpy(0.25*fact, assemble(self.wkformhessaABC))
                         if self.invertb:
-                            yb.axpy(0.25*fact, assemble(self.wkformhessbABC))
+                            yb_local.axpy(0.25*fact, assemble(self.wkformhessbABC))
 
+        yaF, ybF = self.ab.split(deepcopy=True)
+        MPIAllReduceVector(ya_local, yaF.vector(), self.mpicomm_global)
+        MPIAllReduceVector(yb_local, ybF.vector(), self.mpicomm_global)
         self.ab.vector().zero()
         if self.inverta:
             assign(self.ab.sub(0), yaF)
         if self.invertb:
             assign(self.ab.sub(1), ybF)
         y.zero()
-        y.axpy(1.0/len(self.Bp), self.ab.vector())
+        y.axpy(1.0/len(self.fwdsource[1]), self.ab.vector())
 
         y.axpy(self.alpha_reg, \
         self.regularization.hessianab(self.ahat.vector(), self.bhat.vector()))
@@ -470,8 +477,10 @@ class ObjectiveAcoustic(LinearOperator):
 
 
     # SETTERS + UPDATE:
+    #TODO: uniformize parameters across proc before updaing PDE?
     def update_PDE(self, parameters): self.PDE.update(parameters)
 
+    #TODO: uniformize medparam across proc before updating PDE
     def update_m(self, medparam):
         """ medparam contains both med parameters """
         setfct(self.ab, medparam)
