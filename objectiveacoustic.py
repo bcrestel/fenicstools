@@ -12,6 +12,8 @@ from optimsolver import compute_searchdirection, bcktrcklinesearch
 from hippylib.linalg import MPIAllReduceVector
 
 
+DEBUG = True
+
 class ObjectiveAcoustic(LinearOperator):
     """
     Computes data misfit, gradient and Hessian evaluation for the seismic
@@ -191,6 +193,9 @@ class ObjectiveAcoustic(LinearOperator):
             self.cost_misfit /= len(self.fwdsource[1])
             self.cost_reg = self.regularization.costab(self.PDE.a, self.PDE.b)
             self.cost = self.cost_misfit + self.alpha_reg*self.cost_reg
+            if DEBUG:   
+                print 'cost_misfit={}, cost_reg={}'.format(\
+                self.cost_misfit, self.cost_reg)
 
     def solvefwd_cost(self):    self.solvefwd(True)
 
@@ -252,6 +257,10 @@ class ObjectiveAcoustic(LinearOperator):
                 assign(self.MG.sub(0), MGa)
             if self.invertb:
                 assign(self.MG.sub(1), MGb)
+            if DEBUG:
+                print 'grad_misfit={}, grad_reg={}'.format(\
+                self.MG.vector().norm('l2'),\
+                self.regularization.gradab(self.PDE.a, self.PDE.b).norm('l2'))
 
             self.MG.vector().axpy(self.alpha_reg, \
             self.regularization.gradab(self.PDE.a, self.PDE.b))
@@ -453,6 +462,11 @@ class ObjectiveAcoustic(LinearOperator):
             assign(self.ab.sub(1), ybF)
         y.zero()
         y.axpy(1.0/len(self.fwdsource[1]), self.ab.vector())
+        if DEBUG:
+            print 'Hess_misfit={}, Hess_reg={}'.format(\
+            y.norm('l2'),\
+            self.regularization.hessianab(self.ahat.vector(),\
+            self.bhat.vector()).norm('l2'))
 
         y.axpy(self.alpha_reg, \
         self.regularization.hessianab(self.ahat.vector(), self.bhat.vector()))
@@ -524,8 +538,8 @@ class ObjectiveAcoustic(LinearOperator):
         MPIAllReduceVector(self.ab.vector(), ab_recv, self.mpicomm_global)
         ab_recv /= MPI.size(self.mpicomm_global)
         diff = ab_recv - self.ab.vector()
-        reldiff = np.linalg.norm(diff.vector())/normabloc
-        assert reldiff < 1e-16, 'Diff in (a,b) across proc: {:.2e}'.format(reldiff)
+        reldiff = np.linalg.norm(diff.array())/normabloc
+        assert reldiff < 2e-16, 'Diff in (a,b) across proc: {:.2e}'.format(reldiff)
 
 
 
