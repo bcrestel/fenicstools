@@ -9,6 +9,7 @@ from os.path import splitext, isdir
 from shutil import rmtree
 import numpy as np
 import matplotlib.pyplot as plt
+import time
 
 import dolfin as dl
 from dolfin import MPI
@@ -20,8 +21,8 @@ from fenicstools.observationoperator import TimeObsPtwise
 from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.optimsolver import checkgradfd_med, checkhessabfd_med
 from fenicstools.prior import LaplacianPrior
-from fenicstools.regularization import TVPD
-from fenicstools.jointregularization import SingleRegularization, V_TVPD
+from fenicstools.regularization import TVPD, TV
+from fenicstools.jointregularization import SingleRegularization, V_TVPD, SumRegularization
 from fenicstools.mpicomm import create_communicators, partition_work
 
 #from fenicstools.examples.acousticwave.mediumparameters0 import \
@@ -44,7 +45,7 @@ PARAM = 'ab'
 NOISE = True
 PLOTTS = False
 
-FDGRAD = True
+FDGRAD = False
 ALL = False
 nbtest = 3
 ##############
@@ -113,9 +114,12 @@ if FDGRAD:
     sources, timesteps, PARAM)
 else:
     # REGULARIZATION:
-    #reg = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6, 'm0':at})
-    #reg = TVPD({'Vm':Vl, 'k':1e-5, 'print':PRINT})
-    #regul = SingleRegularization(reg, PARAM, PRINT)
+    #reg1 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
+    #reg2 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
+    #reg1 = TV({'Vm':Vl, 'eps':1e-3, 'k':1e-5, 'print':PRINT})
+    #reg2 = TV({'Vm':Vl, 'eps':1e-3, 'k':1e-5, 'print':PRINT})
+    #regul = SumRegularization(reg1, reg2, isprint=PRINT)
+    #regul = SingleRegularization(reg1, PARAM, PRINT)
     regul = V_TVPD(Vl, {'eps':1e-1, 'k':1e-5, 'print':PRINT})
 
     waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv], \
@@ -255,11 +259,19 @@ else:
     parameters = {}
     parameters['isprint'] = PRINT
     parameters['nbGNsteps'] = 10
-    #parameters['maxiterNewt'] = 2
+    parameters['checkab'] = 1
+    parameters['maxiterNewt'] = 5
+
+    tstart = time.time()
 
     waveobj.inversion(m0, mt, parameters,
-    boundsLS=[[0.01, 0.2], [0.2, 0.6]], myplot=myplotf)
+    boundsLS=[[1e-8, 0.4], [0.2, 0.6]], myplot=myplotf)
     #boundsLS=[[0.1, 5.0], [0.1, 5.0]], myplot=myplotf)
+
+    tend = time.time()
+    Dt = tend - tstart
+    if PRINT:
+        print 'Time to solve inverse problem {}'.format(Dt)
 
     minat = at.vector().min()
     maxat = at.vector().max()
