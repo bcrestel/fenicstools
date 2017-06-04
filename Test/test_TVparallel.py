@@ -1,17 +1,25 @@
 """
-Test weird results with TV (and TVPD, V_TVPD) in parallel
+Test weird results with sqrt
+In Fenics 1.6, with 
+    mpicomm = dl.mpi_comm_self()
+results are,
+    cost = cost_serial * nb_proc
 """
-
+import sys
 import dolfin as dl
-from fenicstools.regularization import TV
 
+#mpicomm = dl.mpi_comm_world()
 mpicomm = dl.mpi_comm_self()
+
 mesh = dl.UnitSquareMesh(mpicomm, 50, 50)
 V = dl.FunctionSpace(mesh, 'CG', 1)
 
-#TODO: continue example; reproduce bug w/o TV
-reg = TV({'Vm':V, 'eps':1e-3, 'k':1e-5, 'print':True})
+#m = dl.interpolate(dl.Expression('4.0*x[0]*x[0]', degree=1), V)
+x = dl.SpatialCoordinate(mesh)
+m = 4.0*x[0]*x[0]
 
-m = dl.interpolate(dl.Expression('sin(pi*x[0])*sin(pi*x[1])'), V)
-cost = reg.cost(m)
+cost = dl.assemble(dl.sqrt(m)*dl.dx)
+#cost = dl.assemble(dl.exp(m)*dl.dx)
+
 print cost
+
