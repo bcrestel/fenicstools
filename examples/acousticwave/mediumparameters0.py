@@ -10,7 +10,8 @@ def createparam(CC, Vl, X, size):
     c = dl.interpolate(dl.Expression(' \
     c0 + (c1-c0)*(x[0]>=LL)*(x[0]<=RR)*(x[1]>=BB)*(x[1]<=TT)',\
     c0 = CC[0], c1=CC[1], \
-    BB=0.5*(X-size), LL=0.5*(X-size), TT=0.5*(X+size), RR=0.5*(X+size)), Vl)
+    BB=0.5*(X-size), LL=0.5*(X-size), TT=0.5*(X+size), RR=0.5*(X+size),\
+    degree=10), Vl)
     return c
 
 
@@ -53,7 +54,7 @@ def targetmediumparameters(Vl, X, myplot=None):
         myplot.set_varname('beta_target')
         myplot.plot_vtk(bt)
     # Check:
-    ones = dl.interpolate(dl.Expression('1.0'), Vl)
+    ones = dl.interpolate(dl.Constant('1.0'), Vl)
     check1 = at.vector() * lam.vector()
     erra = dl.norm(check1 - ones.vector())
     assert erra < 1e-16, erra
@@ -67,9 +68,9 @@ def targetmediumparameters(Vl, X, myplot=None):
 
 def initmediumparameters(Vl, X, myplot=None):
     # medium parameters:
-    a_initial = dl.Expression('1.0 + 0.1*sin(pi*x[0])*sin(pi*x[1])')
+    a_initial = dl.Expression('1.0 + 0.1*sin(pi*x[0])*sin(pi*x[1])', degree=10)
     at = dl.interpolate(a_initial, Vl)
-    b_initial = dl.Expression('1.0 + 0.25*sin(pi*x[0])*sin(pi*x[1])')
+    b_initial = dl.Expression('1.0 + 0.25*sin(pi*x[0])*sin(pi*x[1])', degree=10)
     bt = dl.interpolate(b_initial, Vl)
 
     return at, bt,None,None,None

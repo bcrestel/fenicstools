@@ -13,7 +13,7 @@ def createparam(CC, Vl, X, H1, H2, H3, TT):
     vvc*(x[1]<=HA)*(x[1]>HB) + \
     vvd*(x[1]<=HB))', 
     vva=CC[0], vvb=CC[1], vvc=CC[2], vvd=CC[3],
-    LL=X/4.0, RR=3.0*X/4.0, HA=H1, HB=H2, HC=H3, TT=TT), Vl)
+    LL=X/4.0, RR=3.0*X/4.0, HA=H1, HB=H2, HC=H3, TT=TT, degree=10), Vl)
     return c
 
 
@@ -60,7 +60,7 @@ def targetmediumparameters(Vl, X, myplot=None):
         myplot.set_varname('beta_target')
         myplot.plot_vtk(bf)
     # Check:
-    ones = dl.interpolate(dl.Expression('1.0'), Vl)
+    ones = dl.interpolate(dl.Constant('1.0'), Vl)
     check1 = af.vector() * lam.vector()
     erra = dl.norm(check1 - ones.vector())
     assert erra < 1e-16
@@ -110,7 +110,7 @@ def initmediumparameters(Vl, X, myplot=None):
         myplot.set_varname('beta_init')
         myplot.plot_vtk(bf)
     # Check:
-    ones = dl.interpolate(dl.Expression('1.0'), Vl)
+    ones = dl.interpolate(dl.Constant('1.0'), Vl)
     check1 = af.vector() * lam.vector()
     erra = dl.norm(check1 - ones.vector())
     assert erra < 1e-16

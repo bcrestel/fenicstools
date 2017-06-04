@@ -253,7 +253,7 @@ class TVPD():
             ones = (("1.0", "1.0"))
         else:
             sys.exit(1)
-        u = interpolate(Expression(ones), Vw)
+        u = interpolate(Constant(ones), Vw)
         self.one = u.vector()
 
         self.wkformAx = inner(testw, trialm.dx(0) - \

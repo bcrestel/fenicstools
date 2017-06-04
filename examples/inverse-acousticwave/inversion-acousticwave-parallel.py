@@ -45,7 +45,7 @@ PARAM = 'ab'
 NOISE = True
 PLOTTS = False
 
-FDGRAD = False
+FDGRAD = True
 ALL = False
 nbtest = 3
 ##############
@@ -179,15 +179,15 @@ if FDGRAD:
     if ALL and (PARAM == 'a' or PARAM == 'b') and PRINT:
         print '*** Warning: Single inversion but changing both parameters'
     MPa = [
-    dl.Expression('1.0'), 
-    dl. Expression('sin(pi*x[0])*sin(pi*x[1])'),
-    dl.Expression('x[0]'), dl.Expression('x[1]'), 
-    dl.Expression('sin(3*pi*x[0])*sin(3*pi*x[1])')]
+    dl.Constant('1.0'), 
+    dl. Expression('sin(pi*x[0])*sin(pi*x[1])', degree=10),
+    dl.Expression('x[0]', degree=10), dl.Expression('x[1]', degree=10), 
+    dl.Expression('sin(3*pi*x[0])*sin(3*pi*x[1])', degree=10)]
     MPb = [
-    dl.Expression('1.0'), 
-    dl. Expression('sin(pi*x[0])*sin(pi*x[1])'),
-    dl.Expression('x[1]'), dl.Expression('x[0]'), 
-    dl.Expression('sin(3*pi*x[0])*sin(3*pi*x[1])')]
+    dl.Constant('1.0'), 
+    dl. Expression('sin(pi*x[0])*sin(pi*x[1])', degree=10),
+    dl.Expression('x[1]', degree=10), dl.Expression('x[0]', degree=10), 
+    dl.Expression('sin(3*pi*x[0])*sin(3*pi*x[1])', degree=10)]
 
     if ALL:
         Medium = []
