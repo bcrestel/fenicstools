@@ -247,9 +247,10 @@ class TVPD():
         self.invMwMat.init_vector(self.factorw, 0)
 
         u = Function(Vw)
-        if u.rank() == 0:
+        uflrank = len(u.ufl_shape)
+        if uflrank == 0:
             ones = ("1.0")
-        elif u.rank() == 1:
+        elif uflrank == 1:
             ones = (("1.0", "1.0"))
         else:
             sys.exit(1)

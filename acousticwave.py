@@ -79,7 +79,8 @@ class AcousticWave():
         if lumpD:    self.parameters['lumpD'] = True
         abc_boundaryparts = FacetFunction("size_t", mesh)
         class_bc_abc.mark(abc_boundaryparts, 1)
-        self.ds = Measure("ds")[abc_boundaryparts]
+        #self.ds = Measure("ds")[abc_boundaryparts]
+        self.ds = Measure('ds', domain=mesh, subdomain_data=abc_boundaryparts)
         self.weak_d = inner(sqrt(self.a*self.b)*self.trial, self.test)*self.ds(1)
         self.class_bc_abc = class_bc_abc    # to make copies
 
