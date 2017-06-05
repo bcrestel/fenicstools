@@ -14,11 +14,11 @@ from fenicstools.plotfenics import PlotFenics
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
 
-#from mediumparameters import targetmediumparameters, loadparameters
-from mediumparameters0 import targetmediumparameters, loadparameters
+from mediumparameters import targetmediumparameters, loadparameters
+#from mediumparameters0 import targetmediumparameters, loadparameters
 
 
-LARGE = False
+LARGE = True
 Nxy, Dt, fpeak, t0, t1, t2, tf = loadparameters(LARGE)
 
 
@@ -37,7 +37,7 @@ filename, ext = splitext(sys.argv[0])
 if mpirank == 0: 
     if isdir(filename + '/'):   rmtree(filename + '/')
 MPI.barrier(mpicomm)
-myplot = PlotFenics(filename)
+myplot = PlotFenics(mpicomm, filename)
 
 # Source term:
 Ricker = RickerWavelet(fpeak, 1e-6)
