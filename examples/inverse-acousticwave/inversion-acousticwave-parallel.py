@@ -124,7 +124,7 @@ else:
     #reg2 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
     #regul = SumRegularization(reg1, reg2, coeff_ncg=0.0, isprint=PRINT)
     #regul = SingleRegularization(reg1, PARAM, PRINT)
-    regul = V_TVPD(Vl, {'eps':1e-1, 'k':1e-5, 'print':PRINT})
+    regul = V_TVPD(Vl, {'eps':1e-1, 'k':1e-7, 'PCGN':False, 'print':PRINT})
 
     waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv], \
     sources, timesteps, PARAM, regul)
@@ -264,7 +264,9 @@ else:
     parameters['isprint'] = PRINT
     parameters['nbGNsteps'] = 10
     parameters['checkab'] = 10
-    parameters['maxiterNewt'] = 1000
+    parameters['maxiterNewt'] = 500
+    parameters['avgPC'] = True
+    parameters['PC'] = 'prior'
 
     tstart = time.time()
 

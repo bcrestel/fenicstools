@@ -180,7 +180,6 @@ class TVPD():
             * rescaledradiusdual = radius of dual set
             * exact = use full TV (bool)
             * PCGN = use GN Hessian to precondition (bool); 
-            only used if 'GNhessian = False';
             not recommended for performance but can help avoid num.instability
             * print (bool)
         """

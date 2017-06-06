@@ -683,8 +683,13 @@ class V_TVPD():
 
     def __init__(self, Vm, parameters=[]):
         """ Vm = FunctionSpace for the parameters m1, and m2 """
-        self.parameters = {'k':1.0, 'eps':1e-2, 'rescaledradiusdual':1.0, 'print':False}
+        self.parameters = {}
+        self.parameters['k'] = 1.0
+        self.parameters['eps'] = 1e-2
+        self.parameters['rescaledradiusdual'] = 1.0
+        self.parameters['print'] = False
         self.parameters.update(parameters)
+
         VmVm = Vm*Vm
         self.parameters['Vm'] = VmVm
         Vw = FunctionSpace(Vm.mesh(), 'DG', 0)
