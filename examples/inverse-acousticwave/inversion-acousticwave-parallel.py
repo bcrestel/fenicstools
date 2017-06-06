@@ -25,7 +25,8 @@ from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.optimsolver import checkgradfd_med, checkhessabfd_med
 from fenicstools.prior import LaplacianPrior
 from fenicstools.regularization import TVPD, TV
-from fenicstools.jointregularization import SingleRegularization, V_TVPD, SumRegularization
+from fenicstools.jointregularization import \
+SingleRegularization, V_TVPD, SumRegularization
 from fenicstools.mpicomm import create_communicators, partition_work
 
 #from fenicstools.examples.acousticwave.mediumparameters0 import \
@@ -69,9 +70,9 @@ Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
 Ricker = RickerWavelet(fpeak, 1e-6)
 r = 2   # polynomial degree for state and adj
 V = dl.FunctionSpace(mesh, 'Lagrange', r)
-#Pt = PointSources(V, [[0.1*ii*X, Y] for ii in range(1,10)])
+Pt = PointSources(V, [[0.1*ii*X-0.05, Y] for ii in range(1,11)])
 #Pt = PointSources(V, [[0.2*X,Y], [0.5*X,Y], [0.8*X,Y]])
-Pt = PointSources(V, [[0.5, 1.0]])
+#Pt = PointSources(V, [[0.5, 1.0]])
 srcv = dl.Function(V).vector()
 
 # Boundary conditions:
@@ -121,7 +122,7 @@ else:
     #reg2 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
     #reg1 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
     #reg2 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
-    #regul = SumRegularization(reg1, reg2, isprint=PRINT)
+    #regul = SumRegularization(reg1, reg2, coeff_ncg=0.0, isprint=PRINT)
     #regul = SingleRegularization(reg1, PARAM, PRINT)
     regul = V_TVPD(Vl, {'eps':1e-1, 'k':1e-5, 'print':PRINT})
 
@@ -262,13 +263,13 @@ else:
     parameters = {}
     parameters['isprint'] = PRINT
     parameters['nbGNsteps'] = 10
-    parameters['checkab'] = 1
-    parameters['maxiterNewt'] = 5
+    parameters['checkab'] = 10
+    parameters['maxiterNewt'] = 1000
 
     tstart = time.time()
 
     waveobj.inversion(m0, mt, parameters,
-    boundsLS=[[1e-8, 0.4], [0.2, 0.6]], myplot=myplotf)
+    boundsLS=[[1e-4, 0.4], [0.2, 0.6]], myplot=myplotf)
     #boundsLS=[[0.1, 5.0], [0.1, 5.0]], myplot=myplotf)
 
     tend = time.time()

@@ -13,7 +13,7 @@ from optimsolver import compute_searchdirection, bcktrcklinesearch
 from hippylib.linalg import MPIAllReduceVector
 
 
-DEBUG = True
+DEBUG = False
 
 class ObjectiveAcoustic(LinearOperator):
     """
