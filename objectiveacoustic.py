@@ -11,6 +11,7 @@ from linalg.lumpedmatrixsolver import LumpedMassMatrixPrime
 from optimsolver import compute_searchdirection, bcktrcklinesearch
 
 from hippylib.linalg import MPIAllReduceVector
+from hippylib.bfgs import BFGS_operator
 
 
 DEBUG = False
@@ -547,7 +548,14 @@ class ObjectiveAcoustic(LinearOperator):
     # GETTERS:
     def getmbkup(self):         return self.m_bkup.vector()
     def getMG(self):            return self.MGv
-    def getprecond(self):       return self.regularization.getprecond()
+    def getprecond(self):
+        if self.PC == 'prior':
+            return self.regularization.getprecond()
+        elif self.PC == 'bfgs':
+            return self.bfgsPC
+        else:
+            print 'Wrong keyword for choice of preconditioner'
+            sys.exit(1)
 
 
 
@@ -557,6 +565,18 @@ class ObjectiveAcoustic(LinearOperator):
     boundsLS=None, myplot=None):
         """ 
         Solve inverse problem with that objective function 
+        parameters:
+            retolgrad = relative tolerance for stopping criterion (grad)
+            abstolgrad = absolute tolerance for stopping criterion (grad)
+            tolcost = tolerance for stopping criterion (cost)
+            maxiterNewt = max nb of Newton iterations
+            nbGNsteps = nb of Newton steps with GN Hessian
+            maxtolcg = max value of the tolerance for CG solver
+            checkab = nb of steps in-between check of param
+            inexactCG = [bool] inexact CG solver or exact CG
+            isprint = [bool] print results to screen
+            avgPC = [bool] average Preconditioned step over all proc in CG
+            PC = choice of preconditioner ('prior', or 'bfgs')
         """
         parameters = {}
         parameters['reltolgrad']        = 1e-10
@@ -569,6 +589,10 @@ class ObjectiveAcoustic(LinearOperator):
         parameters['inexactCG']         = True
         parameters['isprint']           = False
         parameters['avgPC']             = True
+        parameters['PC']                = 'prior'
+        # BFGS parameters
+        parameters['memory_limit']      = 50
+        parameters['H0inv']             = 'Rinv'
         parameters.update(parameters_in)
         isprint = parameters['isprint']
         maxiterNewt = parameters['maxiterNewt']
@@ -582,6 +606,7 @@ class ObjectiveAcoustic(LinearOperator):
             maxtolcg = parameters['maxtolcg']
         else:
             maxtolcg = 1e-12
+        self.PC = parameters['PC']
 
         if isprint:
             print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t\t\t{:10s} {:12s} {:12s}'.format(\
@@ -599,11 +624,32 @@ class ObjectiveAcoustic(LinearOperator):
         atnorm = np.sqrt(at.vector().inner(Ma.vector()))
         btnorm = np.sqrt(bt.vector().inner(Mb.vector()))
 
+        # preconditioner:
+        if self.PC == 'bfgs':
+            self.bfgsPC = BFGS_operator(parameters)
+            H0inv = self.bfgsPC.parameters['H0inv']
+
         self.solvefwd_cost()
         for it in xrange(maxiterNewt):
+            MGv_old = self.MGv.copy()
             self.solveadj_constructgrad()
             gradnorm = np.sqrt(self.MGv.inner(self.Grad.vector()))
             if it == 0:   gradnorm0 = gradnorm
+
+            # Update BFGS approx (s, y, H0)
+            if self.PC == 'bfgs':
+                if it > 0:
+                    s = self.srchdir.vector() * alpha
+                    y = self.MGv - MGv_old
+                    theta = self.bfgsPC.update(s, y)
+                else:
+                    theta = 1.0
+
+                if H0inv == 'Rinv':
+                    self.bfgsPC.set_H0inv(self.regularization.getprecond())
+                elif H0inv == 'Minv':
+                    print 'H0inv = Minv? That is not a good idea'
+                    sys.exit(1)
 
             medmisfita, medmisfitb = self.mediummisfit(target_medium)
 
@@ -624,12 +670,13 @@ class ObjectiveAcoustic(LinearOperator):
             # Compute search direction and plot
             tolcg = min(maxtolcg, np.sqrt(gradnorm/gradnorm0))
             self.GN = (it < nbGNsteps)  # use GN or full Hessian?
+            # most time spent here:
             if avgPC:
                 cgiter, cgres, cgid = compute_searchdirection(self,
                 {'method':'Newton', 'tolcg':tolcg}, comm=self.mpicomm_global)
             else:
                 cgiter, cgres, cgid = compute_searchdirection(self,
-                {'method':'Newton', 'tolcg':tolcg}) # most time spent here
+                {'method':'Newton', 'tolcg':tolcg})
 
             # addt'l safety: zero-out entries of 'srchdir' corresponding to
             # param that are not inverted for
