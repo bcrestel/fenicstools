@@ -8,7 +8,10 @@ import sys
 from os.path import splitext, isdir
 from shutil import rmtree
 import numpy as np
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except:
+    pass
 import time
 
 import dolfin as dl
@@ -45,7 +48,7 @@ PARAM = 'ab'
 NOISE = True
 PLOTTS = False
 
-FDGRAD = True
+FDGRAD = False
 ALL = False
 nbtest = 3
 ##############
@@ -116,8 +119,8 @@ else:
     # REGULARIZATION:
     #reg1 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
     #reg2 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
-    #reg1 = TV({'Vm':Vl, 'eps':1e-3, 'k':1e-5, 'print':PRINT})
-    #reg2 = TV({'Vm':Vl, 'eps':1e-3, 'k':1e-5, 'print':PRINT})
+    #reg1 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
+    #reg2 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
     #regul = SumRegularization(reg1, reg2, isprint=PRINT)
     #regul = SingleRegularization(reg1, PARAM, PRINT)
     regul = V_TVPD(Vl, {'eps':1e-1, 'k':1e-5, 'print':PRINT})
@@ -264,6 +267,10 @@ else:
 
     tstart = time.time()
 
+    #TODO: does not work with V_TVPD.
+    # fails in CGSolverSteihaug
+    # But works with other regularization
+    # => Preconditioning? Try V_TV
     waveobj.inversion(m0, mt, parameters,
     boundsLS=[[1e-8, 0.4], [0.2, 0.6]], myplot=myplotf)
     #boundsLS=[[0.1, 5.0], [0.1, 5.0]], myplot=myplotf)

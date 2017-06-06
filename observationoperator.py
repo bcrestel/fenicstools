@@ -8,7 +8,10 @@ import numpy as np
 from numpy import sqrt
 #from numpy.linalg import norm
 #from numpy.random import randn
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except:
+    pass
 
 from dolfin import Function, TrialFunction, TestFunction, \
 Constant, Point, as_backend_type, assemble, inner, dx

@@ -2,7 +2,10 @@
 the linear algebra backend """
 
 import numpy as np
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except:
+    pass
 from dolfin import as_backend_type, PETScVector, PETScMatrix, SLEPcEigenSolver
 from dolfin import MPI
 

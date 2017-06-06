@@ -1,7 +1,10 @@
 import os
 from os.path import isdir
-import matplotlib.pyplot as plt
-plt.ioff()
+try:
+    import matplotlib.pyplot as plt
+    plt.ioff()
+except:
+    pass
 import numpy as np
 
 from dolfin import File, MPI

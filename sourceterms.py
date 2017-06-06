@@ -1,5 +1,8 @@
 import numpy as np
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except:
+    pass
 
 from dolfin import TestFunction, Constant, dx, assemble, PointSource, Point
 
