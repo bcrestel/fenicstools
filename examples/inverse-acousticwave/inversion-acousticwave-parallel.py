@@ -267,10 +267,6 @@ else:
 
     tstart = time.time()
 
-    #TODO: does not work with V_TVPD.
-    # fails in CGSolverSteihaug
-    # But works with other regularization
-    # => Preconditioning? Try V_TV
     waveobj.inversion(m0, mt, parameters,
     boundsLS=[[1e-8, 0.4], [0.2, 0.6]], myplot=myplotf)
     #boundsLS=[[0.1, 5.0], [0.1, 5.0]], myplot=myplotf)

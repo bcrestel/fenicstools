@@ -11,7 +11,7 @@ import dolfin as dl
 #mpicomm = dl.mpi_comm_world()
 mpicomm = dl.mpi_comm_self()
 
-mesh = dl.UnitSquareMesh(mpicomm, 50, 50)
+mesh = dl.UnitSquareMesh(mpicomm, 10, 10)
 V = dl.FunctionSpace(mesh, 'CG', 1)
 
 #m = dl.interpolate(dl.Expression('4.0*x[0]*x[0]', degree=1), V)
