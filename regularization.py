@@ -5,7 +5,8 @@ from dolfin import sqrt, inner, nabla_grad, grad, dx, \
 Function, TestFunction, TrialFunction, Vector, assemble, solve, \
 Constant, plot, interactive, assign, FunctionSpace, interpolate, Expression, \
 PETScKrylovSolver, PETScLUSolver, PETScMatrix, \
-as_backend_type, norm
+as_backend_type, norm,\
+UnitSquareMesh, SpatialCoordinate, mpi_comm_self
 from miscfenics import isVector, setfct, amg_solver
 from linalg.miscroutines import get_diagonal, setupPETScmatrix, compute_eigfenics
 from hippylib.linalg import MatMatMult, Transpose, pointwiseMaxCount
@@ -36,6 +37,7 @@ class TV():
         self.parameters['GNhessian']    = False
         self.parameters['PCGN']         = False
         self.parameters['print']        = False
+        self.parameters['correctcost']  = True
 
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
@@ -62,7 +64,15 @@ class TV():
         self.fTV = inner(nabla_grad(self.m), nabla_grad(self.m)) + Constant(eps)
         self.kovsq = Constant(k) / sqrt(self.fTV)
 
-        self.wkformcost = Constant(k) * sqrt(self.fTV) * dx
+        if self.parameters['correctcost']:
+            meshtmp = UnitSquareMesh(mpi_comm_self(), 10, 10)
+            Vtmp = FunctionSpace(meshtmp, 'CG', 1)
+            x = SpatialCoordinate(meshtmp)
+            correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
+            print 'TV: correction cost with factor={}'.format(correctioncost)
+        else:
+            correctioncost = 1.0
+        self.wkformcost = Constant(k*correctioncost) * sqrt(self.fTV) * dx
 
         self.wkformgrad = self.kovsq*inner(nabla_grad(self.m), nabla_grad(test))*dx
 
@@ -182,6 +192,7 @@ class TVPD():
         self.parameters['exact']                = False
         self.parameters['PCGN']                 = False
         self.parameters['print']                = False
+        self.parameters['correctcost']          = True
 
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
@@ -218,7 +229,15 @@ class TVPD():
         normm = inner(nabla_grad(self.m), nabla_grad(self.m))
         TVnormsq = normm + Constant(eps)
         TVnorm = sqrt(TVnormsq)
-        self.wkformcost = Constant(k)*TVnorm*dx
+        if self.parameters['correctcost']:
+            meshtmp = UnitSquareMesh(mpi_comm_self(), 10, 10)
+            Vtmp = FunctionSpace(meshtmp, 'CG', 1)
+            x = SpatialCoordinate(meshtmp)
+            correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
+            print 'TVPD: correction cost with factor={}'.format(correctioncost)
+        else:
+            correctioncost = 1.0
+        self.wkformcost = Constant(k*correctioncost)*TVnorm*dx
         if exact:
             sys.exit(1)
 #            self.w = nabla_grad(self.m)/TVnorm # full Hessian

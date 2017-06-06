@@ -5,7 +5,8 @@ import numpy as np
 from dolfin import inner, nabla_grad, dx, interpolate, cells, \
 Function, TestFunction, TrialFunction, assemble, project, \
 PETScKrylovSolver, assign, sqrt, Constant, as_backend_type, \
-FunctionSpace, VectorFunctionSpace, norm, MPI, Vector, split, derivative
+FunctionSpace, VectorFunctionSpace, norm, MPI, Vector, split, derivative,\
+UnitSquareMesh, mpi_comm_self, SpatialCoordinate
 from miscfenics import setfct, ZeroRegularization, amg_solver
 from linalg.splitandassign import BlockDiagonal, PrecondPlusIdentity
 from linalg.miscroutines import setglobalvalue
@@ -366,8 +367,9 @@ class normalizedcrossgradient():
     """
 
     def __init__(self, VV, parameters=[]):
-
-        self.parameters = {'eps':1e-4}
+        self.parameters = {}
+        self.parameters['eps']          = 1e-4
+        self.parameters['correctcost']  = True
         self.parameters.update(parameters)
         eps = Constant(self.parameters['eps'])
 
@@ -379,7 +381,15 @@ class normalizedcrossgradient():
         ngradb = nabla_grad(self.b) / normgradb
 
         # cost
-        self.cost = 0.5*(1.0 - inner(ngrada, ngradb)*inner(ngrada, ngradb))*dx
+        if self.parameters['correctcost']:
+            meshtmp = UnitSquareMesh(mpi_comm_self(), 10, 10)
+            Vtmp = FunctionSpace(meshtmp, 'CG', 1)
+            x = SpatialCoordinate(meshtmp)
+            correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
+            print 'NCG: correction cost with factor={}'.format(correctioncost)
+        else:
+            correctioncost = 1.0
+        self.cost = 0.5*correctioncost*(1.0 - inner(ngrada, ngradb)*inner(ngrada, ngradb))*dx
         # gradient
         testa, testb = TestFunction(VV)
         grada = - inner(ngrada, ngradb)* \
@@ -498,7 +508,10 @@ class VTV():
 
     def __init__(self, Vm, parameters=[]):
         """ Vm = FunctionSpace for the parameters m1, and m2 """
-        self.parameters = {'k':1.0, 'eps':1e-2}
+        self.parameters = {}
+        self.parameters['k']        = 1.0
+        self.parameters['eps']      = 1e-2
+        self.parameters['correctcost']  = True
         self.parameters.update(parameters)
         k = self.parameters['k']
         eps = self.parameters['eps']
@@ -518,7 +531,15 @@ class VTV():
         normm2 = inner(nabla_grad(self.m2), nabla_grad(self.m2))
         TVnormsq = normm1 + normm2 + Constant(eps)
         TVnorm = sqrt(TVnormsq)
-        self.wkformcost = Constant(k) * TVnorm * dx
+        if self.parameters['correctcost']:
+            meshtmp = UnitSquareMesh(mpi_comm_self(), 10, 10)
+            Vtmp = FunctionSpace(meshtmp, 'CG', 1)
+            x = SpatialCoordinate(meshtmp)
+            correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
+            print 'VTV: correction cost with factor={}'.format(correctioncost)
+        else:
+            correctioncost = 1.0
+        self.wkformcost = Constant(k*correctioncost) * TVnorm * dx
 
         # gradient
         gradm1 = Constant(k)/TVnorm*inner(nabla_grad(self.m1), nabla_grad(testm1))*dx
@@ -915,7 +936,10 @@ class NuclearNormSVD2D():
 class NuclearNormformula():
 
     def __init__(self, mesh, parameters=[], isprint=False):
-        self.parameters = {'eps':0.0, 'k':1.0}
+        self.parameters = {}
+        self.parameters['eps']          = 0.0
+        self.parameters['k']            = 1.0
+        self.parameters['correctcost']  = True
         self.parameters.update(parameters)
         eps = self.parameters['eps']
         k = self.parameters['k']
@@ -932,6 +956,14 @@ class NuclearNormformula():
 
         normg1 = inner(nabla_grad(self.m1), nabla_grad(self.m1))
         normg2 = inner(nabla_grad(self.m2), nabla_grad(self.m2))
+        if self.parameters['correctcost']:
+            meshtmp = UnitSquareMesh(mpi_comm_self(), 10, 10)
+            Vtmp = FunctionSpace(meshtmp, 'CG', 1)
+            x = SpatialCoordinate(meshtmp)
+            self.correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
+            print 'TV: correction cost with factor={}'.format(self.correctioncost)
+        else:
+            self.correctioncost = 1.0
         self.cost = 1./np.sqrt(2.0) * Constant(k) * (\
         sqrt(normg1 + normg2 + Constant(np.sqrt(eps)) + 
         sqrt((normg1 - normg2)**2 + Constant(eps) +
@@ -962,7 +994,7 @@ class NuclearNormformula():
     def costab(self, m1, m2):
         assign(self.m.sub(0), m1)
         assign(self.m.sub(1), m2)
-        return assemble(self.cost)
+        return assemble(self.cost)*self.correctioncost
 
     def costabvect(self, m1, m2):
         setfct(self.tmp1, m1)
