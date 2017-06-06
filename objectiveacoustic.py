@@ -567,6 +567,7 @@ class ObjectiveAcoustic(LinearOperator):
         parameters['checkab']           = 10
         parameters['inexactCG']         = True
         parameters['isprint']           = False
+        parameters['avgPC']             = True
         parameters.update(parameters_in)
         isprint = parameters['isprint']
         maxiterNewt = parameters['maxiterNewt']
@@ -575,6 +576,7 @@ class ObjectiveAcoustic(LinearOperator):
         tolcost = parameters['tolcost']
         nbGNsteps = parameters['nbGNsteps']
         checkab = parameters['checkab']
+        avgPC = parameters['avgPC']
         if parameters['inexactCG']:
             maxtolcg = parameters['maxtolcg']
         else:
@@ -621,8 +623,12 @@ class ObjectiveAcoustic(LinearOperator):
             # Compute search direction and plot
             tolcg = min(maxtolcg, np.sqrt(gradnorm/gradnorm0))
             self.GN = (it < nbGNsteps)  # use GN or full Hessian?
-            cgiter, cgres, cgid = compute_searchdirection(self,
-            {'method':'Newton', 'tolcg':tolcg}) # most time spent here
+            if avgPC:
+                cgiter, cgres, cgid = compute_searchdirection(self,
+                {'method':'Newton', 'tolcg':tolcg}, comm=self.mpicomm_global)
+            else:
+                cgiter, cgres, cgid = compute_searchdirection(self,
+                {'method':'Newton', 'tolcg':tolcg}) # most time spent here
 
             # addt'l safety: zero-out entries of 'srchdir' corresponding to
             # param that are not inverted for
