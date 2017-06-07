@@ -49,8 +49,16 @@ def setupPETScmatrix(Vr, Vc, mattype, mpicomm):
     # set up matrix
     petscmatrix = PETSc.Mat()
     petscmatrix.create(mpicomm)
-    petscmatrix.setSizes([ [VrDM.local_dimension("owned"), Vr.dim()], \
-    [VcDM.local_dimension("owned"), Vc.dim()] ])
+    try:
+        localdimVr = VrDM.local_dimension("owned")
+        localdimVc = VcDM.local_dimension("owned")
+    except:
+        VrDMim = VrDM.index_map()
+        localdimVr = VrDMim.size(VrDMim.MapSize_OWNED)
+        VcDMim = VcDM.index_map()
+        localdimVc = VcDMim.size(VcDMim.MapSize_OWNED)
+    petscmatrix.setSizes([ [localdimVr, Vr.dim()], \
+    [localdimVc, Vc.dim()] ])
     petscmatrix.setType(mattype) # 'aij', 'dense'
     petscmatrix.setUp()
     petscmatrix.setLGMap(r_map, c_map)
