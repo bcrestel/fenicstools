@@ -7,7 +7,7 @@ Function, TestFunction, TrialFunction, assemble, project, \
 PETScKrylovSolver, assign, sqrt, Constant, as_backend_type, \
 FunctionSpace, VectorFunctionSpace, norm, MPI, Vector, split, derivative,\
 UnitSquareMesh, mpi_comm_self, SpatialCoordinate
-from miscfenics import setfct, ZeroRegularization, amg_solver
+from miscfenics import setfct, ZeroRegularization, amg_solver, createMixedFS
 from linalg.splitandassign import BlockDiagonal, PrecondPlusIdentity
 from linalg.miscroutines import setglobalvalue
 try:
@@ -42,7 +42,7 @@ class SingleRegularization():
         self.isprint = isprint
 
         Vm = regul.Vm
-        self.VmVm = Vm*Vm
+        self.VmVm = createMixedFS(Vm, Vm)
         self.ab = Function(self.VmVm)
         bd = BlockDiagonal(Vm, Vm, Vm.mesh().mpi_comm())
         self.saa = bd.saa
@@ -133,7 +133,7 @@ class SumRegularization():
 
         V1 = self.regul1.Vm
         V2 = self.regul2.Vm
-        self.V1V2 = V1*V2
+        self.V1V2 = createMixedFS(V1, V2)
         self.a, self.b = Function(V1), Function(V2)
         self.ab = Function(self.V1V2)
         mpicomm = V1.mesh().mpi_comm()
@@ -520,10 +520,11 @@ class VTV():
         self.m2 = Function(Vm)
         self.m1h = Function(Vm)
         self.m2h = Function(Vm)
-        self.m12h = Function(Vm*Vm)
-        testm = TestFunction(Vm*Vm)
+        VmVm = createMixedFS(Vm, Vm)
+        self.m12h = Function(VmVm)
+        testm = TestFunction(VmVm)
         testm1, testm2 = testm
-        trialm = TrialFunction(Vm*Vm)
+        trialm = TrialFunction(VmVm)
         trialm1, trialm2 = trialm
 
         # cost function
@@ -623,7 +624,7 @@ class V_TV():
         """ Vm = FunctionSpace for the parameters m1, and m2 """
         self.parameters = {'k':1.0, 'eps':1e-2}
         self.parameters.update(parameters)
-        VmVm = Vm*Vm
+        VmVm = createMixedFS(Vm, Vm)
         self.parameters['Vm'] = VmVm
 
         self.regTV = TV(self.parameters)
@@ -690,10 +691,10 @@ class V_TVPD():
         self.parameters['print'] = False
         self.parameters.update(parameters)
 
-        VmVm = Vm*Vm
+        VmVm = createMixedFS(Vm, Vm)
         self.parameters['Vm'] = VmVm
         Vw = FunctionSpace(Vm.mesh(), 'DG', 0)
-        VwVw = Vw*Vw
+        VwVw = createMixedFS(Vw, Vw)
         self.parameters['Vw'] = VwVw
 
         self.regTV = TVPD(self.parameters)
@@ -815,7 +816,7 @@ class NuclearNormSVD2D():
     def __init__(self, mesh, parameters_in=[], isprint=False):
         self.V = FunctionSpace(mesh, 'CG', 1)
         self.Vd = VectorFunctionSpace(mesh, 'DG', 0)
-        self.VV = self.V * self.V
+        self.VV = createMixedFS(self.V, self.V)
 
         self.mpicomm = mesh.mpi_comm()
 

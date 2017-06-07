@@ -4,6 +4,7 @@ Test inner and norm for vectors
 
 import dolfin as dl
 import numpy as np
+from fenicstools.miscfenics import createMixedFS
 
 def test1():
     """
@@ -15,7 +16,7 @@ def test1():
     
     for ii in range(10):
         u = dl.interpolate(dl.Expression('sin(nn*pi*x[0])*sin(nn*pi*x[1])', \
-        nn=ii+1), V)
+        nn=ii+1, degree=10), V)
 
         normn = u.vector().norm('l2')
         normi = np.sqrt(u.vector().inner(u.vector()))
@@ -30,12 +31,12 @@ def test2():
     print 'TEST 2'
     mesh = dl.UnitSquareMesh(50,50)
     V = dl.FunctionSpace(mesh, 'CG', 1)
-    VV = V*V
+    VV = createMixedFS(V, V)
     
     for ii in range(10):
         u = dl.interpolate(dl.Expression(\
         ('sin(nn*pi*x[0])*sin(nn*pi*x[1])','0.0'),\
-        nn=ii+1), VV)
+        nn=ii+1, degree=10), VV)
 
         normn = u.vector().norm('l2')
 
@@ -61,15 +62,14 @@ def test3():
     print 'TEST 3'
     mesh = dl.UnitSquareMesh(50,50)
     V = dl.FunctionSpace(mesh, 'CG', 1)
-    #VV = V*V
-    VV = dl.MixedFunctionSpace([V,V])
+    VV = createMixedFS(V, V)
     
     for ii in range(10):
         u = dl.interpolate(dl.Expression(\
         ('sin(nn*pi*x[0])*sin(nn*pi*x[1])','0.0'),\
-        nn=ii+1), VV)
+        nn=ii+1, degree=10), VV)
         v = dl.interpolate(dl.Expression(\
-        ('nn*x[0]*x[1]','0.0'), nn=ii+1), VV)
+        ('nn*x[0]*x[1]','0.0'), nn=ii+1, degree=10), VV)
 
         #uv = u.vector().inner(v.vector())
         uv = dl.as_backend_type(u.vector()).vec().dot(\

@@ -4,9 +4,9 @@ from itertools import izip
 
 from dolfin import LinearOperator, Function, TestFunction, TrialFunction, \
 assemble, inner, nabla_grad, dx, sqrt, LUSolver, assign, Constant, \
-PETScKrylovSolver, MPI
+PETScKrylovSolver, MPI, FunctionSpace
 
-from miscfenics import setfct, isequal, ZeroRegularization
+from miscfenics import setfct, isequal, ZeroRegularization, createMixedFS
 from linalg.lumpedmatrixsolver import LumpedMassMatrixPrime
 from optimsolver import compute_searchdirection, bcktrcklinesearch
 
@@ -49,14 +49,15 @@ class ObjectiveAcoustic(LinearOperator):
 
         Vm = self.PDE.Vm
         V = self.PDE.V
-        self.ab = Function(Vm*Vm)   # used for conversion (Vm,Vm)->Vm*Vm
+        VmVm = createMixedFS(Vm, Vm)
+        self.ab = Function(VmVm)   # used for conversion (Vm,Vm)->VmVm
         self.invparam = invparam
-        self.MG = Function(Vm*Vm)
+        self.MG = Function(VmVm)
         self.MGv = self.MG.vector()
-        self.Grad = Function(Vm*Vm)
-        self.srchdir = Function(Vm*Vm)
-        self.delta_m = Function(Vm*Vm)
-        self.m_bkup = Function(Vm*Vm)
+        self.Grad = Function(VmVm)
+        self.srchdir = Function(VmVm)
+        self.delta_m = Function(VmVm)
+        self.m_bkup = Function(VmVm)
         LinearOperator.__init__(self, self.MGv, self.MGv)
         self.GN = False
 
@@ -95,7 +96,7 @@ class ObjectiveAcoustic(LinearOperator):
         self.wkformhessbGN = inner(nabla_grad(self.p)*self.mtest, nabla_grad(self.qhat))*dx
 
         # Mass matrix:
-        self.mmtest, self.mmtrial = TestFunction(Vm*Vm), TrialFunction(Vm*Vm)
+        self.mmtest, self.mmtrial = TestFunction(VmVm), TrialFunction(VmVm)
         weak_m =  inner(self.mmtrial, self.mmtest)*dx
         self.Mass = assemble(weak_m)
         self.solverM = PETScKrylovSolver("cg", "jacobi")
