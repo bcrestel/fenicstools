@@ -18,7 +18,7 @@ from mediumparameters import targetmediumparameters, loadparameters
 #from mediumparameters0 import targetmediumparameters, loadparameters
 
 
-LARGE = True
+LARGE = False
 Nxy, Dt, fpeak, t0, t1, t2, tf = loadparameters(LARGE)
 
 
