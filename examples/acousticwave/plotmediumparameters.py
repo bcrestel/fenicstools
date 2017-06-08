@@ -7,7 +7,7 @@ from shutil import rmtree
 import dolfin as dl
 from dolfin import MPI
 from fenicstools.plotfenics import PlotFenics
-from mediumparameters0 import \
+from mediumparameters import \
 targetmediumparameters, initmediumparameters, loadparameters
 
 LARGE = True
@@ -24,7 +24,7 @@ filename, ext = splitext(sys.argv[0])
 if mpirank == 0: 
     if isdir(filename + '/'):   rmtree(filename + '/')
 MPI.barrier(mpicomm)
-myplot = PlotFenics(filename)
+myplot = PlotFenics(mpicomm, filename)
 
 at, bt, c, lam, rho = targetmediumparameters(Vl, X, myplot)
 a0, b0,_,_,_ = initmediumparameters(Vl, X, myplot)
