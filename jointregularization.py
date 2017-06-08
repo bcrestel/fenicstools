@@ -6,7 +6,7 @@ from dolfin import inner, nabla_grad, dx, interpolate, cells, \
 Function, TestFunction, TrialFunction, assemble, project, \
 PETScKrylovSolver, assign, sqrt, Constant, as_backend_type, \
 FunctionSpace, VectorFunctionSpace, norm, MPI, Vector, split, derivative,\
-UnitSquareMesh, mpi_comm_self, SpatialCoordinate
+UnitSquareMesh, SpatialCoordinate
 from miscfenics import setfct, ZeroRegularization, amg_solver, createMixedFS
 from linalg.splitandassign import BlockDiagonal, PrecondPlusIdentity
 from linalg.miscroutines import setglobalvalue
@@ -382,7 +382,7 @@ class normalizedcrossgradient():
 
         # cost
         if self.parameters['correctcost']:
-            meshtmp = UnitSquareMesh(mpi_comm_self(), 10, 10)
+            meshtmp = UnitSquareMesh(VV.mesh().mpi_comm(), 10, 10)
             Vtmp = FunctionSpace(meshtmp, 'CG', 1)
             x = SpatialCoordinate(meshtmp)
             correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
@@ -533,7 +533,7 @@ class VTV():
         TVnormsq = normm1 + normm2 + Constant(eps)
         TVnorm = sqrt(TVnormsq)
         if self.parameters['correctcost']:
-            meshtmp = UnitSquareMesh(mpi_comm_self(), 10, 10)
+            meshtmp = UnitSquareMesh(Vm.mesh().mpi_comm(), 10, 10)
             Vtmp = FunctionSpace(meshtmp, 'CG', 1)
             x = SpatialCoordinate(meshtmp)
             correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
@@ -963,7 +963,7 @@ class NuclearNormformula():
         normg1 = inner(nabla_grad(self.m1), nabla_grad(self.m1))
         normg2 = inner(nabla_grad(self.m2), nabla_grad(self.m2))
         if self.parameters['correctcost']:
-            meshtmp = UnitSquareMesh(mpi_comm_self(), 10, 10)
+            meshtmp = UnitSquareMesh(mesh.mpi_comm(), 10, 10)
             Vtmp = FunctionSpace(meshtmp, 'CG', 1)
             x = SpatialCoordinate(meshtmp)
             self.correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
