@@ -157,9 +157,12 @@ class ZeroRegularization():
 
 
 def amg_solver():
+    return 'petsc_amg'
+    """
     try:
         solver = PETScKrylovSolver('cg', 'ml_amg')
         amgsolver = 'ml_amg'
     except:
         amgsolver = 'petsc_amg'
     return amgsolver
+    """
