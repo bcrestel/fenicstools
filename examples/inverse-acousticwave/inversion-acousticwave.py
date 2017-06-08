@@ -48,7 +48,7 @@ mpicommbarrier = dl.mpi_comm_world()
 LARGE = False
 PARAM = 'ab'
 NOISE = True
-PLOTTS = False
+PLOTTS = True
 
 FDGRAD = False
 ALL = False
@@ -155,7 +155,9 @@ if NOISE:
 waveobj.dd = DD
 if PLOTTS:
     if PRINT:
-        fig = plotobservations(waveobj.PDE.times, waveobj.Bp[1], waveobj.dd[1], 9)
+        src = int(len(Pt.src_loc)*0.5)
+        print 'Plotting source #{}'.format(src)
+        fig = plotobservations(waveobj.PDE.times, waveobj.Bp[src], waveobj.dd[src], 9)
         plt.show()
     MPI.barrier(mpicommbarrier)
 # check:
@@ -171,7 +173,7 @@ if PRINT:
     costmisfit, waveobj.cost_misfit)
 if PLOTTS:
     if PRINT:
-        fig = plotobservations(waveobj.PDE.times, waveobj.Bp[1], waveobj.dd[1], 9)
+        fig = plotobservations(waveobj.PDE.times, waveobj.Bp[src], waveobj.dd[src], 9)
         plt.show()
     MPI.barrier(mpicommbarrier)
     sys.exit(0)
