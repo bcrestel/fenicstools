@@ -39,8 +39,8 @@ def test_cost(eps_in, k_in):
 
     test += 1
     if mpirank == 0:    print 'Test {}: (x,y)'.format(test)
-    m1 = interpolate(Expression("x[0]"), NN.V)
-    m2 = interpolate(Expression("x[1]"), NN.V)
+    m1 = interpolate(Expression("x[0]", degree=10), NN.V)
+    m2 = interpolate(Expression("x[1]", degree=10), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
     tt = 2.0*np.sqrt(1.0 + eps_in)*k_in
@@ -50,8 +50,8 @@ def test_cost(eps_in, k_in):
     
     test += 1
     if mpirank == 0:    print 'Test {}: (x^2, y^2)'.format(test)
-    m1 = interpolate(Expression("x[0]*x[0]"), NN.V)
-    m2 = interpolate(Expression("x[1]*x[1]"), NN.V)
+    m1 = interpolate(Expression("x[0]*x[0]", degree=10), NN.V)
+    m2 = interpolate(Expression("x[1]*x[1]", degree=10), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
     tt = 2.0*k_in    # only true for eps=0
@@ -61,8 +61,8 @@ def test_cost(eps_in, k_in):
     
     test += 1
     if mpirank == 0:    print 'Test {}: (x+y, x+y)'.format(test)
-    m1 = interpolate(Expression("x[0] + x[1]"), NN.V)
-    m2 = interpolate(Expression("x[0] + x[1]"), NN.V)
+    m1 = interpolate(Expression("x[0] + x[1]", degree=10), NN.V)
+    m2 = interpolate(Expression("x[0] + x[1]", degree=10), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
     tt = (np.sqrt(2.0*2.0 + eps_in) + np.sqrt(eps_in))*k_in
@@ -72,8 +72,8 @@ def test_cost(eps_in, k_in):
 
     test += 1
     if mpirank == 0:    print 'Test {}: (x+y, x-y)'.format(test)
-    m1 = interpolate(Expression("x[0] + x[1]"), NN.V)
-    m2 = interpolate(Expression("x[0] - x[1]"), NN.V)
+    m1 = interpolate(Expression("x[0] + x[1]", degree=10), NN.V)
+    m2 = interpolate(Expression("x[0] - x[1]", degree=10), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
     tt = 2.0*np.sqrt(2.0 + eps)*k_in
@@ -83,8 +83,8 @@ def test_cost(eps_in, k_in):
 
     test += 1
     if mpirank == 0:    print 'Test {}: (x^2+y, x+y^2)'.format(test)
-    m1 = interpolate(Expression("x[0]*x[0] + x[1]"), NN.V)
-    m2 = interpolate(Expression("x[0] + x[1]*x[1]"), NN.V)
+    m1 = interpolate(Expression("x[0]*x[0] + x[1]", degree=10), NN.V)
+    m2 = interpolate(Expression("x[0] + x[1]*x[1]", degree=10), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
     if mpirank == 0:
@@ -92,8 +92,8 @@ def test_cost(eps_in, k_in):
 
     test += 1
     if mpirank == 0:    print 'Test {}: (x^2*y, x*y^2)'.format(test)
-    m1 = interpolate(Expression("x[0]*x[0]*x[1]"), NN.V)
-    m2 = interpolate(Expression("x[0]*x[1]*x[1]"), NN.V)
+    m1 = interpolate(Expression("x[0]*x[0]*x[1]", degree=10), NN.V)
+    m2 = interpolate(Expression("x[0]*x[1]*x[1]", degree=10), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
     if mpirank == 0:
@@ -103,10 +103,10 @@ def test_cost(eps_in, k_in):
     if mpirank == 0:    print 'Test {}: coincide'.format(test)
     m1 = interpolate(Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), NN.V)
+    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))', degree=10), NN.V)
     m2 = interpolate(Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))'), NN.V)
+    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))', degree=10), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
     if mpirank == 0:
@@ -115,10 +115,10 @@ def test_cost(eps_in, k_in):
     test += 1
     if mpirank == 0:    print 'Test {}: coincide2'.format(test)
     m1 = interpolate(Expression('log(10 - ' + \
-    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * 8 )'), NN.V)
+    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * 8 )', degree=10), NN.V)
     m2 = interpolate(Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))'), NN.V)
+    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))', degree=10), NN.V)
     nn = NN.costab(m1, m2)
     nn2 = NN2.costab(m1, m2)
     if mpirank == 0:
@@ -156,23 +156,23 @@ def test_grad(eps_in, k_in):
         print '|grad|={}, err={}'.format(normgrad, np.abs(normgrad))
         print '|grad2|={}, err={}'.format(normgrad2, np.abs(normgrad2))
 
-    M1 = [interpolate(Expression("x[0] + x[1]"), NN.V),
-    interpolate(Expression("x[0] * x[1]"), NN.V),
-    interpolate(Expression("x[0]*x[0] + x[1]"), NN.V),
+    M1 = [interpolate(Expression("x[0] + x[1]", degree=10), NN.V),
+    interpolate(Expression("x[0] * x[1]", degree=10), NN.V),
+    interpolate(Expression("x[0]*x[0] + x[1]", degree=10), NN.V),
     interpolate(Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), NN.V),
+    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))', degree=10), NN.V),
     interpolate(Expression('log(10 - ' + \
-    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * 8 )'), NN.V)]
-    M2 = [interpolate(Expression("x[0] + x[1]"), NN.V),
-    interpolate(Expression("1.0 + cos(x[0])"), NN.V),
-    interpolate(Expression("x[1]*x[1] + x[0]"), NN.V),
-    interpolate(Expression('log(10 - ' + \
-    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))'), NN.V),
+    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * 8 )', degree=10), NN.V)]
+    M2 = [interpolate(Expression("x[0] + x[1]", degree=10), NN.V),
+    interpolate(Expression("1.0 + cos(x[0])", degree=10), NN.V),
+    interpolate(Expression("x[1]*x[1] + x[0]", degree=10), NN.V),
     interpolate(Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))'), NN.V)]
+    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))', degree=10), NN.V),
+    interpolate(Expression('log(10 - ' + \
+    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))', degree=10), NN.V)]
     tt = 2
     for m1, m2 in zip(M1, M2):
         if mpirank == 0:    print '\nTest {}'.format(tt)
@@ -182,9 +182,9 @@ def test_grad(eps_in, k_in):
         for nn in range(5):
             if mpirank == 0:    print '--direction {}'.format(nn)
             direc1 = interpolate(Expression('1 + sin(n*pi*x[0])*sin(n*pi*x[1])',\
-            n=nn), NN.V)
+            n=nn, degree=10), NN.V)
             direc2 = interpolate(Expression('1 + cos(n*pi*x[0])*cos(n*pi*x[1])',\
-            n=nn), NN.V)
+            n=nn, degree=10), NN.V)
             assign(direc12.sub(0), direc1)
             assign(direc12.sub(1), direc2)
             direcderiv = grad.inner(direc12.vector())
@@ -242,23 +242,23 @@ def test_hessian(eps_in):
         print 'Test Hessian. eps={}'.format(eps)
         print '-------------------------------------'
 
-    M1 = [interpolate(Expression("x[0] + x[1]"), NN.V),
-    interpolate(Expression("x[0] * x[1]"), NN.V),
-    interpolate(Expression("x[0]*x[0] + x[1]"), NN.V),
+    M1 = [interpolate(Expression("x[0] + x[1]", degree=10), NN.V),
+    interpolate(Expression("x[0] * x[1]", degree=10), NN.V),
+    interpolate(Expression("x[0]*x[0] + x[1]", degree=10), NN.V),
     interpolate(Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), NN.V),
+    '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))', degree=10), NN.V),
     interpolate(Expression('log(10 - ' + \
-    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * 8 )'), NN.V)]
-    M2 = [interpolate(Expression("x[0] + x[1]"), NN.V),
-    interpolate(Expression("1.0 + cos(x[0])"), NN.V),
-    interpolate(Expression("x[1]*x[1] + x[0]"), NN.V),
-    interpolate(Expression('log(10 - ' + \
-    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))'), NN.V),
+    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * 8 )', degree=10), NN.V)]
+    M2 = [interpolate(Expression("x[0] + x[1]", degree=10), NN.V),
+    interpolate(Expression("1.0 + cos(x[0])", degree=10), NN.V),
+    interpolate(Expression("x[1]*x[1] + x[0]", degree=10), NN.V),
     interpolate(Expression('log(10 - ' + \
     '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
-    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))'), NN.V)]
+    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))', degree=10), NN.V),
+    interpolate(Expression('log(10 - ' + \
+    '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * (' + \
+    '8*(x[0]<=0.5) + 4*(x[0]>0.5) ))', degree=10), NN.V)]
     tt = 1
     for m1, m2 in zip(M1, M2):
         if mpirank == 0:    print '\nTest {}'.format(tt)
@@ -267,9 +267,9 @@ def test_hessian(eps_in):
         for nn in range(5):
             if mpirank == 0:    print '--direction {}'.format(nn)
             direc1 = interpolate(Expression('1 + sin(n*pi*x[0])*sin(n*pi*x[1])',\
-            n=nn), NN.V)
+            n=nn, degree=10), NN.V)
             direc2 = interpolate(Expression('1 + cos(n*pi*x[0])*cos(n*pi*x[1])',\
-            n=nn), NN.V)
+            n=nn, degree=10), NN.V)
             assign(direc12.sub(0), direc1)
             assign(direc12.sub(1), direc2)
             Hv = NN2.hessianab(direc1.vector(), direc2.vector())

@@ -2,7 +2,7 @@ import dolfin as dl
 import numpy as np
 
 from fenicstools.jointregularization import normalizedcrossgradient
-from fenicstools.miscfenics import setfct
+from fenicstools.miscfenics import setfct, createMixedFS
 
 from hippylib.linalg import vector2Function
 
@@ -14,9 +14,10 @@ while err > 1e-6:
     N = 2*N
     mesh = dl.UnitSquareMesh(N, N)
     V = dl.FunctionSpace(mesh,'Lagrange', 1)
-    cg = normalizedcrossgradient(V*V, {'eps':0.0})
-    a = dl.interpolate(dl.Expression('x[0]'), V)
-    b = dl.interpolate(dl.Expression('x[1]'), V)
+    VV = createMixedFS(V, V)
+    cg = normalizedcrossgradient(VV, {'eps':0.0})
+    a = dl.interpolate(dl.Expression('x[0]', degree=10), V)
+    b = dl.interpolate(dl.Expression('x[1]', degree=10), V)
     ncg = cg.costab(a,b)
     err = np.abs(ncg-0.5)/0.5
     print 'N={}, ncg(x,y)={:.6f}, err={:.3e}'.format(N, ncg, err)
@@ -27,9 +28,10 @@ while err > 1e-6:
     N = 2*N
     mesh = dl.UnitSquareMesh(N, N)
     V = dl.FunctionSpace(mesh,'Lagrange', 2)
-    cg = normalizedcrossgradient(V*V, {'eps':0.0})
-    a = dl.interpolate(dl.Expression('x[0]*x[0]'), V)
-    b = dl.interpolate(dl.Expression('x[1]*x[1]'), V)
+    VV = createMixedFS(V, V)
+    cg = normalizedcrossgradient(VV, {'eps':0.0})
+    a = dl.interpolate(dl.Expression('x[0]*x[0]', degree=10), V)
+    b = dl.interpolate(dl.Expression('x[1]*x[1]', degree=10), V)
     ncg = cg.costab(a,b)
     err = np.abs(ncg-0.5)/0.5
     print 'N={}, ncg(x^2,y^2)={:.6f}, err={:.3e}'.format(N, ncg, err)
@@ -51,29 +53,36 @@ while err > 1e-6:
 #############################################################
 mesh = dl.UnitSquareMesh(20, 20)
 V = dl.FunctionSpace(mesh,'Lagrange', 1)
-cg = normalizedcrossgradient(V*V)
+VV = createMixedFS(V, V)
+cg = normalizedcrossgradient(VV)
 
 print '\nsinusoidal cross-gradients'
 for ii in range(5):
-    a = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii), V)
+    a = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])',\
+    n=ii, degree=10), V)
     for jj in range(5):
-        b = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=jj), V)
+        b = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])',\
+        n=jj, degree=10), V)
         print cg.costab(a, b),
     print ''
 
 #############################################################
 print '\ncheck gradient'
 ak, bk = dl.Function(V), dl.Function(V)
-directab = dl.Function(V*V)
+directab = dl.Function(VV)
 H = [1e-6,1e-7,1e-5]
 for ii in range(5):
     print 'ii={}'.format(ii)
-    a = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii), V)
-    b = dl.interpolate(dl.Expression('pow(x[0], n)*pow(x[1], n)', n=ii), V)
+    a = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])',\
+    n=ii, degree=10), V)
+    b = dl.interpolate(dl.Expression('pow(x[0], n)*pow(x[1], n)',\
+    n=ii, degree=10), V)
     grad = cg.gradab(a, b)
     for jj in range(5):
-        directa = dl.interpolate(dl.Expression('pow(x[0], n)*pow(x[1], n)', n=jj+1), V)
-        directb = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=jj+1), V)
+        directa = dl.interpolate(dl.Expression('pow(x[0], n)*pow(x[1], n)',\
+        n=jj+1, degree=10), V)
+        directb = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])',\
+        n=jj+1, degree=10), V)
         dl.assign(directab.sub(0), directa)
         dl.assign(directab.sub(1), directb)
         gradxdir = grad.inner(directab.vector())
@@ -103,20 +112,23 @@ for ii in range(5):
 # Check other directions of Hessian
 print '\n\ncheck Hessian--block(1,1)'
 ak, bk = dl.Function(V), dl.Function(V)
-directab = dl.Function(V*V)
+directab = dl.Function(VV)
 H = [1e-6,1e-7,1e-5]
 for ii in range(5):
     print 'ii={}'.format(ii)
-    a = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii), V)
-    b = dl.interpolate(dl.Expression('pow(x[0], n)*pow(x[1], n)', n=ii), V)
+    a = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])',\
+    n=ii, degree=10), V)
+    b = dl.interpolate(dl.Expression('pow(x[0], n)*pow(x[1], n)',\
+    n=ii, degree=10), V)
     cg.assemble_hessianab(a, b)
     for jj in range(5):
-        directa = dl.interpolate(dl.Expression('pow(x[0], n)*pow(x[1], n)', n=jj+1), V)
+        directa = dl.interpolate(dl.Expression('pow(x[0], n)*pow(x[1], n)',\
+        n=jj+1, degree=10), V)
         directb = dl.interpolate(dl.Constant('0.0'),V)
         dl.assign(directab.sub(0), directa)
         dl.assign(directab.sub(1), directb)
         Hxdir = cg.hessianab(directa, directb)
-        Hxdirfun = vector2Function(Hxdir, V*V)
+        Hxdirfun = vector2Function(Hxdir, VV)
         Hxdira, Hxdirb = Hxdirfun.split(deepcopy=True)
         normHxdira = dl.norm(Hxdira.vector())
         normHxdirb = dl.norm(Hxdirb.vector())
@@ -135,7 +147,7 @@ for ii in range(5):
             grad2 = cg.gradab(ak, bk)
             hessfddir = (grad1-grad2)/(2*h)
             #
-            hessfddirfun = vector2Function(hessfddir, V*V)
+            hessfddirfun = vector2Function(hessfddir, VV)
             hessfddira, hessfddirb = hessfddirfun.split(deepcopy=True)
             if normHxdira > 1e-16:
                 err11 = dl.norm(Hxdira.vector() - hessfddira.vector())/normHxdira
@@ -157,16 +169,19 @@ print '\n\ncheck Hessian--block(2,2)'
 H = [1e-6,1e-7,1e-5]
 for ii in range(5):
     print 'ii={}'.format(ii)
-    a = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=ii), V)
-    b = dl.interpolate(dl.Expression('pow(x[0], n)*pow(x[1], n)', n=ii), V)
+    a = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])',\
+    n=ii, degree=10), V)
+    b = dl.interpolate(dl.Expression('pow(x[0], n)*pow(x[1], n)',\
+    n=ii, degree=10), V)
     cg.assemble_hessianab(a, b)
     for jj in range(5):
         directa = dl.interpolate(dl.Constant('0.0'),V)
-        directb = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])', n=jj+1), V)
+        directb = dl.interpolate(dl.Expression('1.0 + sin(n*pi*x[0])*sin(n*pi*x[1])',\
+        n=jj+1, degree=10), V)
         dl.assign(directab.sub(0), directa)
         dl.assign(directab.sub(1), directb)
         Hxdir = cg.hessianab(directa, directb)
-        Hxdirfun = vector2Function(Hxdir, V*V)
+        Hxdirfun = vector2Function(Hxdir, VV)
         Hxdira, Hxdirb = Hxdirfun.split(deepcopy=True)
         normHxdira = dl.norm(Hxdira.vector())
         normHxdirb = dl.norm(Hxdirb.vector())
@@ -185,7 +200,7 @@ for ii in range(5):
             grad2 = cg.gradab(ak, bk)
             hessfddir = (grad1-grad2)/(2*h)
             #
-            hessfddirfun = vector2Function(hessfddir, V*V)
+            hessfddirfun = vector2Function(hessfddir, VV)
             hessfddira, hessfddirb = hessfddirfun.split(deepcopy=True)
             if normHxdira > 1e-16:
                 err21 = dl.norm(Hxdira.vector() - hessfddira.vector())/normHxdira

@@ -3,6 +3,7 @@ Goal is to test how mixed function space behaves in Fenics
 """
 from dolfin import *
 import numpy as np
+from fenicstools.miscfenics import createMixedFS
 
 mpicomm = mpi_comm_world()
 mpirank = MPI.rank(mpicomm)
@@ -11,18 +12,10 @@ mpirank = MPI.rank(mpicomm)
 mpicommmesh = mpi_comm_self()
 mesh = UnitSquareMesh(mpicommmesh, 20,20)
 
-try:
-    Vfem = FiniteElement('CG', mesh.ufl_cell(), 1)
-    V = FunctionSpace(mesh, Vfem)
-    VV = FunctionSpace(mesh, Vfem*Vfem)
-    Vwfem = FiniteElement('DG', mesh.ufl_cell(), 0)
-    Vw = FunctionSpace(mesh, Vwfem)
-    VwVw = FunctionSpace(mesh, Vwfem*Vwfem)
-except:
-    V = FunctionSpace(mesh, 'CG', 1)
-    VV = V*V
-    Vw = FunctionSpace(mesh, 'DG', 0)
-    VwVw = Vw*Vw
+V = FunctionSpace(mesh, 'CG', 1)
+Vw = FunctionSpace(mesh, 'DG', 0)
+VV = createMixedFS(V, V)
+VwVw = createMixedFS(Vw, Vw)
 
 if mpirank == 0:
     print 'check gradient of m=(m1,m2) with m1,m2 cst returns 0'
