@@ -28,6 +28,7 @@ from fenicstools.regularization import TVPD, TV
 from fenicstools.jointregularization import \
 SingleRegularization, V_TVPD, SumRegularization
 from fenicstools.mpicomm import create_communicators, partition_work
+from fenicstools.miscfenics import createMixedFS
 
 #from fenicstools.examples.acousticwave.mediumparameters0 import \
 from fenicstools.examples.acousticwave.mediumparameters import \
@@ -47,7 +48,7 @@ mpicommbarrier = dl.mpi_comm_world()
 LARGE = False
 PARAM = 'ab'
 NOISE = True
-PLOTTS = True
+PLOTTS = False
 
 FDGRAD = False
 ALL = False
@@ -71,8 +72,8 @@ Ricker = RickerWavelet(fpeak, 1e-6)
 r = 2   # polynomial degree for state and adj
 V = dl.FunctionSpace(mesh, 'Lagrange', r)
 #Pt = PointSources(V, [[0.1*ii*X-0.05, Y] for ii in range(1,11)])
-Pt = PointSources(V, [[0.1*X,Y], [0.5*X,Y], [0.9*X,Y]])
-#Pt = PointSources(V, [[0.5, 1.0]])
+#Pt = PointSources(V, [[0.1*X,Y], [0.5*X,Y], [0.9*X,Y]])
+Pt = PointSources(V, [[0.5, 1.0]])
 srcv = dl.Function(V).vector()
 
 # Boundary conditions:
@@ -122,9 +123,9 @@ else:
     #reg2 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
     #reg1 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
     #reg2 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
-    #regul = SumRegularization(reg1, reg2, coeff_ncg=0.0, isprint=PRINT)
+    #regul = SumRegularization(reg1, reg2, coeff_cg=1e-4, isprint=PRINT)
     #regul = SingleRegularization(reg1, PARAM, PRINT)
-    regul = V_TVPD(Vl, {'eps':1.0, 'k':1e-7, 'PCGN':False, 'print':PRINT})
+    regul = V_TVPD(Vl, {'eps':1e-1, 'k':1e-6, 'PCGN':False, 'print':PRINT})
 
     waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv], \
     sources, timesteps, PARAM, regul)
@@ -235,11 +236,12 @@ if FDGRAD:
 ##################################################
 # Solve inverse problem
 else:
-    mt = dl.Function(Vl*Vl)
+    VlVl = createMixedFS(Vl, Vl)
+    mt = dl.Function(VlVl)
     dl.assign(mt.sub(0), at)
     dl.assign(mt.sub(1), bt)
 
-    m0 = dl.Function(Vl*Vl)
+    m0 = dl.Function(VlVl)
     m0.vector().zero()
     m0.vector().axpy(1.0, mt.vector())
     if 'a' in PARAM:
