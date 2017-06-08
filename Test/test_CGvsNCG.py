@@ -3,6 +3,7 @@ Test different Krylov solver used to precondition NCG
 """
 
 import dolfin as dl
+from fenicstools.miscfenics import createMixedFS
 from fenicstools.plotfenics import PlotFenics
 from fenicstools.jointregularization import crossgradient, normalizedcrossgradient
 from fenicstools.linalg.miscroutines import compute_eigfenics
@@ -12,14 +13,15 @@ mesh = dl.UnitSquareMesh(N,N)
 V = dl.FunctionSpace(mesh, 'CG', 1)
 mpirank = dl.MPI.rank(mesh.mpi_comm())
 
-cg = crossgradient(V*V)
-ncg = normalizedcrossgradient(V*V)
+VV = createMixedFS(V, V)
+cg = crossgradient(VV)
+ncg = normalizedcrossgradient(VV)
 
 outdir = 'Output-CGvsNCG-' + str(N) + 'x' + str(N) + '/'
 plotfenics = PlotFenics(outdir, comm=mesh.mpi_comm())
 
-#ones = dl.interpolate(dl.Expression(("1.0","1.0")), V*V).vector()
-#x = dl.Function(V*V).vector()
+#ones = dl.interpolate(dl.Expression(("1.0","1.0")), VV).vector()
+#x = dl.Function(VV).vector()
 
 #solvercg = dl.PETScKrylovSolver("cg", "ml_amg")
 #solvercg.parameters["maximum_iterations"] = 2000
@@ -86,8 +88,8 @@ for a1, a2 in zip(a1true, a2true):
 
 
 """
-test = dl.TestFunction(V*V)
-trial = dl.TrialFunction(V*V)
+test = dl.TestFunction(VV)
+trial = dl.TrialFunction(VV)
 M = dl.assemble(dl.inner(test, trial)*dl.dx)
 rhs = M*ones
 #rhs = ncg.H*ones

@@ -6,7 +6,7 @@ Function, TestFunction, TrialFunction, Vector, assemble, solve, \
 Constant, plot, interactive, assign, FunctionSpace, interpolate, Expression, \
 PETScKrylovSolver, PETScLUSolver, PETScMatrix, \
 as_backend_type, norm,\
-UnitSquareMesh, SpatialCoordinate, mpi_comm_self
+UnitSquareMesh, SpatialCoordinate
 from miscfenics import isVector, setfct, amg_solver
 from linalg.miscroutines import get_diagonal, setupPETScmatrix, compute_eigfenics
 from hippylib.linalg import MatMatMult, Transpose, pointwiseMaxCount
@@ -65,7 +65,7 @@ class TV():
         self.kovsq = Constant(k) / sqrt(self.fTV)
 
         if self.parameters['correctcost']:
-            meshtmp = UnitSquareMesh(mpi_comm_self(), 10, 10)
+            meshtmp = UnitSquareMesh(self.Vm.mesh().mpi_comm(), 10, 10)
             Vtmp = FunctionSpace(meshtmp, 'CG', 1)
             x = SpatialCoordinate(meshtmp)
             correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
@@ -229,7 +229,7 @@ class TVPD():
         TVnormsq = normm + Constant(eps)
         TVnorm = sqrt(TVnormsq)
         if self.parameters['correctcost']:
-            meshtmp = UnitSquareMesh(mpi_comm_self(), 10, 10)
+            meshtmp = UnitSquareMesh(self.Vm.mesh().mpi_comm(), 10, 10)
             Vtmp = FunctionSpace(meshtmp, 'CG', 1)
             x = SpatialCoordinate(meshtmp)
             correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)

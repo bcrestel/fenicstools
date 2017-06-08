@@ -2,6 +2,7 @@ import dolfin as dl
 
 from hippylib.linalg import Transpose, MatPtAP
 from miscroutines import setupPETScmatrix
+from fenicstools.miscfenics import createMixedFS
 
 
 
@@ -19,7 +20,7 @@ class SplitAndAssign():
         assert V1.mesh().size(0) == V2.mesh().size(0), \
         "V1, V2 must be built on same mesh"
 
-        V1V2 = V1*V2
+        V1V2 = createMixedFS(V1, V2)
 
         SplitOperator1PETSc,_,_ = setupPETScmatrix(V1, V1V2, 'aij', mpicomm)
         SplitOperator2PETSc,_,_ = setupPETScmatrix(V2, V1V2, 'aij', mpicomm)

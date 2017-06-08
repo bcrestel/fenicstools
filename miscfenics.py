@@ -7,7 +7,7 @@ import numpy as np
 #from numpy.linalg import norm
 #from numpy.random import randn
 
-from dolfin import Function, GenericVector, PETScKrylovSolver
+from dolfin import Function, GenericVector, PETScKrylovSolver, FunctionSpace
 from exceptionsfenics import WrongInstanceError
 
 #def apply_noise(UD, noisepercent, mycomm=None):
@@ -114,7 +114,12 @@ class ZeroRegularization():
         f1 = Function(V)
         self.out = f1.vector()
 
-        f2 = Function(V*V)
+        try:
+            Vfem = V.ufl_element()
+            VV = FunctionSpace(V.mesh(), Vfem*Vfem)
+        except:
+            VV = V*V
+        f2 = Function(VV)
         self.outab = f2.vector()
 
         self.gradabvect = self.gradab
@@ -166,3 +171,20 @@ def amg_solver():
         amgsolver = 'petsc_amg'
     return amgsolver
     """
+
+
+def createMixedFS(V1, V2):
+    """
+    Create MixedFunctionSpace from V1 and V2
+    """
+    assert V1.dim() == V2.dim()
+    assert V1.mesh().size(0) == V2.mesh().size(0)
+
+    try:
+        V1V2 = V1*V2
+    except:
+        V1fem = V1.ufl_element()
+        V2fem = V2.ufl_element()
+        V1V2 = FunctionSpace(V1.mesh(), V1fem*V2fem)
+
+    return V1V2
