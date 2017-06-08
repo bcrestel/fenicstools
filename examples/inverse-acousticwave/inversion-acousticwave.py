@@ -47,7 +47,7 @@ mpicommbarrier = dl.mpi_comm_world()
 LARGE = False
 PARAM = 'ab'
 NOISE = True
-PLOTTS = True
+PLOTTS = False
 
 FDGRAD = False
 ALL = False
@@ -86,7 +86,8 @@ Wave.set_abc(mesh, ABCdom(), lumpD=False)
 
 
 at, bt,_,_,_ = targetmediumparameters(Vl, X)
-a0, b0,_,_,_ = initmediumparameters(Vl, X)
+#a0, b0,_,_,_ = initmediumparameters(Vl, X)
+a0, b0 = at, bt
 Wave.update({'b':bt, 'a':at, 't0':0.0, 'tf':tf, 'Dt':Dt,\
 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
 if PRINT:
@@ -124,7 +125,7 @@ else:
     #reg2 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
     #regul = SumRegularization(reg1, reg2, coeff_ncg=0.0, isprint=PRINT)
     #regul = SingleRegularization(reg1, PARAM, PRINT)
-    regul = V_TVPD(Vl, {'eps':1.0, 'k':1e-7, 'PCGN':False, 'print':PRINT})
+    regul = V_TVPD(Vl, {'eps':1e-1, 'k':1e-2, 'PCGN':False, 'print':PRINT})
 
     waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv], \
     sources, timesteps, PARAM, regul)
@@ -142,9 +143,9 @@ if NOISE:
         if PRINT:    print 'source {}'.format(ii)
         nbobspt, dimsol = dd.shape
 
-        #mu = np.abs(dd).mean(axis=1)
-        #sigmas = mu/(10**(SNRdB/10.))
-        sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*0.1
+        mu = np.abs(dd).mean(axis=1)
+        sigmas = mu/(10**(SNRdB/10.))
+        #sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*0.1
 
         rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
         print 'mpiglobalrank={}, sigmas={}, |rndnoise|={}'.format(\
@@ -262,17 +263,17 @@ else:
 
     parameters = {}
     parameters['isprint'] = PRINT
-    parameters['nbGNsteps'] = 10
+    parameters['nbGNsteps'] = 5
     parameters['checkab'] = 10
-    parameters['maxiterNewt'] = 500
+    parameters['maxiterNewt'] = 100
+    parameters['maxtolcg'] = 0.1
     parameters['avgPC'] = True
-    parameters['PC'] = 'prior'
+    parameters['PC'] = 'bfgs'
 
     tstart = time.time()
 
     waveobj.inversion(m0, mt, parameters,
-    boundsLS=[[1e-4, 0.4], [0.2, 0.6]], myplot=myplotf)
-    #boundsLS=[[0.1, 5.0], [0.1, 5.0]], myplot=myplotf)
+    boundsLS=[[2e-3, 0.4], [0.2, 0.6]], myplot=myplotf)
 
     tend = time.time()
     Dt = tend - tstart
