@@ -8,7 +8,11 @@ import sys
 from os.path import splitext, isdir
 from shutil import rmtree
 import numpy as np
-import matplotlib.pyplot as plt
+try:
+    import matplotlib.pyplot as plt
+except:
+    pass
+import time
 
 import dolfin as dl
 from dolfin import MPI
@@ -17,13 +21,13 @@ from fenicstools.plotfenics import PlotFenics, plotobservations
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
 from fenicstools.observationoperator import TimeObsPtwise
-from fenicstools.miscfenics import checkdt, setfct
 from fenicstools.objectiveacoustic import ObjectiveAcoustic
 from fenicstools.optimsolver import checkgradfd_med, checkhessabfd_med
-
 from fenicstools.prior import LaplacianPrior
-from fenicstools.regularization import TVPD
-from fenicstools.jointregularization import SingleRegularization, V_TVPD
+from fenicstools.regularization import TVPD, TV
+from fenicstools.jointregularization import \
+SingleRegularization, V_TVPD, SumRegularization
+from fenicstools.mpicomm import create_communicators, partition_work
 
 #from fenicstools.examples.acousticwave.mediumparameters0 import \
 from fenicstools.examples.acousticwave.mediumparameters import \
@@ -32,41 +36,43 @@ targetmediumparameters, initmediumparameters, loadparameters
 dl.set_log_active(False)
 
 
+# Create local and global communicators
+mpicomm_local, mpicomm_global = create_communicators()
+mpiworldrank = MPI.rank(dl.mpi_comm_world())
+PRINT = (mpiworldrank == 0)
+mpicommbarrier = dl.mpi_comm_world()
 
 
 ##############
 LARGE = False
 PARAM = 'ab'
 NOISE = True
-PLOTTS = False
+PLOTTS = True
 
-FDGRAD = True
+FDGRAD = False
 ALL = False
 nbtest = 3
 ##############
-
-
 Nxy, Dt, fpeak, t0, t1, t2, tf = loadparameters(LARGE)
-
-# Define PDE:
 h = 1./Nxy
-# dist is in [km]
-X, Y = 1, 1
-mesh = dl.UnitSquareMesh(Nxy, Nxy)
-mpicomm = mesh.mpi_comm()
-mpirank = MPI.rank(mpicomm)
-if mpirank == 0:
+if PRINT:
     print 'Nxy={} (h={}), Dt={}, fpeak={}, t0,t1,t2,tf={}'.format(\
     Nxy, h, Dt, fpeak, [t0,t1,t2,tf])
+
+
+# Define PDE:
+# dist is in [km]
+X, Y = 1, 1
+mesh = dl.UnitSquareMesh(mpicomm_local, Nxy, Nxy)
 Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
 
 # Source term:
 Ricker = RickerWavelet(fpeak, 1e-6)
 r = 2   # polynomial degree for state and adj
 V = dl.FunctionSpace(mesh, 'Lagrange', r)
-
-#Pt = PointSources(V, [[0.2*X,Y],[0.5*X,Y], [0.8*X,Y]])
-Pt = PointSources(V, [[0.5, 1.0]])
+#Pt = PointSources(V, [[0.1*ii*X-0.05, Y] for ii in range(1,11)])
+Pt = PointSources(V, [[0.1*X,Y], [0.5*X,Y], [0.9*X,Y]])
+#Pt = PointSources(V, [[0.5, 1.0]])
 srcv = dl.Function(V).vector()
 
 # Boundary conditions:
@@ -78,46 +84,62 @@ Wave = AcousticWave({'V':V, 'Vm':Vl},
 {'print':False, 'lumpM':True, 'timestepper':'backward'})
 Wave.set_abc(mesh, ABCdom(), lumpD=False)
 
-#
+
 at, bt,_,_,_ = targetmediumparameters(Vl, X)
 a0, b0,_,_,_ = initmediumparameters(Vl, X)
-#
 Wave.update({'b':bt, 'a':at, 't0':0.0, 'tf':tf, 'Dt':Dt,\
 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
+if PRINT:
+    print 'nb of src={}, nb of timesteps={}'.format(len(Pt.src_loc), Wave.Nt)
+
+sources, timesteps = partition_work(mpicomm_local, mpicomm_global, \
+len(Pt.src_loc), Wave.Nt)
+
+mpilocalrank = MPI.rank(mpicomm_local)
+mpiglobalrank = MPI.rank(mpicomm_global)
+mpiworldsize = MPI.size(dl.mpi_comm_world())
+print 'mpiworldrank={}, mpiglobalrank={}, mpilocalrank={}, sources={}, timestep=[{},{}]'.format(\
+mpiworldrank, mpiglobalrank, mpilocalrank, sources,\
+timesteps[0], timesteps[-1])
 
 # observation operator:
-#obspts = [[ii*float(X)/float(Nxy), 0.9*Y] for ii in range(Nxy+1)]
-obspts = [[0.0, ii/10.] for ii in range(1,10)] + \
-[[1.0, ii/10.] for ii in range(1,10)] + \
-[[ii/10., 0.0] for ii in range(1,10)] + \
-[[ii/10., 1.0] for ii in range(1,10)]
+obspts = [[ii*float(X)/float(Nxy), Y] for ii in range(1,Nxy)]
+#obspts = [[0.0, ii/10.] for ii in range(1,10)] + \
+#[[1.0, ii/10.] for ii in range(1,10)] + \
+#[[ii/10., 0.0] for ii in range(1,10)] + \
+#[[ii/10., 1.0] for ii in range(1,10)]
 
 tfilterpts = [t0, t1, t2, tf]
 obsop = TimeObsPtwise({'V':V, 'Points':obspts}, tfilterpts)
 
 # define objective function:
 if FDGRAD:
-    waveobj = ObjectiveAcoustic(Wave, [Ricker, Pt, srcv], PARAM)
+    waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv],\
+    sources, timesteps, PARAM)
 else:
     # REGULARIZATION:
-    #reg = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6, 'm0':at})
-    #reg = TVPD({'Vm':Vl, 'k':1e-5, 'print':(not mpirank)})
-    #regul = SingleRegularization(reg, PARAM, (not mpirank))
-    regul = V_TVPD(Vl, {'eps':1e-1, 'k':1e-5, 'print': (not mpirank)})
+    #reg1 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
+    #reg2 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
+    #reg1 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
+    #reg2 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
+    #regul = SumRegularization(reg1, reg2, coeff_ncg=0.0, isprint=PRINT)
+    #regul = SingleRegularization(reg1, PARAM, PRINT)
+    regul = V_TVPD(Vl, {'eps':1.0, 'k':1e-7, 'PCGN':False, 'print':PRINT})
 
-    waveobj = ObjectiveAcoustic(Wave, [Ricker, Pt, srcv], PARAM, regul)
+    waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv], \
+    sources, timesteps, PARAM, regul)
 waveobj.obsop = obsop
 #waveobj.GN = True
 
 # Generate synthetic observations
-if mpirank == 0:    print 'generate noisy data'
+if PRINT:    print 'generate noisy data'
 waveobj.solvefwd()
 DD = waveobj.Bp[:]
 if NOISE:
     SNRdB = 20.0   # [dB], i.e, log10(mu/sigma) = SNRdB/10
     np.random.seed(11)
     for ii, dd in enumerate(DD):
-        if mpirank == 0:    print 'source {}'.format(ii)
+        if PRINT:    print 'source {}'.format(ii)
         nbobspt, dimsol = dd.shape
 
         #mu = np.abs(dd).mean(axis=1)
@@ -125,16 +147,16 @@ if NOISE:
         sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*0.1
 
         rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
-        print 'mpirank={}, sigmas={}, |rndnoise|={}'.format(\
-        mpirank, sigmas.sum()/len(sigmas), (rndnoise**2).sum().sum())
+        print 'mpiglobalrank={}, sigmas={}, |rndnoise|={}'.format(\
+        mpiglobalrank, sigmas.sum()/len(sigmas), (rndnoise**2).sum().sum())
         DD[ii] = dd + sigmas.reshape((nbobspt,1))*rndnoise
-        MPI.barrier(mpicomm)
+        MPI.barrier(mpicommbarrier)
 waveobj.dd = DD
 if PLOTTS:
-    if mpirank == 0:
+    if PRINT:
         fig = plotobservations(waveobj.PDE.times, waveobj.Bp[1], waveobj.dd[1], 9)
         plt.show()
-    MPI.barrier(mpicomm)
+    MPI.barrier(mpicommbarrier)
 # check:
 waveobj.solvefwd_cost()
 costmisfit = waveobj.cost_misfit
@@ -143,14 +165,14 @@ costmisfit = waveobj.cost_misfit
 # Compute gradient at initial parameters
 waveobj.update_PDE({'a':a0, 'b':b0})
 waveobj.solvefwd_cost()
-if mpirank == 0:    
+if PRINT:    
     print 'misfit at target={:.4e}; at initial state = {:.4e}'.format(\
     costmisfit, waveobj.cost_misfit)
 if PLOTTS:
-    if mpirank == 0:
+    if PRINT:
         fig = plotobservations(waveobj.PDE.times, waveobj.Bp[1], waveobj.dd[1], 9)
         plt.show()
-    MPI.barrier(mpicomm)
+    MPI.barrier(mpicommbarrier)
     sys.exit(0)
 
 
@@ -158,18 +180,18 @@ if PLOTTS:
 ##################################################
 # Finite difference check of gradient and Hessian
 if FDGRAD:
-    if ALL and (PARAM == 'a' or PARAM == 'b') and mpirank == 0:
+    if ALL and (PARAM == 'a' or PARAM == 'b') and PRINT:
         print '*** Warning: Single inversion but changing both parameters'
     MPa = [
-    dl.Expression('1.0'), 
-    dl. Expression('sin(pi*x[0])*sin(pi*x[1])'),
-    dl.Expression('x[0]'), dl.Expression('x[1]'), 
-    dl.Expression('sin(3*pi*x[0])*sin(3*pi*x[1])')]
+    dl.Constant('1.0'), 
+    dl. Expression('sin(pi*x[0])*sin(pi*x[1])', degree=10),
+    dl.Expression('x[0]', degree=10), dl.Expression('x[1]', degree=10), 
+    dl.Expression('sin(3*pi*x[0])*sin(3*pi*x[1])', degree=10)]
     MPb = [
-    dl.Expression('1.0'), 
-    dl. Expression('sin(pi*x[0])*sin(pi*x[1])'),
-    dl.Expression('x[1]'), dl.Expression('x[0]'), 
-    dl.Expression('sin(3*pi*x[0])*sin(3*pi*x[1])')]
+    dl.Constant('1.0'), 
+    dl. Expression('sin(pi*x[0])*sin(pi*x[1])', degree=10),
+    dl.Expression('x[1]', degree=10), dl.Expression('x[0]', degree=10), 
+    dl.Expression('sin(3*pi*x[0])*sin(3*pi*x[1])', degree=10)]
 
     if ALL:
         Medium = []
@@ -179,10 +201,10 @@ if FDGRAD:
             dl.assign(tmp.sub(0), dl.interpolate(MPa[ii], Vl))
             dl.assign(tmp.sub(1), dl.interpolate(MPb[ii], Vl))
             Medium.append(tmp.vector().copy())
-        if mpirank == 0:    print 'check gradient with FD'
-        checkgradfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-6, 1e-7], True)
-        if mpirank == 0:    print '\ncheck Hessian with FD'
-        checkhessabfd_med(waveobj, Medium, 1e-6, [1e-5, 1e-6, 1e-7], True, 'all')
+        if PRINT:    print 'check gradient with FD'
+        checkgradfd_med(waveobj, Medium, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True)
+        if PRINT:    print '\ncheck Hessian with FD'
+        checkhessabfd_med(waveobj, Medium, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'all')
     else:
         Mediuma, Mediumb = [], []
         tmp = dl.Function(Vl*Vl)
@@ -193,23 +215,23 @@ if FDGRAD:
             tmp.vector().zero()
             dl.assign(tmp.sub(1), dl.interpolate(MPb[ii], Vl))
             Mediumb.append(tmp.vector().copy())
-        if mpirank == 0:    print 'check a-gradient with FD'
+        if PRINT:    print 'check a-gradient with FD'
         if 'a' in PARAM:
-            checkgradfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7], True)
+            checkgradfd_med(waveobj, Mediuma, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True)
         else:
-            checkgradfd_med(waveobj, Mediuma[:1], 1e-6, [1e-5], True)
-        if mpirank == 0:    print 'check b-gradient with FD'
+            checkgradfd_med(waveobj, Mediuma[:1], PRINT, 1e-6, [1e-5], True)
+        if PRINT:    print 'check b-gradient with FD'
         if 'b' in PARAM:
-            checkgradfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True)
+            checkgradfd_med(waveobj, Mediumb, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True)
         else:
-            checkgradfd_med(waveobj, Mediumb[:1], 1e-6, [1e-5], True)
+            checkgradfd_med(waveobj, Mediumb[:1], PRINT, 1e-6, [1e-5], True)
 
-        if mpirank == 0:    
+        if PRINT:    
             print '\n'
             print 'check a-Hessian with FD'
-        checkhessabfd_med(waveobj, Mediuma, 1e-6, [1e-5, 1e-6, 1e-7], True, 'a')
-        if mpirank == 0:    print 'check b-Hessian with FD'
-        checkhessabfd_med(waveobj, Mediumb, 1e-6, [1e-5, 1e-6, 1e-7], True, 'b')
+        checkhessabfd_med(waveobj, Mediuma, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'a')
+        if PRINT:    print 'check b-Hessian with FD'
+        checkhessabfd_med(waveobj, Mediumb, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'b')
 ##################################################
 # Solve inverse problem
 else:
@@ -227,25 +249,35 @@ else:
 
     regt = waveobj.regularization.costab(at,bt)
     reg0 = waveobj.regularization.costab(a0,b0)
-    if mpirank == 0:
+    if PRINT:
         print 'Regularization at target={:.2e}, at initial state={:.2e}'.format(\
         regt, reg0)
 
     #myplotf = PlotFenics(Outputfolder='Debug/' + PARAM + '/Plots', comm=mesh.mpi_comm())
     myplotf = None
 
-    if mpirank == 0:
+    if PRINT:
         print '\n\nStart solution of inverse problem for parameter(s) {}'.format(PARAM)
-    MPI.barrier(mpicomm)
+    MPI.barrier(mpicommbarrier)
 
     parameters = {}
-    parameters['isprint'] = (not mpirank)
+    parameters['isprint'] = PRINT
     parameters['nbGNsteps'] = 10
-    #parameters['maxiterNewt'] = 2
+    parameters['checkab'] = 10
+    parameters['maxiterNewt'] = 500
+    parameters['avgPC'] = True
+    parameters['PC'] = 'prior'
+
+    tstart = time.time()
 
     waveobj.inversion(m0, mt, parameters,
-    boundsLS=[[0.01, 0.2], [0.2, 0.6]], myplot=myplotf)
+    boundsLS=[[1e-4, 0.4], [0.2, 0.6]], myplot=myplotf)
     #boundsLS=[[0.1, 5.0], [0.1, 5.0]], myplot=myplotf)
+
+    tend = time.time()
+    Dt = tend - tstart
+    if PRINT:
+        print 'Time to solve inverse problem {}'.format(Dt)
 
     minat = at.vector().min()
     maxat = at.vector().max()
@@ -259,7 +291,7 @@ else:
     maxa = waveobj.PDE.a.vector().max()
     minb = waveobj.PDE.b.vector().min()
     maxb = waveobj.PDE.b.vector().max()
-    if mpirank == 0:
+    if PRINT:
         print 'target: min(a)={}, max(a)={}\nMAP: min(a)={}, max(a)={}\n'.format(\
         minat, maxat, mina, maxa)
         print 'target: min(b)={}, max(b)={}\nMAP: min(b)={}, max(b)={}'.format(\

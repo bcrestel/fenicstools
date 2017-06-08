@@ -185,7 +185,6 @@ def compute_searchdirection(objfctal, parameters_in=[], comm=dl.mpi_comm_self())
         return 0, 0.0, 0
 
     elif method == 'Newton':
-        objfctal.assemble_hessian()
         solver = CGSolverSteihaug()
         solver.set_operator(objfctal)
         solver.set_preconditioner(objfctal.getprecond())

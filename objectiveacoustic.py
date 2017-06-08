@@ -637,21 +637,6 @@ class ObjectiveAcoustic(LinearOperator):
             gradnorm = np.sqrt(self.MGv.inner(self.Grad.vector()))
             if it == 0:   gradnorm0 = gradnorm
 
-            # Update BFGS approx (s, y, H0)
-            if self.PC == 'bfgs':
-                if it > 0:
-                    s = self.srchdir.vector() * alpha
-                    y = self.MGv - MGv_old
-                    theta = self.bfgsPC.update(s, y)
-                else:
-                    theta = 1.0
-
-                if H0inv == 'Rinv':
-                    self.bfgsPC.set_H0inv(self.regularization.getprecond())
-                elif H0inv == 'Minv':
-                    print 'H0inv = Minv? That is not a good idea'
-                    sys.exit(1)
-
             medmisfita, medmisfitb = self.mediummisfit(target_medium)
 
             if isprint:
@@ -667,6 +652,24 @@ class ObjectiveAcoustic(LinearOperator):
                     print '\nGradient sufficiently reduced'
                     print 'Optimization converged'
                 return
+
+            # Assemble Hessian of regularization for nonlinear regularization:
+            self.assemble_hessian()
+
+            # Update BFGS approx (s, y, H0)
+            if self.PC == 'bfgs':
+                if it > 0:
+                    s = self.srchdir.vector() * alpha
+                    y = self.MGv - MGv_old
+                    theta = self.bfgsPC.update(s, y)
+                else:
+                    theta = 1.0
+
+                if H0inv == 'Rinv':
+                    self.bfgsPC.set_H0inv(self.regularization.getprecond())
+                elif H0inv == 'Minv':
+                    print 'H0inv = Minv? That is not a good idea'
+                    sys.exit(1)
 
             # Compute search direction and plot
             tolcg = min(maxtolcg, np.sqrt(gradnorm/gradnorm0))
