@@ -125,7 +125,7 @@ else:
     #reg2 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
     #regul = SumRegularization(reg1, reg2, coeff_ncg=0.0, isprint=PRINT)
     #regul = SingleRegularization(reg1, PARAM, PRINT)
-    regul = V_TVPD(Vl, {'eps':1e-1, 'k':1e-2, 'PCGN':False, 'print':PRINT})
+    regul = V_TVPD(Vl, {'eps':1e-1, 'k':1e-6, 'PCGN':False, 'print':PRINT})
 
     waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv], \
     sources, timesteps, PARAM, regul)
@@ -137,17 +137,26 @@ if PRINT:    print 'generate noisy data'
 waveobj.solvefwd()
 DD = waveobj.Bp[:]
 if NOISE:
-    SNRdB = 20.0   # [dB], i.e, log10(mu/sigma) = SNRdB/10
     np.random.seed(11)
-    for ii, dd in enumerate(DD):
+    SNRdB = 20.0   # [dB], i.e, log10(mu/sigma) = SNRdB/10
+    # Generate random components for all src (even if not owned)
+    RAND = []
+    nbobspt = len(obspts)
+    nbt = waveobj.PDE.Nt + 1
+    for ii in range(len(Pt.src_loc)):
+        RAND.append(np.random.randn(nbobspt*nbt).reshape((nbobspt, nbt)))
+    RAND = RAND[sources[0]:sources[-1]+1]
+    # Add noise
+    for ii in range(len(DD)):
         if PRINT:    print 'source {}'.format(ii)
-        nbobspt, dimsol = dd.shape
+        dd = DD[ii]
+        rndnoise = RAND[ii]
 
         mu = np.abs(dd).mean(axis=1)
         sigmas = mu/(10**(SNRdB/10.))
-        #sigmas = np.sqrt((dd**2).sum(axis=1)/dimsol)*0.1
+        #sigmas = np.sqrt((dd**2).sum(axis=1)/nbt)*0.1
 
-        rndnoise = np.random.randn(nbobspt*dimsol).reshape((nbobspt, dimsol))
+        #rndnoise = np.random.randn(nbobspt*nbt).reshape((nbobspt, nbt))
         print 'mpiglobalrank={}, sigmas={}, |rndnoise|={}'.format(\
         mpiglobalrank, sigmas.sum()/len(sigmas), (rndnoise**2).sum().sum())
         DD[ii] = dd + sigmas.reshape((nbobspt,1))*rndnoise
@@ -265,10 +274,10 @@ else:
     parameters['isprint'] = PRINT
     parameters['nbGNsteps'] = 5
     parameters['checkab'] = 10
-    parameters['maxiterNewt'] = 100
+    parameters['maxiterNewt'] = 4
     parameters['maxtolcg'] = 0.1
     parameters['avgPC'] = True
-    parameters['PC'] = 'bfgs'
+    parameters['PC'] = 'prior'
 
     tstart = time.time()
 
