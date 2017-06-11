@@ -1,6 +1,7 @@
 """
 Define joint regularization terms
 """
+import sys
 import numpy as np
 from dolfin import inner, nabla_grad, dx, interpolate, cells, \
 Function, TestFunction, TrialFunction, assemble, project, \
@@ -39,6 +40,10 @@ class SingleRegularization():
         elif self.param == 'b':
             self.regul1 = ZeroRegularization(regul.Vm)
             self.regul2 = regul
+        else:
+            if isprint:
+                print "argument 'param' must be 'a' or 'b'"
+                sys.exit(1)
         self.isprint = isprint
 
         Vm = regul.Vm

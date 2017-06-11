@@ -49,7 +49,8 @@ class ABCdom(dl.SubDomain):
 
 r = 2
 V = dl.FunctionSpace(mesh, 'Lagrange', r)
-Pt = PointSources(V, [[0.5*X,Y]])
+y_src = 0.1 # 0.1->transmission, 0.9->reflection
+Pt = PointSources(V, [[0.5*X,y_src]])
 mydelta = Pt[0]
 def mysrc(tt):
     return mydelta * Ricker(tt)
