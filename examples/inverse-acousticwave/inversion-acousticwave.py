@@ -52,7 +52,7 @@ PLOTTS = False
 
 FDGRAD = False
 ALL = False
-nbtest = 3
+nbtest = 2
 ##############
 Nxy, Dt, fpeak, t0, t1, t2, tf = loadparameters(LARGE)
 h = 1./Nxy
@@ -63,17 +63,18 @@ if PRINT:
 
 # Define PDE:
 # dist is in [km]
-X, Y = 1, 1
 mesh = dl.UnitSquareMesh(mpicomm_local, Nxy, Nxy)
+X, Y = 1, 1 # shall not be changed
 Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
 
 # Source term:
 Ricker = RickerWavelet(fpeak, 1e-6)
 r = 2   # polynomial degree for state and adj
 V = dl.FunctionSpace(mesh, 'Lagrange', r)
-#Pt = PointSources(V, [[0.1*ii*X-0.05, Y] for ii in range(1,11)])
-#Pt = PointSources(V, [[0.1*X,Y], [0.5*X,Y], [0.9*X,Y]])
-Pt = PointSources(V, [[0.5, 1.0]])
+y_src = 0.1 # 0.9->reflection, 0.1->transmission
+#Pt = PointSources(V, [[0.1*ii*X-0.05, y_src] for ii in range(1,11)])
+#Pt = PointSources(V, [[0.1,y_src], [0.5,y_src], [0.9,y_src]])
+Pt = PointSources(V, [[0.5, y_src]])
 srcv = dl.Function(V).vector()
 
 # Boundary conditions:
@@ -87,8 +88,9 @@ Wave.set_abc(mesh, ABCdom(), lumpD=False)
 
 
 at, bt,_,_,_ = targetmediumparameters(Vl, X)
-#a0, b0,_,_,_ = initmediumparameters(Vl, X)
-a0, b0 = at, bt
+a0, b0,_,_,_ = initmediumparameters(Vl, X)
+if 'a' not in PARAM:    a0 = at
+if 'b' not in PARAM:    b0 = bt
 Wave.update({'b':bt, 'a':at, 't0':0.0, 'tf':tf, 'Dt':Dt,\
 'u0init':dl.Function(V), 'utinit':dl.Function(V)})
 if PRINT:
@@ -122,11 +124,11 @@ else:
     # REGULARIZATION:
     #reg1 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
     #reg2 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
-    #reg1 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
+    #reg1 = TVPD({'Vm':Vl, 'eps':1.0, 'k':1e-6, 'print':PRINT})
     #reg2 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
     #regul = SumRegularization(reg1, reg2, coeff_cg=1e-4, isprint=PRINT)
     #regul = SingleRegularization(reg1, PARAM, PRINT)
-    regul = V_TVPD(Vl, {'eps':1e-1, 'k':1e-6, 'PCGN':False, 'print':PRINT})
+    regul = V_TVPD(Vl, {'eps':1.0, 'k':1e-6, 'PCGN':False, 'print':PRINT})
 
     waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv], \
     sources, timesteps, PARAM, regul)
@@ -272,21 +274,21 @@ else:
 
     if PRINT:
         print '\n\nStart solution of inverse problem for parameter(s) {}'.format(PARAM)
-    MPI.barrier(mpicommbarrier)
 
     parameters = {}
     parameters['isprint'] = PRINT
-    parameters['nbGNsteps'] = 5
-    parameters['checkab'] = 10
-    parameters['maxiterNewt'] = 4
-    parameters['maxtolcg'] = 0.1
-    parameters['avgPC'] = True
+    parameters['nbGNsteps'] = 20
+    parameters['checkab'] = 5
+    parameters['maxiterNewt'] = 100
+    parameters['maxtolcg'] = 0.5
+    parameters['avgPC'] = False
     parameters['PC'] = 'prior'
 
+    MPI.barrier(mpicommbarrier)
     tstart = time.time()
 
     waveobj.inversion(m0, mt, parameters,
-    boundsLS=[[2e-3, 0.4], [0.2, 0.6]], myplot=myplotf)
+    boundsLS=[[0.01, 0.6], [0.01, 0.6]], myplot=myplotf)
 
     tend = time.time()
     Dt = tend - tstart
@@ -306,7 +308,10 @@ else:
     minb = waveobj.PDE.b.vector().min()
     maxb = waveobj.PDE.b.vector().max()
     if PRINT:
-        print 'target: min(a)={}, max(a)={}\nMAP: min(a)={}, max(a)={}\n'.format(\
-        minat, maxat, mina, maxa)
-        print 'target: min(b)={}, max(b)={}\nMAP: min(b)={}, max(b)={}'.format(\
-        minbt, maxbt, minb, maxb)
+        print '\ntarget: min(a)={}, max(a)={}'.format(minat, maxat)
+        print 'init: min(a)={}, max(a)={}'.format(mina0, maxa0)
+        print 'MAP: min(a)={}, max(a)={}'.format(mina, maxa)
+
+        print '\ntarget: min(b)={}, max(b)={}'.format(minbt, maxbt)
+        print 'init: min(b)={}, max(b)={}'.format(minb0, maxb0)
+        print 'MAP: min(b)={}, max(b)={}'.format(minb, maxb)
