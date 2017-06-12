@@ -62,7 +62,7 @@ class ObjectiveAcoustic(LinearOperator):
         self.GN = False
 
         if regularization == None:  
-            print '*** Warning: Using zero regularization'
+            print '*** [ObjectiveAcoustic] Warning: Using zero regularization'
             self.regularization = ZeroRegularization(Vm)
         else:   
             self.regularization = regularization
@@ -518,7 +518,10 @@ class ObjectiveAcoustic(LinearOperator):
         """
         assign(self.ab.sub(0), self.PDE.a)
         assign(self.ab.sub(1), self.PDE.b)
-        diff = self.ab.vector() - target_medium.vector()
+        try:
+            diff = self.ab.vector() - target_medium.vector()
+        except:
+            diff = self.ab.vector() - target_medium
         Md = self.Mass*diff
         self.ab.vector().zero()
         self.ab.vector().axpy(1.0, Md)
