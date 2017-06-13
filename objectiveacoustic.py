@@ -710,6 +710,13 @@ class ObjectiveAcoustic(LinearOperator):
             if it%checkab == 0:
                 self.compare_ab_global()
 
+            # Stopping criterion (LS)
+            if not statusLS:
+                if isprint:
+                    print '\nLine search failed'
+                    print 'Optimization aborted'
+                return
+
             # Stopping criterion (cost)
             if np.abs(cost-cost_old)/np.abs(cost_old) < tolcost:
                 if isprint:
