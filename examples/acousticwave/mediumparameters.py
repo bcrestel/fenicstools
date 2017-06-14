@@ -25,8 +25,8 @@ def targetmediumparameters(Vl, X, myplot=None):
     """
     # medium parameters:
     H1, H2, H3, TT = 0.9, 0.1, 0.5, 0.25
-    CC = [1.2, 1.0, 1.0, 1.0]
-    RR = [2.02, 2.0, 2.0, 2.0]
+    CC = [2.5, 2.0, 2.0, 2.0]
+    RR = [2.15, 2.1, 2.1, 2.1]
     #CC = [5.0, 2.0, 3.0, 4.0]
     #RR = [2.0, 2.1, 2.2, 2.5]
     LL, AA, BB = [], [], []
@@ -81,8 +81,8 @@ def smoothstart(Vl, ref, pk):
 def initmediumparameters(Vl, X, myplot=None):
     # medium parameters:
     H1, H2, H3, TT = 0.9, 0.1, 0.5, 0.25
-    CC = [1.2, 1.0, 1.0, 1.0]
-    RR = [2.02, 2.0, 2.0, 2.0]
+    CC = [2.5, 2.0, 2.0, 2.0]
+    RR = [2.15, 2.1, 2.1, 2.1]
     LL, AA, BB = [], [], []
     for cc, rr in zip(CC, RR):
         ll = rr*cc*cc
@@ -110,7 +110,7 @@ def loadparameters(LARGE):
         t0, t1, t2, tf = 0.0, 0.1, 0.9, 1.0
     else:
         Nxy = 20
-        Dt = 2.5e-3
-        fpeak = 1.0
-        t0, t1, t2, tf = 0.0, 0.2, 2.3, 2.5
+        Dt = 2.0e-3
+        fpeak = 2.0
+        t0, t1, t2, tf = 0.0, 0.1, 1.9, 2.0
     return Nxy, Dt, fpeak, t0, t1, t2, tf
