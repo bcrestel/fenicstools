@@ -68,16 +68,17 @@ class PointSources():
 class RickerWavelet():
     """ Create function for Ricker wavelet """
 
-    def __init__(self, peak_freq, cut_off=1e-16):
+    def __init__(self, peak_freq, cut_off=1e-16, factor=1.0):
         self.f = peak_freq  # Must be in Hz
         self.t_peak = np.sqrt(-np.log(cut_off))/(np.pi*self.f)
+        self.factor = factor
 
 
     def __call__(self, tt):
         """ Overload () operator """
         TT = tt - self.t_peak
         return (1.0 - 2.0*np.pi**2*self.f**2*TT**2)*\
-        np.exp(-np.pi**2*self.f**2*TT**2)
+        np.exp(-np.pi**2*self.f**2*TT**2)*self.factor
 
 
     def freq(self, xi):
