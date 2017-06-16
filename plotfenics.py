@@ -113,7 +113,7 @@ def plotobservations(times, Bp, dd, nbplots=None):
     for ii in listplots:
         ax = fig.add_subplot(griddim, griddim, fignb)
         fignb += 1
-        ax.plot(times, dd[ii,:], 'k--')
+        ax.plot(times, dd[ii,:], 'k')
         ax.plot(times, Bp[ii,:], 'b')
         ax.set_title('obs'+str(ii+1))
 
