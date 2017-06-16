@@ -7,14 +7,13 @@ from shutil import rmtree
 import dolfin as dl
 from dolfin import MPI
 from fenicstools.plotfenics import PlotFenics
-from mediumparameters import \
+from mediumparameters1 import \
 targetmediumparameters, initmediumparameters, loadparameters
 
 LARGE = True
 Nxy, Dt, fpeak,_,_,_,tf = loadparameters(LARGE)
 
 X, Y = 1, 1
-#mesh = dl.RectangleMesh(dl.Point(0.0,0.0),dl.Point(X,Y),X*Nxy,Y*Nxy)
 mesh = dl.UnitSquareMesh(Nxy, Nxy)
 Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
 

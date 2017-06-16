@@ -14,7 +14,7 @@ from fenicstools.plotfenics import PlotFenics
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
 
-from mediumparameters import targetmediumparameters, loadparameters
+from mediumparameters1 import targetmediumparameters, loadparameters
 #from mediumparameters0 import targetmediumparameters, loadparameters
 
 
@@ -26,7 +26,6 @@ Nxy, Dt, fpeak, t0, t1, t2, tf = loadparameters(LARGE)
 h = 1./Nxy
 # dist is in [km]
 X, Y = 1, 1
-#mesh = dl.RectangleMesh(dl.Point(0.0,0.0),dl.Point(X,Y),X*Nxy,Y*Nxy)
 mesh = dl.UnitSquareMesh(Nxy, Nxy)
 mpicomm = mesh.mpi_comm()
 mpirank = MPI.rank(mpicomm)
@@ -49,7 +48,7 @@ class ABCdom(dl.SubDomain):
 
 r = 2
 V = dl.FunctionSpace(mesh, 'Lagrange', r)
-y_src = 0.1 # 0.1->transmission, 1.0->reflection
+y_src = 1.0 # 0.1->transmission, 1.0->reflection
 Pt = PointSources(V, [[0.5*X,y_src]])
 mydelta = Pt[0]
 def mysrc(tt):

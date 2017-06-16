@@ -31,7 +31,7 @@ from fenicstools.mpicomm import create_communicators, partition_work
 from fenicstools.miscfenics import createMixedFS, ZeroRegularization
 
 #from fenicstools.examples.acousticwave.mediumparameters0 import \
-from fenicstools.examples.acousticwave.mediumparameters import \
+from fenicstools.examples.acousticwave.mediumparameters1 import \
 targetmediumparameters, initmediumparameters, loadparameters
 
 dl.set_log_active(False)
@@ -46,7 +46,7 @@ mpicommbarrier = dl.mpi_comm_world()
 
 ##############
 LARGE = False
-PARAM = 'a'
+PARAM = 'ab'
 NOISE = True
 PLOTTS = False
 
@@ -71,9 +71,9 @@ Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
 Ricker = RickerWavelet(fpeak, 1e-6)
 r = 2   # polynomial degree for state and adj
 V = dl.FunctionSpace(mesh, 'Lagrange', r)
-y_src = 0.1 # 1.0->reflection, 0.1->transmission
-#Pt = PointSources(V, [[0.1*ii*X-0.05, y_src] for ii in range(1,11)])
-Pt = PointSources(V, [[0.1,y_src], [0.5,y_src], [0.9,y_src]])
+y_src = 1.0 # 1.0->reflection, 0.1->transmission
+Pt = PointSources(V, [[0.1*ii*X-0.05, y_src] for ii in range(1,11)])
+#Pt = PointSources(V, [[0.1,y_src], [0.5,y_src], [0.9,y_src]])
 #Pt = PointSources(V, [[0.5, y_src]])
 srcv = dl.Function(V).vector()
 
@@ -296,7 +296,7 @@ else:
     tstart = time.time()
 
     waveobj.inversion(m0, mt, parameters,
-    boundsLS=[[0.01, 0.6], [0.01, 0.6]], myplot=myplotf)
+    boundsLS=[[1e-4, 1.0], [1e-3, 1.0]], myplot=myplotf)
 
     tend = time.time()
     Dt = tend - tstart
