@@ -44,9 +44,19 @@ PRINT = (mpiworldrank == 0)
 mpicommbarrier = dl.mpi_comm_world()
 
 
+# Command-line arguments
+try:
+    PARAM = sys.argv[1]
+except:
+    PARAM = 'ab'
+try:
+    abslogk = int(sys.argv[2])
+except:
+    abslogk = 6
+
+
 ##############
 LARGE = False
-PARAM = 'ab'
 NOISE = True
 PLOTTS = False
 
@@ -122,12 +132,13 @@ if FDGRAD:
     sources, timesteps, PARAM)
 else:
     # REGULARIZATION:
+    k = 10**(-abslogk)
     if PARAM == 'ab':
-        regul = V_TVPD(Vl, {'eps':1.0, 'k':1e-6, 'PCGN':False, 'print':PRINT})
+        regul = V_TVPD(Vl, {'eps':1.0, 'k':k, 'PCGN':False, 'print':PRINT})
     else:
         #reg1 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
         #reg2 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
-        reg1 = TVPD({'Vm':Vl, 'eps':1.0, 'k':1e-6, 'print':PRINT})
+        reg1 = TVPD({'Vm':Vl, 'eps':1.0, 'k':k, 'print':PRINT})
         #reg2 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
         #regul = SumRegularization(reg1, reg2, coeff_cg=1e-4, isprint=PRINT)
         regul = SingleRegularization(reg1, PARAM, PRINT)
