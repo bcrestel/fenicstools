@@ -680,10 +680,11 @@ class ObjectiveAcoustic(LinearOperator):
             # most time spent here:
             if avgPC:
                 cgiter, cgres, cgid = compute_searchdirection(self,
-                {'method':'Newton', 'tolcg':tolcg}, comm=self.mpicomm_global)
+                {'method':'Newton', 'tolcg':tolcg, 'max_iter':2000},\
+                comm=self.mpicomm_global)
             else:
                 cgiter, cgres, cgid = compute_searchdirection(self,
-                {'method':'Newton', 'tolcg':tolcg})
+                {'method':'Newton', 'tolcg':tolcg, 'max_iter':2000})
 
             # addt'l safety: zero-out entries of 'srchdir' corresponding to
             # param that are not inverted for

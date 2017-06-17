@@ -174,10 +174,12 @@ def compute_searchdirection(objfctal, parameters_in=[], comm=dl.mpi_comm_self())
     parameters['method']        = 'Newton'
     parameters['tolcg']         = 1e-8
     parameters['tolGxD']        = -1e-24
+    parameters['max_iter']       = 1000
     parameters.update(parameters_in)
     method = parameters['method']
     tolcg = parameters['tolcg']
     tolGxD = parameters['tolGxD']
+    maxiter = parameters['max_iter']
 
     if method == 'steepest':
         objfctal.srchdir.vector().zero()
@@ -190,6 +192,7 @@ def compute_searchdirection(objfctal, parameters_in=[], comm=dl.mpi_comm_self())
         solver.set_preconditioner(objfctal.getprecond())
         solver.parameters["rel_tolerance"] = tolcg
         solver.parameters["zero_initial_guess"] = True
+        solver.parameters['max_iter'] = maxiter
         solver.parameters["print_level"] = -2
         solver.solve(objfctal.srchdir.vector(), -1.0*objfctal.MGv, comm)  # all cpu time spent here
 
