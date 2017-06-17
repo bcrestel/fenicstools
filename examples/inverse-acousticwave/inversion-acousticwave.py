@@ -82,8 +82,9 @@ Ricker = RickerWavelet(fpeak, 1e-6)
 r = 2   # polynomial degree for state and adj
 V = dl.FunctionSpace(mesh, 'Lagrange', r)
 y_src = 1.0 # 1.0->reflection, 0.1->transmission
-Pt = PointSources(V, [[0.1*ii*X-0.05, y_src] for ii in range(1,11)])
-#Pt = PointSources(V, [[0.1,y_src], [0.5,y_src], [0.9,y_src]])
+#Pt = PointSources(V, [[0.1*ii*X-0.05, y_src] for ii in range(1,11)])
+Pt = PointSources(V, [[0.1,y_src], [0.25,y_src], [0.4,y_src],\
+[0.6,y_src], [0.75,y_src], [0.9,y_src]])
 #Pt = PointSources(V, [[0.5, y_src]])
 srcv = dl.Function(V).vector()
 
@@ -288,7 +289,6 @@ else:
         print 'Regularization at target={:.2e}, at initial state={:.2e}'.format(\
         regt, reg0)
 
-    #myplotf = PlotFenics(Outputfolder='Debug/' + PARAM + '/Plots', comm=mesh.mpi_comm())
     myplotf = None
 
     if PRINT:
@@ -298,7 +298,7 @@ else:
     parameters['isprint'] = PRINT
     parameters['nbGNsteps'] = 20
     parameters['checkab'] = 5
-    parameters['maxiterNewt'] = 500
+    parameters['maxiterNewt'] = 60
     parameters['maxtolcg'] = 0.5
     parameters['avgPC'] = False
     parameters['PC'] = 'prior'
@@ -334,6 +334,12 @@ else:
         print '\ntarget: min(b)={}, max(b)={}'.format(minbt, maxbt)
         print 'init: min(b)={}, max(b)={}'.format(minb0, maxb0)
         print 'MAP: min(b)={}, max(b)={}'.format(minb, maxb)
+
+
+        plotfolder = PARAM + 'k' + str(k)
+        myplot = PlotFenics(Outputfolder='output/plots/' + plotfolder, \
+        comm = mesh.mpi_comm())
+        waveobj._plotab(myplot, 'map')
 
 
     """
