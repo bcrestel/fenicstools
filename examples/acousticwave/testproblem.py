@@ -14,9 +14,10 @@ from fenicstools.plotfenics import PlotFenics
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
 
-from medparam_test import targetmediumparameters, loadparameters
+#from medparam_test import targetmediumparameters, loadparameters
 #from mediumparameters import targetmediumparameters, loadparameters
 #from mediumparameters0 import targetmediumparameters, loadparameters
+from mediumparameters1 import targetmediumparameters, loadparameters
 
 
 LARGE = False

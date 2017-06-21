@@ -28,10 +28,10 @@ from fenicstools.regularization import TVPD, TV
 from fenicstools.jointregularization import \
 SingleRegularization, V_TVPD, SumRegularization
 from fenicstools.mpicomm import create_communicators, partition_work
-from fenicstools.miscfenics import createMixedFS
+from fenicstools.miscfenics import createMixedFS, ZeroRegularization
 
 #from fenicstools.examples.acousticwave.mediumparameters0 import \
-from fenicstools.examples.acousticwave.mediumparameters import \
+from fenicstools.examples.acousticwave.mediumparameters1 import \
 targetmediumparameters, initmediumparameters, loadparameters
 
 dl.set_log_active(False)
@@ -44,15 +44,25 @@ PRINT = (mpiworldrank == 0)
 mpicommbarrier = dl.mpi_comm_world()
 
 
+# Command-line arguments
+try:
+    PARAM = sys.argv[1]
+except:
+    PARAM = 'ab'
+try:
+    abslogk = int(sys.argv[2])
+except:
+    abslogk = 6
+
+
 ##############
 LARGE = False
-PARAM = 'ab'
 NOISE = True
 PLOTTS = False
 
 FDGRAD = False
 ALL = False
-nbtest = 2
+nbtest = 5
 ##############
 Nxy, Dt, fpeak, t0, t1, t2, tf = loadparameters(LARGE)
 h = 1./Nxy
@@ -73,7 +83,8 @@ r = 2   # polynomial degree for state and adj
 V = dl.FunctionSpace(mesh, 'Lagrange', r)
 y_src = 1.0 # 1.0->reflection, 0.1->transmission
 #Pt = PointSources(V, [[0.1*ii*X-0.05, y_src] for ii in range(1,11)])
-Pt = PointSources(V, [[0.1,y_src], [0.5,y_src], [0.9,y_src]])
+Pt = PointSources(V, [[0.1,y_src], [0.25,y_src], [0.4,y_src],\
+[0.6,y_src], [0.75,y_src], [0.9,y_src]])
 #Pt = PointSources(V, [[0.5, y_src]])
 srcv = dl.Function(V).vector()
 
@@ -122,15 +133,19 @@ if FDGRAD:
     sources, timesteps, PARAM)
 else:
     # REGULARIZATION:
-    #reg1 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
-    #reg2 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
-    #reg1 = TVPD({'Vm':Vl, 'eps':1.0, 'k':1e-6, 'print':PRINT})
-    #reg2 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
-    #regul = SumRegularization(reg1, reg2, coeff_cg=1e-4, isprint=PRINT)
-    #regul = SingleRegularization(reg1, PARAM, PRINT)
-    regul = V_TVPD(Vl, {'eps':1.0, 'k':1e-6, 'PCGN':False, 'print':PRINT})
+    k = 10**(-abslogk)
+    eps = 1e-3
+    if PARAM == 'ab':
+        regul = V_TVPD(Vl, {'eps':eps, 'k':k, 'PCGN':False, 'print':PRINT})
+    else:
+        #reg1 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
+        #reg2 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
+        reg1 = TVPD({'Vm':Vl, 'eps':eps, 'k':k, 'print':PRINT})
+        #reg2 = TVPD({'Vm':Vl, 'eps':eps, 'k':1e-5, 'print':PRINT})
+        #regul = SumRegularization(reg1, reg2, coeff_cg=1e-4, isprint=PRINT)
+        regul = SingleRegularization(reg1, PARAM, PRINT)
 
-    waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv], \
+    waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv],\
     sources, timesteps, PARAM, regul)
 waveobj.obsop = obsop
 #waveobj.GN = True
@@ -244,9 +259,15 @@ if FDGRAD:
         if PRINT:    
             print '\n'
             print 'check a-Hessian with FD'
-        checkhessabfd_med(waveobj, Mediuma, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'a')
+        if 'a' in PARAM:
+            checkhessabfd_med(waveobj, Mediuma, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'a')
+        else:
+            checkhessabfd_med(waveobj, Mediuma[:1], PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'a')
         if PRINT:    print 'check b-Hessian with FD'
-        checkhessabfd_med(waveobj, Mediumb, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'b')
+        if 'b' in PARAM:
+            checkhessabfd_med(waveobj, Mediumb, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'b')
+        else:
+            checkhessabfd_med(waveobj, Mediumb[:1], PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'b')
 ##################################################
 # Solve inverse problem
 else:
@@ -269,7 +290,6 @@ else:
         print 'Regularization at target={:.2e}, at initial state={:.2e}'.format(\
         regt, reg0)
 
-    #myplotf = PlotFenics(Outputfolder='Debug/' + PARAM + '/Plots', comm=mesh.mpi_comm())
     myplotf = None
 
     if PRINT:
@@ -279,7 +299,7 @@ else:
     parameters['isprint'] = PRINT
     parameters['nbGNsteps'] = 20
     parameters['checkab'] = 5
-    parameters['maxiterNewt'] = 100
+    parameters['maxiterNewt'] = 60
     parameters['maxtolcg'] = 0.5
     parameters['avgPC'] = False
     parameters['PC'] = 'prior'
@@ -288,7 +308,7 @@ else:
     tstart = time.time()
 
     waveobj.inversion(m0, mt, parameters,
-    boundsLS=[[0.01, 0.6], [0.01, 0.6]], myplot=myplotf)
+    boundsLS=[[1e-4, 1.0], [1e-3, 1.0]], myplot=myplotf)
 
     tend = time.time()
     Dt = tend - tstart
@@ -315,3 +335,76 @@ else:
         print '\ntarget: min(b)={}, max(b)={}'.format(minbt, maxbt)
         print 'init: min(b)={}, max(b)={}'.format(minb0, maxb0)
         print 'MAP: min(b)={}, max(b)={}'.format(minb, maxb)
+
+
+        plotfolder = PARAM + 'k' + str(k)
+        myplot = PlotFenics(Outputfolder='output/plots/' + plotfolder, \
+        comm = mesh.mpi_comm())
+        waveobj._plotab(myplot, 'map')
+
+
+    """
+    # Test gradient and Hessian after several steps of Newton method
+    waveobj.GN = False
+    waveobj.regularization = ZeroRegularization(Vl)
+    if ALL and (PARAM == 'a' or PARAM == 'b') and PRINT:
+        print '*** Warning: Single inversion but changing both parameters'
+    MPa = [
+    dl.Constant('1.0'), 
+    dl. Expression('sin(pi*x[0])*sin(pi*x[1])', degree=10),
+    dl.Expression('x[0]', degree=10), dl.Expression('x[1]', degree=10), 
+    dl.Expression('sin(3*pi*x[0])*sin(3*pi*x[1])', degree=10)]
+    MPb = [
+    dl.Constant('1.0'), 
+    dl. Expression('sin(pi*x[0])*sin(pi*x[1])', degree=10),
+    dl.Expression('x[1]', degree=10), dl.Expression('x[0]', degree=10), 
+    dl.Expression('sin(3*pi*x[0])*sin(3*pi*x[1])', degree=10)]
+
+    if ALL:
+        Medium = []
+        tmp = dl.Function(Vl*Vl)
+        for ii in range(nbtest):
+            tmp.vector().zero()
+            dl.assign(tmp.sub(0), dl.interpolate(MPa[ii], Vl))
+            dl.assign(tmp.sub(1), dl.interpolate(MPb[ii], Vl))
+            Medium.append(tmp.vector().copy())
+        if PRINT:    print 'check gradient with FD'
+        checkgradfd_med(waveobj, Medium, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True)
+        if PRINT:    print '\ncheck Hessian with FD'
+        checkhessabfd_med(waveobj, Medium, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'all')
+    else:
+        Mediuma, Mediumb = [], []
+        tmp = dl.Function(Vl*Vl)
+        for ii in range(nbtest):
+            tmp.vector().zero()
+            dl.assign(tmp.sub(0), dl.interpolate(MPa[ii], Vl))
+            Mediuma.append(tmp.vector().copy())
+            tmp.vector().zero()
+            dl.assign(tmp.sub(1), dl.interpolate(MPb[ii], Vl))
+            Mediumb.append(tmp.vector().copy())
+        if PRINT:    print 'check a-gradient with FD'
+        if 'a' in PARAM:
+            checkgradfd_med(waveobj, Mediuma, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True)
+        else:
+            checkgradfd_med(waveobj, Mediuma[:1], PRINT, 1e-6, [1e-5], True)
+        if PRINT:    print 'check b-gradient with FD'
+        if 'b' in PARAM:
+            checkgradfd_med(waveobj, Mediumb, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True)
+        else:
+            checkgradfd_med(waveobj, Mediumb[:1], PRINT, 1e-6, [1e-5], True)
+
+        if PRINT:    
+            print '\n'
+            print 'check a-Hessian with FD'
+        if 'a' in PARAM:
+            checkhessabfd_med(waveobj, Mediuma, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'a')
+            #checkhessabfd_med(waveobj, Mediuma, PRINT, 1e-6,\
+            #[1e-1, 1e-2, 1e-3, 1e-4], False, 'a')
+        else:
+            checkhessabfd_med(waveobj, Mediuma[:1], PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'a')
+        if PRINT:    print 'check b-Hessian with FD'
+        if 'b' in PARAM:
+            checkhessabfd_med(waveobj, Mediumb, PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'b')
+        else:
+            checkhessabfd_med(waveobj, Mediumb[:1], PRINT, 1e-6, [1e-5, 1e-6, 1e-7], True, 'b')
+    """
