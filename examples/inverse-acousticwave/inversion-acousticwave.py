@@ -134,13 +134,14 @@ if FDGRAD:
 else:
     # REGULARIZATION:
     k = 10**(-abslogk)
+    eps = 1e-3
     if PARAM == 'ab':
-        regul = V_TVPD(Vl, {'eps':1.0, 'k':k, 'PCGN':False, 'print':PRINT})
+        regul = V_TVPD(Vl, {'eps':eps, 'k':k, 'PCGN':False, 'print':PRINT})
     else:
         #reg1 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
         #reg2 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
-        reg1 = TVPD({'Vm':Vl, 'eps':1.0, 'k':k, 'print':PRINT})
-        #reg2 = TVPD({'Vm':Vl, 'eps':1e-1, 'k':1e-5, 'print':PRINT})
+        reg1 = TVPD({'Vm':Vl, 'eps':eps, 'k':k, 'print':PRINT})
+        #reg2 = TVPD({'Vm':Vl, 'eps':eps, 'k':1e-5, 'print':PRINT})
         #regul = SumRegularization(reg1, reg2, coeff_cg=1e-4, isprint=PRINT)
         regul = SingleRegularization(reg1, PARAM, PRINT)
 
