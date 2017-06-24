@@ -28,7 +28,7 @@ from fenicstools.regularization import TVPD, TV
 from fenicstools.jointregularization import \
 SingleRegularization, V_TVPD, SumRegularization
 from fenicstools.mpicomm import create_communicators, partition_work
-from fenicstools.miscfenics import createMixedFS, ZeroRegularization
+from fenicstools.miscfenics import createMixedFS, ZeroRegularization, computecfromab
 
 #from fenicstools.examples.acousticwave.mediumparameters0 import \
 from fenicstools.examples.acousticwave.mediumparameters1 import \
@@ -50,9 +50,9 @@ try:
 except:
     PARAM = 'ab'
 try:
-    abslogk = int(sys.argv[2])
+    k = float(sys.argv[2])
 except:
-    abslogk = 6
+    k = 1e-6
 
 
 ##############
@@ -98,7 +98,7 @@ Wave = AcousticWave({'V':V, 'Vm':Vl},
 Wave.set_abc(mesh, ABCdom(), lumpD=False)
 
 
-at, bt,_,_,_ = targetmediumparameters(Vl, X)
+at, bt, ct,_,_ = targetmediumparameters(Vl, X)
 a0, b0,_,_,_ = initmediumparameters(Vl, X)
 if 'a' not in PARAM:    a0 = at
 if 'b' not in PARAM:    b0 = bt
@@ -133,17 +133,16 @@ if FDGRAD:
     sources, timesteps, PARAM)
 else:
     # REGULARIZATION:
-    k = 10**(-abslogk)
     eps = 1e-3
     if PARAM == 'ab':
-        regul = V_TVPD(Vl, {'eps':eps, 'k':k, 'PCGN':False, 'print':PRINT})
+        rega = TVPD({'Vm':Vl, 'eps':eps, 'k':5e-6, 'print':PRINT})
+        regb = TVPD({'Vm':Vl, 'eps':eps, 'k':9e-6, 'print':PRINT})
+
+        #regul = V_TVPD(Vl, {'eps':eps, 'k':k, 'PCGN':False, 'print':PRINT})
+        regul = SumRegularization(rega, regb, coeff_cg=k, isprint=PRINT)
     else:
-        #reg1 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
-        #reg2 = LaplacianPrior({'Vm':Vl, 'gamma':1e-4, 'beta':1e-6})
-        reg1 = TVPD({'Vm':Vl, 'eps':eps, 'k':k, 'print':PRINT})
-        #reg2 = TVPD({'Vm':Vl, 'eps':eps, 'k':1e-5, 'print':PRINT})
-        #regul = SumRegularization(reg1, reg2, coeff_cg=1e-4, isprint=PRINT)
-        regul = SingleRegularization(reg1, PARAM, PRINT)
+        reg = TVPD({'Vm':Vl, 'eps':eps, 'k':k, 'print':PRINT})
+        regul = SingleRegularization(reg, PARAM, PRINT)
 
     waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv],\
     sources, timesteps, PARAM, regul)
@@ -299,7 +298,7 @@ else:
     parameters['isprint'] = PRINT
     parameters['nbGNsteps'] = 20
     parameters['checkab'] = 5
-    parameters['maxiterNewt'] = 60
+    parameters['maxiterNewt'] = 250
     parameters['maxtolcg'] = 0.5
     parameters['avgPC'] = False
     parameters['PC'] = 'prior'
@@ -319,28 +318,63 @@ else:
     maxat = at.vector().max()
     minbt = bt.vector().min()
     maxbt = bt.vector().max()
+    minct = ct.vector().min()
+    maxct = ct.vector().max()
     mina0 = a0.vector().min()
     maxa0 = a0.vector().max()
     minb0 = b0.vector().min()
     maxb0 = b0.vector().max()
-    mina = waveobj.PDE.a.vector().min()
-    maxa = waveobj.PDE.a.vector().max()
-    minb = waveobj.PDE.b.vector().min()
-    maxb = waveobj.PDE.b.vector().max()
+    a = waveobj.PDE.a
+    b = waveobj.PDE.b
+    c = computecfromab(a.vector(), b.vector())
+    mina = a.vector().min()
+    maxa = a.vector().max()
+    minb = b.vector().min()
+    maxb = b.vector().max()
+    minc = c.min()
+    maxc = c.max()
+    cf = dl.Function(Vl)
+    cf.vector().zero()
+    cf.vector().axpy(1.0, c)
+    # medium misfits:
+    test, trial = dl.TestFunction(Vl), dl.TrialFunction(Vl)
+    MM = dl.assemble(dl.inner(test, trial)*dl.dx)
+    normat = np.sqrt(at.vector().inner(MM*at.vector()))
+    mmfa = at.vector() - a.vector()
+    norm_mmfa = np.sqrt(mmfa.inner(MM*mmfa))
+    erra = 100.0*norm_mmfa/normat
+    normbt = np.sqrt(bt.vector().inner(MM*bt.vector()))
+    mmfb = bt.vector() - b.vector()
+    norm_mmfb = np.sqrt(mmfb.inner(MM*mmfb))
+    errb = 100.0*norm_mmfb/normbt
+    normct = np.sqrt(ct.vector().inner(MM*ct.vector()))
+    mmfc = ct.vector() - c
+    norm_mmfc = np.sqrt(mmfc.inner(MM*mmfc))
+    errc = 100.0*norm_mmfc/normct
     if PRINT:
         print '\ntarget: min(a)={}, max(a)={}'.format(minat, maxat)
         print 'init: min(a)={}, max(a)={}'.format(mina0, maxa0)
         print 'MAP: min(a)={}, max(a)={}'.format(mina, maxa)
+        print 'med_misfit={:.4e}, err={:.1f}%'.format(norm_mmfa, erra)
 
         print '\ntarget: min(b)={}, max(b)={}'.format(minbt, maxbt)
         print 'init: min(b)={}, max(b)={}'.format(minb0, maxb0)
         print 'MAP: min(b)={}, max(b)={}'.format(minb, maxb)
+        print 'med_misfit={:.4e}, err={:.1f}%'.format(norm_mmfb, errb)
 
+        print '\ntarget: min(c)={}, max(c)={}'.format(minct, maxct)
+        print 'MAP: min(c)={}, max(c)={}'.format(minc, maxc)
+        print 'med_misfit={:.4e}, err={:.1f}%'.format(norm_mmfc, errc)
 
-        plotfolder = PARAM + 'k' + str(k)
+        # WARNING: only makes sense if mpicomm_local == mpi_comm_self
+        # otherwise, can't be restricted to PRINT processor only
+        plotfolder = PARAM + '_k' + str(k) + '_e' + str(eps)
         myplot = PlotFenics(Outputfolder='output/plots/' + plotfolder, \
         comm = mesh.mpi_comm())
-        waveobj._plotab(myplot, 'map')
+        waveobj._plotab(myplot, '-map_' + PARAM + '_k' + str(k) + '_e' + str(eps))
+
+        myplot.set_varname('c-map_' + PARAM + '_k' + str(k) + '_e' + str(eps))
+        myplot.plot_vtk(cf)
 
 
     """
