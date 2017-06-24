@@ -42,7 +42,7 @@ class SingleRegularization():
             self.regul2 = regul
         else:
             if isprint:
-                print "argument 'param' must be 'a' or 'b'"
+                print "[SingleRegularization] argument 'param' must be 'a' or 'b'"
                 sys.exit(1)
         self.isprint = isprint
 
@@ -53,9 +53,9 @@ class SingleRegularization():
         self.saa = bd.saa
 
         if isprint:
-            print 'Using jointregularization.SingleRegularization for inversion parameter {}'.format(self.param)
+            print '[SingleRegularization] inversion parameter {}'.format(self.param)
             if self.isPD():
-                print 'Using primal-dual TV'
+                print '[SingleRegularization] Using primal-dual TV'
 
 
     def isTV(self):
@@ -150,18 +150,18 @@ class SumRegularization():
 
         if self.coeff_cg > 0.0:
             self.crossgrad = crossgradient(self.V1V2)
-            if isprint: print "SumRegularization w/ cross-gradient"
+            if isprint: print "[SumRegularization] Using cross-gradient"
         if self.coeff_ncg > 0.0:
             self.normalizedcrossgrad = normalizedcrossgradient(self.V1V2, parameters_ncg)
             if isprint: 
-                print 'SumRegularization w/ normalized cross-gradient (eps={})'.format(
+                print '[SumRegularization] Using normalized cross-gradient (eps={})'.format(
                 self.normalizedcrossgrad.parameters['eps'])
         if self.coeff_vtv > 0.0:
             assert self.regul1.Vm is self.regul2.Vm
             self.vtv = V_TVPD(V1, parameters_vtv)
-            if isprint: print "SumRegularization w/ VTV"
+            if isprint: print "[SumRegularization] Using VTV"
         if isprint:
-            print 'coeff cg={}, ncg={}, vtv={}'.format(
+            print '[SumRegularization] Coeff cg={}, ncg={}, vtv={}'.format(
             self.coeff_cg, self.coeff_ncg, self.coeff_vtv)
 
         self.amgprecond = amg_solver()
@@ -391,7 +391,7 @@ class normalizedcrossgradient():
             Vtmp = FunctionSpace(meshtmp, 'CG', 1)
             x = SpatialCoordinate(meshtmp)
             correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
-            print 'NCG: correction cost with factor={}'.format(correctioncost)
+            print '[NCG] Correction cost with factor={}'.format(correctioncost)
         else:
             correctioncost = 1.0
         self.cost = 0.5*correctioncost*(1.0 - inner(ngrada, ngradb)*inner(ngrada, ngradb))*dx
@@ -542,7 +542,7 @@ class VTV():
             Vtmp = FunctionSpace(meshtmp, 'CG', 1)
             x = SpatialCoordinate(meshtmp)
             correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
-            print 'VTV: correction cost with factor={}'.format(correctioncost)
+            print '[VTV] correction cost with factor={}'.format(correctioncost)
         else:
             correctioncost = 1.0
         self.wkformcost = Constant(k*correctioncost) * TVnorm * dx
@@ -807,7 +807,7 @@ class V_TVPD():
         minf = self.factorw.vector().min()
         maxf = self.factorw.vector().max()
         if self.parameters['print']:
-            print ('perc. dual entries rescaled={:.2f} %, ' +\
+            print ('[V_TVPD] perc. dual entries rescaled={:.2f} %, ' +\
             'min(factorw)={}, max(factorw)={}').format(\
             100.*float(count)/self.factorw.vector().size(), minf, maxf)
 
@@ -854,8 +854,7 @@ class NuclearNormSVD2D():
         self.Gy2test = assemble(indfct*(self.test2.dx(1))*dx)
 
         if isprint:
-            print 'Using nuclear norm regularization with SVD.',
-            print ' eps={}, k={}'.format(self.eps, self.k)
+            print '[NuclearNormSVD2D] eps={}, k={}'.format(self.eps, self.k)
         
 
     def isTV(self): return False
@@ -972,7 +971,7 @@ class NuclearNormformula():
             Vtmp = FunctionSpace(meshtmp, 'CG', 1)
             x = SpatialCoordinate(meshtmp)
             self.correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
-            print 'TV: correction cost with factor={}'.format(self.correctioncost)
+            print '[NuclearNormformula] Correction cost with factor={}'.format(self.correctioncost)
         else:
             self.correctioncost = 1.0
         self.cost = 1./np.sqrt(2.0) * Constant(k) * (\
@@ -994,8 +993,7 @@ class NuclearNormformula():
         self.sMass = M*factM
 
         if isprint:
-            print 'Using nuclear norm regularization (no SVD).',
-            print ' eps={}, k={}'.format(eps, k)
+            print '[NuclearNormformula] eps={}, k={}'.format(eps, k)
 
 
     def isTV(self): return False

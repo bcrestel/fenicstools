@@ -62,7 +62,7 @@ class ObjectiveAcoustic(LinearOperator):
         self.GN = False
 
         if regularization == None:  
-            print '*** [ObjectiveAcoustic] Warning: Using zero regularization'
+            print '[ObjectiveAcoustic] *** Warning: Using zero regularization'
             self.regularization = ZeroRegularization(Vm)
         else:   
             self.regularization = regularization
