@@ -9,6 +9,7 @@ import numpy as np
 
 from dolfin import Function, GenericVector, PETScKrylovSolver, FunctionSpace,\
 as_backend_type
+from dolfin import __version__ as versiondolfin
 from exceptionsfenics import WrongInstanceError
 
 #def apply_noise(UD, noisepercent, mycomm=None):
@@ -163,15 +164,12 @@ class ZeroRegularization():
 
 
 def amg_solver():
-    return 'petsc_amg'
-    """
-    try:
-        solver = PETScKrylovSolver('cg', 'ml_amg')
-        amgsolver = 'ml_amg'
-    except:
-        amgsolver = 'petsc_amg'
-    return amgsolver
-    """
+    if versiondolfin.split('.')[0] == '2016':
+        print '[amg_solver] Fenics.2016 - using hypre_amg'
+        return 'hypre_amg'
+    else:
+        print '[amg_solver] using petsc_amg'
+        return 'petsc_amg'
 
 
 def createMixedFS(V1, V2):
