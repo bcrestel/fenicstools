@@ -127,10 +127,10 @@ def test2():
     rhs = dl.Function(Vm)
     #regul = LaplacianPrior({'Vm':Vm, 'gamma':1e-4, 'beta':1e-4})
     regul = TVPD({'Vm':Vm, 'k':1e-4, 'eps':1e-3})
-    precond = 'hypre_amg'
+    precond = 'ml_amg'
 
     for ii in range(1):
-        rhs.vector()[:] = (ii+1.0)*np.random.randn(Vm.dim())
+        rhs.vector()[:] = (ii+1.0)*np.random.randn(rhs.vector().local_size())
         regul.assemble_hessian(rhs)
 
         solver1 = dl.PETScKrylovSolver('cg', precond)
@@ -172,5 +172,5 @@ def test2():
         print '|x3|={}, |diff|={}, iter3={}'.format(x3n, diffn, iter3)
 
 if __name__ == "__main__":
-    test1()
+    #test1()
     test2()
