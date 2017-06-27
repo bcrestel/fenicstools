@@ -42,7 +42,7 @@ class SingleRegularization():
             self.regul2 = regul
         else:
             if isprint:
-                print "[SingleRegularization] argument 'param' must be 'a' or 'b'"
+                print "[SingleRegularization] *** Error: argument 'param' must be 'a' or 'b'"
                 sys.exit(1)
         self.isprint = isprint
 
