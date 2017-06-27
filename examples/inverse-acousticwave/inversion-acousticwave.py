@@ -26,7 +26,7 @@ from fenicstools.optimsolver import checkgradfd_med, checkhessabfd_med
 from fenicstools.prior import LaplacianPrior
 from fenicstools.regularization import TVPD, TV
 from fenicstools.jointregularization import \
-SingleRegularization, V_TVPD, SumRegularization
+SingleRegularization, V_TVPD, SumRegularization, NuclearNormSVD2D
 from fenicstools.mpicomm import create_communicators, partition_work
 from fenicstools.miscfenics import createMixedFS, ZeroRegularization, computecfromab
 
@@ -52,7 +52,7 @@ except:
 try:
     k = float(sys.argv[2])
 except:
-    k = 1e-6
+    k = 7e-6
 
 
 ##############
@@ -135,11 +135,12 @@ else:
     # REGULARIZATION:
     eps = 1e-3
     if PARAM == 'ab':
-        rega = TVPD({'Vm':Vl, 'eps':eps, 'k':5e-6, 'print':PRINT})
-        regb = TVPD({'Vm':Vl, 'eps':eps, 'k':9e-6, 'print':PRINT})
+        #rega = TVPD({'Vm':Vl, 'eps':eps, 'k':5e-6, 'print':PRINT})
+        #regb = TVPD({'Vm':Vl, 'eps':eps, 'k':9e-6, 'print':PRINT})
 
         #regul = V_TVPD(Vl, {'eps':eps, 'k':k, 'PCGN':False, 'print':PRINT})
-        regul = SumRegularization(rega, regb, coeff_cg=k, isprint=PRINT)
+        #regul = SumRegularization(rega, regb, coeff_cg=k, isprint=PRINT)
+        regul = NuclearNormSVD2D(mesh, {'eps':eps, 'k':k}, isprint=PRINT)
     else:
         reg = TVPD({'Vm':Vl, 'eps':eps, 'k':k, 'print':PRINT})
         regul = SingleRegularization(reg, PARAM, PRINT)
@@ -295,6 +296,8 @@ else:
         print '\n\nStart solution of inverse problem for parameter(s) {}'.format(PARAM)
 
     parameters = {}
+    #parameters['solverNS'] = 'Newton'
+    parameters['solverNS'] = 'BFGS'
     parameters['isprint'] = PRINT
     parameters['nbGNsteps'] = 20
     parameters['checkab'] = 5
@@ -302,6 +305,12 @@ else:
     parameters['maxtolcg'] = 0.5
     parameters['avgPC'] = False
     parameters['PC'] = 'prior'
+
+    if parameters['solverNS'] == 'BFGS':
+        parameters['H0inv'] = 'default'
+        parameters['memory_limit'] = np.inf
+    else:
+        parameters['H0inv'] = 'Rinv'
 
     MPI.barrier(mpicommbarrier)
     tstart = time.time()
