@@ -1,6 +1,6 @@
 #!/bin/bash
 
-paramks='0.0 1e-12 1e-10 1e-8 1e-6 1e-4'
+paramks='8e-6 7e-6 6e-6 9e-6 5e-6 1e-5 1e-6'
 
 for paramk in $paramks
 do
@@ -10,4 +10,4 @@ do
     mpirun -n 30 python inversion-acousticwave.py ab $paramk > output/k$paramk+ab
 done
 
-echo Bash completed param a
+echo Bash completed param ab

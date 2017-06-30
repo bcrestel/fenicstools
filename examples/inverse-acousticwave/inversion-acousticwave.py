@@ -301,7 +301,7 @@ else:
     parameters['isprint'] = PRINT
     parameters['nbGNsteps'] = 20
     parameters['checkab'] = 5
-    parameters['maxiterNewt'] = 250
+    parameters['maxiterNewt'] = 50000
     parameters['maxtolcg'] = 0.5
     parameters['avgPC'] = False
     parameters['PC'] = 'prior'
