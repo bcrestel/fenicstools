@@ -14,8 +14,10 @@ from fenicstools.plotfenics import PlotFenics
 from fenicstools.acousticwave import AcousticWave
 from fenicstools.sourceterms import PointSources, RickerWavelet
 
-from mediumparameters1 import targetmediumparameters, loadparameters
+#from medparam_test import targetmediumparameters, loadparameters
+#from mediumparameters import targetmediumparameters, loadparameters
 #from mediumparameters0 import targetmediumparameters, loadparameters
+from mediumparameters1 import targetmediumparameters, loadparameters
 
 
 LARGE = False
@@ -39,7 +41,7 @@ MPI.barrier(mpicomm)
 myplot = PlotFenics(mpicomm, filename)
 
 # Source term:
-Ricker = RickerWavelet(fpeak, 1e-6)
+Ricker = RickerWavelet(fpeak, 1e-6, 1.0)
 
 # Boundary conditions:
 class ABCdom(dl.SubDomain):

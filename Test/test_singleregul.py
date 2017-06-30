@@ -130,7 +130,7 @@ def test2():
     precond = 'hypre_amg'
 
     for ii in range(1):
-        rhs.vector()[:] = (ii+1.0)*np.random.randn(Vm.dim())
+        rhs.vector()[:] = (ii+1.0)*np.random.randn(rhs.vector().local_size())
         regul.assemble_hessian(rhs)
 
         solver1 = dl.PETScKrylovSolver('cg', precond)
@@ -172,5 +172,5 @@ def test2():
         print '|x3|={}, |diff|={}, iter3={}'.format(x3n, diffn, iter3)
 
 if __name__ == "__main__":
-    test1()
+    #test1()
     test2()
