@@ -7,7 +7,8 @@ import numpy as np
 #from numpy.linalg import norm
 #from numpy.random import randn
 
-from dolfin import Function, GenericVector, PETScKrylovSolver, FunctionSpace
+from dolfin import Function, GenericVector, PETScKrylovSolver, FunctionSpace,\
+as_backend_type
 from exceptionsfenics import WrongInstanceError
 
 #def apply_noise(UD, noisepercent, mycomm=None):
@@ -188,3 +189,24 @@ def createMixedFS(V1, V2):
         V1V2 = FunctionSpace(V1.mesh(), V1fem*V2fem)
 
     return V1V2
+
+
+
+def computecfromab(a, b):
+    """
+    Compute wave velocity c = sqrt(b/a), where
+    Arguments:
+        b = beta = 1/rho, rho=density
+        a = alpha = 1/lambda, lambda=bulk modulus
+    a, b = GenericVector
+    """
+    assert a.size() == b.size()
+    c = a.copy()
+    c.zero()
+
+    as_backend_type(c).vec().pointwiseDivide(\
+    as_backend_type(b).vec(), as_backend_type(a).vec())
+
+    as_backend_type(c).vec().sqrtabs()
+
+    return c

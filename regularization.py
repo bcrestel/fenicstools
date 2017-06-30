@@ -69,7 +69,7 @@ class TV():
             Vtmp = FunctionSpace(meshtmp, 'CG', 1)
             x = SpatialCoordinate(meshtmp)
             correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
-            print 'TV: correction cost with factor={}'.format(correctioncost)
+            print '[TV] correction cost with factor={}'.format(correctioncost)
         else:
             correctioncost = 1.0
         self.wkformcost = Constant(k*correctioncost) * sqrt(self.fTV) * dx
@@ -81,7 +81,7 @@ class TV():
         inner(nabla_grad(trial), nabla_grad(test)) - \
         inner(nabla_grad(self.m), nabla_grad(test))*\
         inner(nabla_grad(trial), nabla_grad(self.m))/self.fTV )*dx
-        if isprint: print 'TV regularization',
+        if isprint: print '[TV] TV regularization',
         if GN: 
             self.wkformhess = self.wkformGNhess
             if isprint: print ' -- GN Hessian',
@@ -233,7 +233,7 @@ class TVPD():
             Vtmp = FunctionSpace(meshtmp, 'CG', 1)
             x = SpatialCoordinate(meshtmp)
             correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
-            print 'TVPD: correction cost with factor={}'.format(correctioncost)
+            print '[TVPD] correction cost with factor={}'.format(correctioncost)
         else:
             correctioncost = 1.0
         self.wkformcost = Constant(k*correctioncost)*TVnorm*dx
@@ -299,7 +299,7 @@ class TVPD():
         self.Msolver.set_operator(M)
 
         if self.parameters['print']:
-            print 'TV regularization -- primal-dual method',
+            print '[TVPD] TV regularization -- primal-dual method',
             if self.parameters['PCGN']:
                 print ' -- PCGN',
             print ' -- k={}, eps={}'.format(self.parameters['k'], self.parameters['eps'])
@@ -345,7 +345,7 @@ class TVPD():
         normgwy = norm(self.gwy.vector())
 
         if self.parameters['print']:
-            print '|gw|={}'.format(np.sqrt(normgwx**2 + normgwy**2))
+            print '[TVPD] |gw|={}'.format(np.sqrt(normgwx**2 + normgwy**2))
 
         return self.Htvx*(self.wx.vector() - self.invMwd*self.gwx.vector()) \
         + self.Htvy*(self.wy.vector() - self.invMwd*self.gwy.vector())
@@ -399,7 +399,7 @@ class TVPD():
         normwyhat = norm(self.wyhat.vector())
 
         if self.parameters['print']:
-            print '|what|={}'.format(np.sqrt(normwxhat**2 + normwyhat**2))
+            print '[TVPD] |what|={}'.format(np.sqrt(normwxhat**2 + normwyhat**2))
 
 
     def update_w(self, mhat, alphaLS, compute_what=True):
@@ -443,7 +443,7 @@ class TVPD():
         maxf = self.factorw.max()
         if self.parameters['print']:
 #            print 'min(factorw)={}, max(factorw)={}'.format(minf, maxf)
-            print 'perc. dual entries rescaled={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
+            print '[TVPD] perc. dual entries rescaled={:.2f} %, min(factorw)={}, max(factorw)={}'.format(\
             100.*float(count)/self.factorw.size(), minf, maxf)
 
 

@@ -10,8 +10,8 @@ from miscfenics import setfct, isequal, ZeroRegularization, createMixedFS
 from linalg.lumpedmatrixsolver import LumpedMassMatrixPrime
 from optimsolver import compute_searchdirection, bcktrcklinesearch
 
-from hippylib.linalg import MPIAllReduceVector
-from hippylib.bfgs import BFGS_operator
+from hippylib import MPIAllReduceVector
+from hippylib import BFGS_operator
 
 
 DEBUG = False
@@ -62,7 +62,7 @@ class ObjectiveAcoustic(LinearOperator):
         self.GN = False
 
         if regularization == None:  
-            print '*** [ObjectiveAcoustic] Warning: Using zero regularization'
+            print '[ObjectiveAcoustic] *** Warning: Using zero regularization'
             self.regularization = ZeroRegularization(Vm)
         else:   
             self.regularization = regularization
@@ -556,7 +556,7 @@ class ObjectiveAcoustic(LinearOperator):
         if self.PC == 'prior':
             return self.regularization.getprecond()
         elif self.PC == 'bfgs':
-            return self.bfgsPC
+            return self.bfgsop
         else:
             print 'Wrong keyword for choice of preconditioner'
             sys.exit(1)
@@ -570,6 +570,7 @@ class ObjectiveAcoustic(LinearOperator):
         """ 
         Solve inverse problem with that objective function 
         parameters:
+            solverNS = solver for Newton system ('steepest', 'Newton', 'BFGS')
             retolgrad = relative tolerance for stopping criterion (grad)
             abstolgrad = absolute tolerance for stopping criterion (grad)
             tolcost = tolerance for stopping criterion (cost)
@@ -583,6 +584,7 @@ class ObjectiveAcoustic(LinearOperator):
             PC = choice of preconditioner ('prior', or 'bfgs')
         """
         parameters = {}
+        parameters['solverNS']          = 'Newton'
         parameters['reltolgrad']        = 1e-10
         parameters['abstolgrad']        = 1e-14
         parameters['tolcost']           = 1e-24
@@ -594,10 +596,13 @@ class ObjectiveAcoustic(LinearOperator):
         parameters['isprint']           = False
         parameters['avgPC']             = True
         parameters['PC']                = 'prior'
-        # BFGS parameters
+        parameters['BFGS_damping']      = 0.2
         parameters['memory_limit']      = 50
         parameters['H0inv']             = 'Rinv'
+
         parameters.update(parameters_in)
+
+        solverNS = parameters['solverNS']
         isprint = parameters['isprint']
         maxiterNewt = parameters['maxiterNewt']
         reltolgrad = parameters['reltolgrad']
@@ -610,7 +615,15 @@ class ObjectiveAcoustic(LinearOperator):
             maxtolcg = parameters['maxtolcg']
         else:
             maxtolcg = 1e-12
+        if solverNS == 'BFGS':
+            maxtolcg = -1.0
         self.PC = parameters['PC']
+        # BFGS (preconditioner or solver):
+        if self.PC == 'bfgs' or solverNS == 'BFGS':
+            self.bfgsop = BFGS_operator(parameters)
+            H0inv = self.bfgsop.parameters['H0inv']
+        else:
+            self.bfgsop = []
 
         if isprint:
             print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t\t\t{:10s} {:12s} {:12s}'.format(\
@@ -628,10 +641,6 @@ class ObjectiveAcoustic(LinearOperator):
         atnorm = np.sqrt(at.vector().inner(Ma.vector()))
         btnorm = np.sqrt(bt.vector().inner(Mb.vector()))
 
-        # preconditioner:
-        if self.PC == 'bfgs':
-            self.bfgsPC = BFGS_operator(parameters)
-            H0inv = self.bfgsPC.parameters['H0inv']
 
         self.solvefwd_cost()
         for it in xrange(maxiterNewt):
@@ -660,16 +669,16 @@ class ObjectiveAcoustic(LinearOperator):
             self.assemble_hessian()
 
             # Update BFGS approx (s, y, H0)
-            if self.PC == 'bfgs':
+            if self.PC == 'bfgs' or solverNS == 'BFGS':
                 if it > 0:
                     s = self.srchdir.vector() * alpha
                     y = self.MGv - MGv_old
-                    theta = self.bfgsPC.update(s, y)
+                    theta = self.bfgsop.update(s, y)
                 else:
                     theta = 1.0
 
                 if H0inv == 'Rinv':
-                    self.bfgsPC.set_H0inv(self.regularization.getprecond())
+                    self.bfgsop.set_H0inv(self.regularization.getprecond())
                 elif H0inv == 'Minv':
                     print 'H0inv = Minv? That is not a good idea'
                     sys.exit(1)
@@ -680,13 +689,13 @@ class ObjectiveAcoustic(LinearOperator):
             # most time spent here:
             if avgPC:
                 cgiter, cgres, cgid = compute_searchdirection(self,
-                {'method':'Newton', 'tolcg':tolcg,\
+                {'method':solverNS, 'tolcg':tolcg,\
                 'max_iter':250+1250*(self.GN==False)},\
-                comm=self.mpicomm_global)
+                comm=self.mpicomm_global, BFGSop=self.bfgsop)
             else:
                 cgiter, cgres, cgid = compute_searchdirection(self,
-                {'method':'Newton', 'tolcg':tolcg,\
-                'max_iter':250+1250*(self.GN==False)})
+                {'method':solverNS, 'tolcg':tolcg,\
+                'max_iter':250+1250*(self.GN==False)}, BFGSop=self.bfgsop)
 
             # addt'l safety: zero-out entries of 'srchdir' corresponding to
             # param that are not inverted for

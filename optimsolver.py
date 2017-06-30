@@ -162,7 +162,8 @@ def checkhessabfd_med(ObjFctal, Medium, PRINT, tolgradchk=1e-6, \
 
 
 #@profile
-def compute_searchdirection(objfctal, parameters_in=[], comm=dl.mpi_comm_self()):
+def compute_searchdirection(objfctal, parameters_in=[],\
+comm=dl.mpi_comm_self(), BFGSop=[]):
     """
     Compute search direction for Line Search
     Arguments:
@@ -195,6 +196,15 @@ def compute_searchdirection(objfctal, parameters_in=[], comm=dl.mpi_comm_self())
         solver.parameters['max_iter'] = maxiter
         solver.parameters["print_level"] = -2
         solver.solve(objfctal.srchdir.vector(), -1.0*objfctal.MGv, comm)  # all cpu time spent here
+        siter = solver.iter
+        fnorm = solver.final_norm
+        rid = solver.reasonid
+
+    elif method == 'BFGS':
+        BFGSop.solve(objfctal.srchdir.vector(), -1.0*objfctal.MGv)
+        siter = -1
+        fnorm = -1
+        rid = 0
 
     else:   raise ValueError("Wrong keyword")
 
@@ -203,7 +213,7 @@ def compute_searchdirection(objfctal, parameters_in=[], comm=dl.mpi_comm_self())
     assert GradxDir < tolGxD, \
     "Search direction not a descent direction: {}".format(GradxDir)
 
-    return solver.iter, solver.final_norm, solver.reasonid
+    return siter, fnorm, rid
 
 
 
