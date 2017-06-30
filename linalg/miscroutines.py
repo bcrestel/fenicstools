@@ -134,14 +134,15 @@ def compute_eig(M, filename):
     eigsolver = SLEPcEigenSolver(M)
     eigsolver.solve()
 
-    if mpirank == 0:    print '\t\tSort eigenvalues'
-    eig = []
-    for ii in range(eigsolver.get_number_converged()):
-        eig.append(eigsolver.get_eigenvalue(ii)[0])
-    eig.sort()
+    if mpirank == 0:    
+        print '\t\tSort eigenvalues'
+        eig = []
+        for ii in range(eigsolver.get_number_converged()):
+            eig.append(eigsolver.get_eigenvalue(ii)[0])
+        eig.sort()
 
-    if mpirank == 0:    print '\t\tPrint results to file'
-    np.savetxt(filename, np.array(eig))
+        print '\t\tPrint results to file'
+        np.savetxt(filename, np.array(eig))
 
 def compute_eigfenics(M, filename):
     """ Compute eigenvalues of a Fenics matrix M,
