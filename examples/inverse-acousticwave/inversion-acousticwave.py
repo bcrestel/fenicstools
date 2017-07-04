@@ -135,12 +135,13 @@ else:
     # REGULARIZATION:
     eps = 1e-3
     if PARAM == 'ab':
-        #rega = TVPD({'Vm':Vl, 'eps':eps, 'k':5e-6, 'print':PRINT})
-        #regb = TVPD({'Vm':Vl, 'eps':eps, 'k':9e-6, 'print':PRINT})
+        rega = TVPD({'Vm':Vl, 'eps':eps, 'k':5e-6, 'print':PRINT})
+        regb = TVPD({'Vm':Vl, 'eps':eps, 'k':9e-6, 'print':PRINT})
 
         #regul = V_TVPD(Vl, {'eps':eps, 'k':k, 'PCGN':False, 'print':PRINT})
-        #regul = SumRegularization(rega, regb, coeff_cg=k, isprint=PRINT)
-        regul = NuclearNormSVD2D(mesh, {'eps':eps, 'k':k}, isprint=PRINT)
+        regul = SumRegularization(rega, regb, \
+        coeff_ncg=k, parameters_ncg={'eps':1e-6}, isprint=PRINT)
+        #regul = NuclearNormSVD2D(mesh, {'eps':eps, 'k':k}, isprint=PRINT)
     else:
         reg = TVPD({'Vm':Vl, 'eps':eps, 'k':k, 'print':PRINT})
         regul = SingleRegularization(reg, PARAM, PRINT)
@@ -296,12 +297,12 @@ else:
         print '\n\nStart solution of inverse problem for parameter(s) {}'.format(PARAM)
 
     parameters = {}
-    #parameters['solverNS'] = 'Newton'
-    parameters['solverNS'] = 'BFGS'
+    parameters['solverNS'] = 'Newton'
+    #parameters['solverNS'] = 'BFGS'
     parameters['isprint'] = PRINT
     parameters['nbGNsteps'] = 20
     parameters['checkab'] = 5
-    parameters['maxiterNewt'] = 50000
+    parameters['maxiterNewt'] = 5000
     parameters['maxtolcg'] = 0.5
     parameters['avgPC'] = False
     parameters['PC'] = 'prior'

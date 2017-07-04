@@ -986,14 +986,14 @@ class NuclearNormformula():
 
         self.hessian = derivative(self.grad, self.m, self.mtrial)
 
-        self.amgprecond = amg_solver()
-
         M = assemble(inner(self.mtest, self.mtrial)*dx)
         factM = 1e-2*k
         self.sMass = M*factM
 
         if isprint:
             print '[NuclearNormformula] eps={}, k={}'.format(eps, k)
+
+        self.amgprecond = amg_solver()
 
 
     def isTV(self): return False

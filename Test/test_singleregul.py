@@ -127,7 +127,7 @@ def test2():
     rhs = dl.Function(Vm)
     #regul = LaplacianPrior({'Vm':Vm, 'gamma':1e-4, 'beta':1e-4})
     regul = TVPD({'Vm':Vm, 'k':1e-4, 'eps':1e-3})
-    precond = 'hypre_amg'
+    precond = 'ml_amg'
 
     for ii in range(1):
         rhs.vector()[:] = (ii+1.0)*np.random.randn(rhs.vector().local_size())
