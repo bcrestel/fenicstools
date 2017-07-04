@@ -125,13 +125,14 @@ def gathermatrixrows(Matrix, filenames, rows, mpicomm, mattype):
     Matrix.assemblyEnd()
 
 
-def compute_eig(M, filename):
+def compute_eig(M, filename, parameters=[]):
     """ Compute eigenvalues of a PETScMatrix M,
     and print to filename """
     mpirank = MPI.rank(M.mpi_comm())
 
     if mpirank == 0:    print '\t\tCompute eigenvalues'
     eigsolver = SLEPcEigenSolver(M)
+    eigsolver.parameters.update(parameters)
     eigsolver.solve()
 
     if mpirank == 0:    
@@ -144,8 +145,8 @@ def compute_eig(M, filename):
         print '\t\tPrint results to file'
         np.savetxt(filename, np.array(eig))
 
-def compute_eigfenics(M, filename):
+def compute_eigfenics(M, filename, parameters=[]):
     """ Compute eigenvalues of a Fenics matrix M,
     and print to filename """
-    compute_eig(as_backend_type(M), filename)
+    compute_eig(as_backend_type(M), filename, parameters)
 
