@@ -8,7 +8,7 @@ from fenicstools.plotfenics import PlotFenics
 from fenicstools.jointregularization import crossgradient, normalizedcrossgradient
 from fenicstools.linalg.miscroutines import compute_eigfenics
 
-N = 15
+N = 40
 mesh = dl.UnitSquareMesh(N,N)
 V = dl.FunctionSpace(mesh, 'CG', 1)
 mpirank = dl.MPI.rank(mesh.mpi_comm())
@@ -18,25 +18,33 @@ cg = crossgradient(VV)
 ncg = normalizedcrossgradient(VV)
 
 outdir = 'Output-CGvsNCG-' + str(N) + 'x' + str(N) + '/'
-plotfenics = PlotFenics(outdir, comm=mesh.mpi_comm())
+plotfenics = PlotFenics(mesh.mpi_comm(), outdir)
 
-#ones = dl.interpolate(dl.Expression(("1.0","1.0")), VV).vector()
-#x = dl.Function(VV).vector()
+a1true = [
+dl.interpolate(dl.Expression('log(10 - ' + 
+'(x[0]>0.25)*(x[0]<0.75)*(x[1]>0.25)*(x[1]<0.75) * 8 )'), V),
+dl.interpolate(dl.Expression('log(10 - ' + 
+'(x[0]>0.25)*(x[0]<0.75)*(x[1]>0.25)*(x[1]<0.75) * (' + 
+'4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), V),
+dl.interpolate(dl.Expression('log(10 - ' + 
+'(x[0]>0.25)*(x[0]<0.75)*(x[1]>0.25)*(x[1]<0.75) * (' + 
+'4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), V),
+dl.interpolate(dl.Expression('log(10 - ' + 
+'(x[0]>0.25)*(x[0]<0.75)*(x[1]>0.25)*(x[1]<0.75) * (' + 
+'4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), V)]
+a2true = [
+dl.interpolate(dl.Expression('log(10 - ' + 
+'(x[0]>0.25)*(x[0]<0.75)*(x[1]>0.25)*(x[1]<0.75) * (' + 
+'8*(x[0]<=0.5) + 4*(x[0]>0.5) ))'), V),
+ dl.interpolate(dl.Expression('log(10 - ' + 
+'(x[0]>0.25)*(x[0]<0.75)*(x[1]>0.25)*(x[1]<0.75) * (' + 
+'8*(x[0]<=0.5) + 4*(x[0]>0.5) ))'), V),
+ dl.interpolate(dl.Expression('log(10)'), V),
+dl.interpolate(dl.Expression('log(10 - ' + 
+'(x[0]>0.4)*(x[0]<0.6)*(x[1]>0.4)*(x[1]<0.6) * (' + 
+'4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), V)]
 
-#solvercg = dl.PETScKrylovSolver("cg", "ml_amg")
-#solvercg.parameters["maximum_iterations"] = 2000
-#solvercg.parameters["absolute_tolerance"] = 1e-24
-#solvercg.parameters["relative_tolerance"] = 1e-24
-#solvercg.parameters["error_on_nonconvergence"] = True 
-#solvercg.parameters["nonzero_initial_guess"] = False 
-#
-#solvergmres = dl.PETScKrylovSolver("gmres", "ml_amg")
-#solvergmres.parameters["maximum_iterations"] = 2000
-#solvergmres.parameters["absolute_tolerance"] = 1e-24
-#solvergmres.parameters["relative_tolerance"] = 1e-24
-#solvergmres.parameters["error_on_nonconvergence"] = True 
-#solvergmres.parameters["nonzero_initial_guess"] = False 
-
+"""
 a1true = [
 dl.interpolate(dl.Expression('log(10 - ' + 
 '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.4) * 8 )'), V),
@@ -60,6 +68,9 @@ dl.interpolate(dl.Expression('log(10 - ' +
 dl.interpolate(dl.Expression('log(10 - ' + 
 '(pow(pow(x[0]-0.5,2)+pow(x[1]-0.5,2),0.5)<0.2) * (' + 
 '4*(x[0]<=0.5) + 8*(x[0]>0.5) ))'), V)]
+"""
+
+parameters={'solver':'lapack', 'problem_type':'hermitian'}
 
 ii=1
 for a1, a2 in zip(a1true, a2true):
@@ -74,14 +85,14 @@ for a1, a2 in zip(a1true, a2true):
 
     if mpirank == 0:    print '\teigenvalues Hprecond'
     compute_eigfenics(cg.Hprecond, 
-    outdir + 'eig_cg_Hprecond-' + str(ii) + '.txt')
+    outdir + 'eig_cg_Hprecond-' + str(ii) + '.txt', parameters)
     compute_eigfenics(ncg.Hprecond, 
-    outdir + 'eig_ncg_Hprecond-' + str(ii) + '.txt')
+    outdir + 'eig_ncg_Hprecond-' + str(ii) + '.txt', parameters)
     if mpirank == 0:    print '\teigenvalues H'
     compute_eigfenics(cg.H, 
-    outdir + 'eig_cg_H-' + str(ii) + '.txt')
+    outdir + 'eig_cg_H-' + str(ii) + '.txt', parameters)
     compute_eigfenics(ncg.H, 
-    outdir + 'eig_ncg_H-' + str(ii) + '.txt')
+    outdir + 'eig_ncg_H-' + str(ii) + '.txt', parameters)
 
     ii += 1
     if mpirank == 0:    print ''
