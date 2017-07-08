@@ -853,6 +853,10 @@ class NuclearNormSVD2D():
         self.Gy1test = assemble(indfct*(self.test1.dx(1))*dx)
         self.Gy2test = assemble(indfct*(self.test2.dx(1))*dx)
 
+        # Use VTV for preconditioning (or initialization of BFGS)
+        self.vtv = V_TV(self.V, {'k':self.parameters['k'],\
+        'eps':self.parameters['eps'], 'PCGN':True, 'print':isprint})
+
         if isprint:
             print '[NuclearNormSVD2D] eps={}, k={}'.format(self.eps, self.k)
         
@@ -939,7 +943,11 @@ class NuclearNormSVD2D():
 
 
     def assemble_hessianab(self, m1, m2):
-        pass
+        self.vtv.assemble_hessianab(m1, m2)
+
+
+    def getprecond(self):
+        return self.vtv.getprecond()
 
 
 
