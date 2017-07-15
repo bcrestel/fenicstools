@@ -165,10 +165,8 @@ class ZeroRegularization():
 
 def amg_solver():
     if versiondolfin.split('.')[0] == '2016':
-        print '[amg_solver] Fenics.2016 - using hypre_amg'
         return 'hypre_amg'
     else:
-        print '[amg_solver] using petsc_amg'
         return 'petsc_amg'
 
 
