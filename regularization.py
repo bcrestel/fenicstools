@@ -38,6 +38,7 @@ class TV():
         self.parameters['PCGN']         = False
         self.parameters['print']        = False
         self.parameters['correctcost']  = True
+        self.parameters['amg']          = 'default'
 
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
@@ -46,6 +47,7 @@ class TV():
         eps = self.parameters['eps']
         k = self.parameters['k']
         isprint = self.parameters['print']
+        amg = self.parameters['amg']
 
         self.m = Function(self.Vm)
         test, trial = TestFunction(self.Vm), TrialFunction(self.Vm)
@@ -93,7 +95,10 @@ class TV():
                 print ' -- PCGN',
             print ' -- k={}, eps={}'.format(self.parameters['k'], self.parameters['eps'])
 
-        self.amgprecond = amg_solver()
+        if amg == 'default':    self.amgprecond = amg_solver()
+        else:   self.amgprecond = amg
+        if isprint:
+            print '[TV] preconditioner = {}'.format(self.amgprecond)
 
 
     def isTV(self): return True
@@ -192,6 +197,7 @@ class TVPD():
         self.parameters['PCGN']                 = False
         self.parameters['print']                = False
         self.parameters['correctcost']          = True
+        self.parameters['amg']          = 'default'
 
         assert parameters.has_key('Vm')
         self.parameters.update(parameters)
@@ -199,6 +205,7 @@ class TVPD():
         k = self.parameters['k']
         eps = self.parameters['eps']
         exact = self.parameters['exact']
+        amg = self.parameters['amg']
 
         self.m = Function(self.Vm)
         testm = TestFunction(self.Vm)
@@ -304,7 +311,10 @@ class TVPD():
                 print ' -- PCGN',
             print ' -- k={}, eps={}'.format(self.parameters['k'], self.parameters['eps'])
 
-        self.amgprecond = amg_solver()
+        if amg == 'default':    self.amgprecond = amg_solver()
+        else:   self.amgprecond = amg
+        if isprint:
+            print '[TVPD] preconditioner = {}'.format(self.amgprecond)
 
 
     def isTV(self): return True

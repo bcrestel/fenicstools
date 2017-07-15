@@ -627,10 +627,13 @@ class V_TV():
 
     def __init__(self, Vm, parameters=[]):
         """ Vm = FunctionSpace for the parameters m1, and m2 """
-        self.parameters = {'k':1.0, 'eps':1e-2}
-        self.parameters.update(parameters)
+        self.parameters = {}
+        self.parameters['k']        = 1.0
+        self.parameters['eps']      = 1e-2
+        self.parameters['amg']      = 'default'
         VmVm = createMixedFS(Vm, Vm)
         self.parameters['Vm'] = VmVm
+        self.parameters.update(parameters)
 
         self.regTV = TV(self.parameters)
 
@@ -690,10 +693,11 @@ class V_TVPD():
     def __init__(self, Vm, parameters=[]):
         """ Vm = FunctionSpace for the parameters m1, and m2 """
         self.parameters = {}
-        self.parameters['k'] = 1.0
-        self.parameters['eps'] = 1e-2
-        self.parameters['rescaledradiusdual'] = 1.0
-        self.parameters['print'] = False
+        self.parameters['k']                    = 1.0
+        self.parameters['eps']                  = 1e-2
+        self.parameters['rescaledradiusdual']   = 1.0
+        self.parameters['print']                = False
+        self.parameters['amg']                  = 'default'
         self.parameters.update(parameters)
 
         VmVm = createMixedFS(Vm, Vm)
