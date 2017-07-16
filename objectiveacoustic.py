@@ -38,6 +38,7 @@ class ObjectiveAcoustic(LinearOperator):
         self.fwdsource = sources
         self.srcindex = sourcesindex
         self.tsteps = timestepsindex
+        self.PDEcount = 0
 
         self.inverta = False
         self.invertb = False
@@ -178,6 +179,8 @@ class ObjectiveAcoustic(LinearOperator):
             self.solpfwd.append(solpfwd)
             self.solppfwd.append(solppfwd)
 
+            self.PDEcount += 1
+
             #TODO: come back and parallellize this too (over time steps)
             Bp = np.zeros((len(self.obsop.PtwiseObs.Points),len(solfwd)))
             for index, sol in enumerate(solfwd):
@@ -216,6 +219,8 @@ class ObjectiveAcoustic(LinearOperator):
             self.soladj.append(soladj)
             self.solpadj.append(solpadj)
             self.solppadj.append(solppadj)
+
+            self.PDEcount += 1
 
         if grad:
             self.MG.vector().zero()
@@ -397,11 +402,13 @@ class ObjectiveAcoustic(LinearOperator):
             self.PDE.set_fwd()
             self.PDE.ftime = self.ftimeincrfwd
             self.solincrfwd,solpincrfwd,self.solppincrfwd,_ = self.PDE.solve()
+            self.PDEcount += 1
 
             # incr. adj
             self.PDE.set_adj()
             self.PDE.ftime = self.ftimeincradj
             solincradj,_,_,_ = self.PDE.solve()
+            self.PDEcount += 1
 
             # assemble Hessian-vect product:
             for fwd, adj, fwdp, incrfwdp, \
@@ -624,10 +631,11 @@ class ObjectiveAcoustic(LinearOperator):
             H0inv = self.bfgsop.parameters['H0inv']
         else:
             self.bfgsop = []
+        self.PDEcount = 0   # reset
 
         if isprint:
-            print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:10s} \t\t\t{:10s} {:12s} {:12s}'.format(\
-            'iter', 'cost', 'misfit', 'reg', '|G|', 'medmisf', 'a_ls', 'tol_cg', 'n_cg')
+            print '\t{:12s} {:10s} {:12s} {:12s} {:12s} {:16s}\t\t\t    {:10s} {:12s} {:10s} {:10s}'.format(\
+            'iter', 'cost', 'misfit', 'reg', '|G|', 'medmisf', 'a_ls', 'tol_cg', 'n_cg', 'PDEsolves')
 
         a0, b0 = initial_medium.split(deepcopy=True)
         self.update_PDE({'a':a0, 'b':b0})
@@ -641,6 +649,7 @@ class ObjectiveAcoustic(LinearOperator):
         atnorm = np.sqrt(at.vector().inner(Ma.vector()))
         btnorm = np.sqrt(bt.vector().inner(Mb.vector()))
 
+        alpha = -1.0    # dummy value for print outputs
 
         self.solvefwd_cost()
         for it in xrange(maxiterNewt):
@@ -651,10 +660,6 @@ class ObjectiveAcoustic(LinearOperator):
 
             medmisfita, medmisfitb = self.mediummisfit(target_medium)
 
-            if isprint:
-                print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.1f}%) {:10.2e} ({:4.1f}%)'.\
-                format(it, self.cost, self.cost_misfit, self.cost_reg, gradnorm,\
-                medmisfita, 100.0*medmisfita/atnorm, medmisfitb, 100.0*medmisfitb/btnorm),
             self._plotab(myplot, str(it))
             self._plotgrad(myplot, str(it))
 
@@ -709,12 +714,17 @@ class ObjectiveAcoustic(LinearOperator):
                     assign(self.srchdir.sub(1), srchb)
             self._plotsrchdir(myplot, str(it))
 
+            if isprint:
+                print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.1f}%) {:10.2e} ({:4.1f}%)'.\
+                format(it, self.cost, self.cost_misfit, self.cost_reg, gradnorm,\
+                medmisfita, 100.0*medmisfita/atnorm, medmisfitb, 100.0*medmisfitb/btnorm),
+                print '{:11.3f} {:12.2e} {:10d} {:10d}'.format(\
+                alpha, tolcg, cgiter, self.PDEcount)
+
             # Backtracking line search
             cost_old = self.cost
             statusLS, LScount, alpha = bcktrcklinesearch(self, parameters, boundsLS)
             cost = self.cost
-            if isprint:
-                print '{:11.3f} {:12.2e} {:10d}'.format(alpha, tolcg, cgiter)
             # Perform line search for dual variable (TV-PD):
             if self.PD: 
                 self.regularization.update_w(self.srchdir.vector(), alpha)
