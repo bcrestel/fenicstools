@@ -305,15 +305,14 @@ class TVPD():
         self.Msolver.parameters["nonzero_initial_guess"] = False 
         self.Msolver.set_operator(M)
 
+        if amg == 'default':    self.amgprecond = amg_solver()
+        else:   self.amgprecond = amg
+
         if self.parameters['print']:
             print '[TVPD] TV regularization -- primal-dual method',
             if self.parameters['PCGN']:
                 print ' -- PCGN',
             print ' -- k={}, eps={}'.format(self.parameters['k'], self.parameters['eps'])
-
-        if amg == 'default':    self.amgprecond = amg_solver()
-        else:   self.amgprecond = amg
-        if isprint:
             print '[TVPD] preconditioner = {}'.format(self.amgprecond)
 
 
