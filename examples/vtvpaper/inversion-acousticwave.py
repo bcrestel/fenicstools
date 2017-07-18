@@ -16,6 +16,7 @@ import time
 
 import dolfin as dl
 from dolfin import MPI
+from dolfin import __version__ as versiondolfin
 
 from fenicstools.plotfenics import PlotFenics, plotobservations
 from fenicstools.acousticwave import AcousticWave
@@ -121,7 +122,11 @@ if FDGRAD:
     sources, timesteps, PARAM)
 else:
     # REGULARIZATION:
-    regul = V_TVPD(Vl, {'eps':eps, 'k':k, 'PCGN':False, 'print':PRINT})
+    amg = 'hypre_amg'
+    #regul = V_TV(Vl, {'k':k, 'eps':eps, 'amg':amg,\
+    #'print':PRINT, 'GNhessian':False})
+    regul = V_TVPD(Vl, {'k':k, 'eps':eps, 'amg':amg,\
+    'rescaledradiusdual':1.0, 'print':PRINT, 'PCGN':False})
     waveobj = ObjectiveAcoustic(mpicomm_global, Wave, [Ricker, Pt, srcv],\
     sources, timesteps, PARAM, regul)
 waveobj.obsop = obsop
@@ -273,23 +278,24 @@ else:
     #parameters['solverNS'] = 'BFGS'
     parameters['isprint'] = PRINT
     parameters['nbGNsteps'] = 20
-    parameters['checkab'] = 5
+    parameters['checkab'] = 10
+    parameters['reltolgrad'] = 1e-12
     parameters['maxiterNewt'] = 5000
     parameters['maxtolcg'] = 0.5
-    parameters['avgPC'] = False
-    parameters['PC'] = 'prior'
+    parameters['PC'] = 'bfgs'
+    parameters['memory_limit'] = 1000
+    parameters['H0inv'] = 'Rinv'
 
-    if parameters['solverNS'] == 'BFGS':
-        parameters['H0inv'] = 'default'
-        parameters['memory_limit'] = np.inf
+    if versiondolfin.split('.')[0] == '2016' and amg == 'petsc_amg':
+        parameters['avgPC'] = True
     else:
-        parameters['H0inv'] = 'Rinv'
+        parameters['avgPC'] = False
 
     MPI.barrier(mpicommbarrier)
     tstart = time.time()
 
     waveobj.inversion(m0, mt, parameters,
-    boundsLS=[[1e-4, 1.0], [1e-3, 1.0]], myplot=myplotf)
+    boundsLS=[[1e-6, 1.0], [1e-3, 1.0]], myplot=myplotf)
 
     tend = time.time()
     Dt = tend - tstart
@@ -353,9 +359,9 @@ else:
         plotfolder = PARAM + '_k' + str(k) + '_e' + str(eps)
         myplot = PlotFenics(Outputfolder='output/plots/' + plotfolder, \
         comm = mesh.mpi_comm())
-        waveobj._plotab(myplot, '-map_' + PARAM + '_k' + str(k) + '_e' + str(eps))
+        waveobj._plotab(myplot, '-map_' + PARAM + '-VTV_' + amg + '_k' + str(k) + '_e' + str(eps))
 
-        myplot.set_varname('c-map_' + PARAM + '_k' + str(k) + '_e' + str(eps))
+        myplot.set_varname('c-map_' + PARAM + '-VTV_' + amg + '_k' + str(k) + '_e' + str(eps))
         myplot.plot_vtk(cf)
 
 
