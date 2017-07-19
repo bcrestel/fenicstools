@@ -8,7 +8,7 @@ import numpy as np
 #from numpy.random import randn
 
 from dolfin import Function, GenericVector, PETScKrylovSolver, FunctionSpace,\
-as_backend_type
+as_backend_type, MixedFunctionSpace, MixedElement
 from dolfin import __version__ as versiondolfin
 from exceptionsfenics import WrongInstanceError
 
@@ -183,6 +183,27 @@ def createMixedFS(V1, V2):
         V1fem = V1.ufl_element()
         V2fem = V2.ufl_element()
         V1V2 = FunctionSpace(V1.mesh(), V1fem*V2fem)
+
+    return V1V2
+
+
+def createMixedFSi(Vs):
+    """
+    Create MixedFunctionSpace from V1 and V2
+    """
+    Vdim = Vs[0].dim()
+    Vms = Vs[0].mesh().size(0)
+    for V in Vs:
+        assert Vdim == V.dim()
+        assert Vms == V.mesh().size(0)
+
+    try:
+        V1V2 = MixedFunctionSpace(Vs)
+    except:
+        Vsfem = []
+        for V in Vs:
+            Vsfem.append(V.ufl_element())
+        V1V2 = FunctionSpace(Vs[0].mesh(), MixedElement(Vsfem))
 
     return V1V2
 
