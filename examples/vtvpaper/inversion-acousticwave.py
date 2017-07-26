@@ -124,7 +124,7 @@ if FDGRAD:
     sources, timesteps, PARAM)
 else:
     # REGULARIZATION:
-    amg = 'hypre_amg'
+    amg = 'petsc_amg'
     #regul = V_TV(Vl, {'k':k, 'eps':eps, 'amg':amg,\
     #'print':PRINT, 'GNhessian':False})
     regul = V_TVPD(Vl, {'k':k, 'eps':eps, 'amg':amg,\
@@ -276,8 +276,7 @@ else:
         print '\n\nStart solution of inverse problem for parameter(s) {}'.format(PARAM)
 
     parameters = {}
-    parameters['solverNS'] = 'Newton'
-    #parameters['solverNS'] = 'BFGS'
+    parameters['solverNS'] = 'Newton'   # 'Newton' or 'BFGS'
     parameters['isprint'] = PRINT
     parameters['nbGNsteps'] = 20
     parameters['checkab'] = 10
@@ -285,7 +284,7 @@ else:
     parameters['maxiterNewt'] = 5000
     parameters['maxtolcg'] = 0.5
     parameters['PC'] = 'bfgs'
-    parameters['memory_limit'] = 1000
+    parameters['memory_limit'] = np.inf
     parameters['H0inv'] = 'Rinv'
 
     if versiondolfin.split('.')[0] == '2016' and amg == 'petsc_amg':

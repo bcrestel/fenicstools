@@ -4,16 +4,22 @@ Script to test validity of classed defined in linalg/splitandassign.py
 import numpy as np
 import dolfin as dl
 
-from fenicstools.miscfenics import createMixedFS
-from fenicstools.linalg.splitandassign import SplitAndAssign, BlockDiagonal
+from fenicstools.miscfenics import createMixedFS, createMixedFSi
+from fenicstools.linalg.splitandassign import SplitAndAssign, BlockDiagonal, SplitAndAssigni
 
 #@profile
 def testsplitassign():
+    USEi = True
+
     mesh = dl.UnitSquareMesh(40,40)
     V1 = dl.FunctionSpace(mesh, "Lagrange", 2)
     V2 = dl.FunctionSpace(mesh, "Lagrange", 2)
-    V1V2 = createMixedFS(V1, V2)
-    splitassign = SplitAndAssign(V1, V2, mesh.mpi_comm())
+    if USEi:
+        V1V2 = createMixedFSi([V1, V2])
+        splitassign = SplitAndAssigni([V1, V2], mesh.mpi_comm())
+    else:
+        V1V2 = createMixedFS(V1, V2)
+        splitassign = SplitAndAssign(V1, V2, mesh.mpi_comm())
 
     mpirank = dl.MPI.rank(mesh.mpi_comm())
 
@@ -26,9 +32,12 @@ def testsplitassign():
     a,b,c,d= dl.norm(u1.vector()-u1v), dl.norm(u2.vector()-u2v),\
     dl.norm(u1.vector()-u11.vector()), dl.norm(u2.vector()-u22.vector())
     if mpirank == 0:
-        print 'Splitting an interpolated function:', a, b, c, d
+        print '\nSplitting an interpolated function:', a, b, c, d
 
-    uv = splitassign.assign(u1v, u2v)
+    if USEi:
+        uv = splitassign.assign([u1v, u2v])
+    else:
+        uv = splitassign.assign(u1v, u2v)
     dl.assign(uu.sub(0), u11)
     dl.assign(uu.sub(1), u22)
     a, b = dl.norm(uv-u.vector()), dl.norm(uv-uu.vector())
@@ -39,12 +48,61 @@ def testsplitassign():
         u.vector()[:] = np.random.randn(len(u.vector().array()))
         u1, u2 = u.split(deepcopy=True)
         u1v, u2v = splitassign.split(u.vector())
-        uv = splitassign.assign(u1v, u2v)
+        if USEi:
+            uv = splitassign.assign([u1v, u2v])
+        else:
+            uv = splitassign.assign(u1v, u2v)
         a, b = dl.norm(u1.vector()-u1v), dl.norm(u2.vector()-u2v)
         c = dl.norm(uv-u.vector())
         if mpirank == 0:
             print 'Splitting random numbers:', a, b
             print 'Putting it back together:', c
+
+
+
+def testsplitassigni():
+    mesh = dl.UnitSquareMesh(40,40)
+    V1 = dl.FunctionSpace(mesh, "Lagrange", 2)
+    V2 = dl.FunctionSpace(mesh, "Lagrange", 2)
+    V3 = dl.FunctionSpace(mesh, "Lagrange", 2)
+    V1V2 = createMixedFSi([V1, V2, V3])
+    splitassign = SplitAndAssigni([V1, V2, V3], mesh.mpi_comm())
+
+    mpirank = dl.MPI.rank(mesh.mpi_comm())
+
+    u = dl.interpolate(dl.Expression(("x[0]*x[1]", "11+x[0]+x[1]", "x[0]*x[0]"), degree=10), V1V2)
+    uu = dl.Function(V1V2)
+    u1, u2, u3 = u.split(deepcopy=True)
+    u1v, u2v, u3v = splitassign.split(u.vector())
+    u11 = dl.interpolate(dl.Expression("x[0]*x[1]", degree=10), V1)
+    u22 = dl.interpolate(dl.Expression("11+x[0]+x[1]", degree=10), V2)
+    u33 = dl.interpolate(dl.Expression("x[0]*x[0]", degree=10), V3)
+    a,b,c,d,e,f= dl.norm(u1.vector()-u1v), dl.norm(u2.vector()-u2v),\
+    dl.norm(u3.vector()-u3v),\
+    dl.norm(u1.vector()-u11.vector()), dl.norm(u2.vector()-u22.vector()),\
+    dl.norm(u3.vector()-u33.vector())
+    if mpirank == 0:
+        print '\nSplitting an interpolated function:', a, b, c, d, e, f
+
+    uv = splitassign.assign([u1v, u2v, u3v])
+    dl.assign(uu.sub(0), u11)
+    dl.assign(uu.sub(1), u22)
+    dl.assign(uu.sub(2), u33)
+    a, b = dl.norm(uv-u.vector()), dl.norm(uv-uu.vector())
+    if mpirank == 0:
+        print 'Putting it back together:', a, b
+
+    for ii in xrange(10):
+        u.vector()[:] = np.random.randn(len(u.vector().array()))
+        u1, u2, u3 = u.split(deepcopy=True)
+        u1v, u2v, u3v = splitassign.split(u.vector())
+        uv = splitassign.assign([u1v, u2v, u3v])
+        a, b, c = dl.norm(u1.vector()-u1v), dl.norm(u2.vector()-u2v), dl.norm(u3.vector()-u3v)
+        d = dl.norm(uv-u.vector())
+        if mpirank == 0:
+            print 'Splitting random numbers:', a, b, c
+            print 'Putting it back together:', d
+
 
 
 def testblockdiagonal():
@@ -67,7 +125,7 @@ def testblockdiagonal():
     diff = M12bd - M12
     nn = diff.norm('frobenius')
     if mpirank == 0:
-        print nn
+        print '\nnn={}'.format(nn)
 
     if mpirank == 0:    print 'mass+2ndD'
     D2 = dl.assemble(dl.inner(dl.nabla_grad(test1), dl.nabla_grad(trial2))*dl.dx)
@@ -78,7 +136,7 @@ def testblockdiagonal():
     diff = M1D2bd - M1D2
     nn = diff.norm('frobenius')
     if mpirank == 0:
-        print nn
+        print 'nn={}'.format(nn)
 
     if mpirank == 0:    print 'wM+wM'
     u11 = dl.interpolate(dl.Expression("x[0]*x[1]", degree=10), V1)
@@ -92,7 +150,7 @@ def testblockdiagonal():
     diff = M12bd - M12
     nn = diff.norm('frobenius')
     if mpirank == 0:
-        print nn
+        print 'nn={}'.format(nn)
 
 
 def testassignsplit():
@@ -103,6 +161,7 @@ def testassignsplit():
     """
     mesh = dl.UnitSquareMesh(60,60)
     mpirank = dl.MPI.rank(mesh.mpi_comm())
+    if mpirank == 0:    print '\n'
     V1 = dl.FunctionSpace(mesh, "Lagrange", 2)
     V2 = dl.FunctionSpace(mesh, "Lagrange", 2)
     V1V2 = createMixedFS(V1, V2)
@@ -133,10 +192,60 @@ def testassignsplit():
 
 
 
+
+def testassignspliti():
+    """
+    Check that assign then splitting does not modify entries
+
+    small differences recorded due to round-off error
+    """
+    mesh = dl.UnitSquareMesh(60,60)
+    mpirank = dl.MPI.rank(mesh.mpi_comm())
+    if mpirank == 0:    print '\n'
+    V1 = dl.FunctionSpace(mesh, "Lagrange", 2)
+    V2 = dl.FunctionSpace(mesh, "Lagrange", 2)
+    V3 = dl.FunctionSpace(mesh, "Lagrange", 2)
+    V1V2 = createMixedFSi([V1, V2, V3])
+    ab = dl.Function(V1V2)
+    add = dl.interpolate(dl.Constant(('-1.0', '0.0', '1.0')), V1V2)
+    a, b, c = dl.Function(V1), dl.Function(V2), dl.Function(V3)
+    adda, addb, addc = dl.interpolate(dl.Constant('1.0'), V1),\
+    dl.interpolate(dl.Constant('1.0'), V2), dl.interpolate(dl.Constant('1.0'), V3)
+
+    for ii in range(10):
+        a.vector()[:] = np.random.randn(len(a.vector().array()))
+        norma = a.vector().norm('l2')
+        b.vector()[:] = np.random.randn(len(b.vector().array()))
+        normb = b.vector().norm('l2')
+        c.vector()[:] = np.random.randn(len(c.vector().array()))
+        normc = c.vector().norm('l2')
+        dl.assign(ab.sub(0), a)
+        dl.assign(ab.sub(1), b)
+        dl.assign(ab.sub(2), c)
+        ab.vector().axpy(1.0, add.vector())
+        ab.vector().axpy(-1.0, add.vector())
+        aba, abb, abc = ab.split(deepcopy=True)
+        a.vector().axpy(1.0, adda.vector())
+        a.vector().axpy(-1.0, adda.vector())
+        b.vector().axpy(1.0, addb.vector())
+        b.vector().axpy(-1.0, addb.vector())
+        c.vector().axpy(1.0, addc.vector())
+        c.vector().axpy(-1.0, addc.vector())
+        diffa = (a.vector() - aba.vector()).norm('l2') / norma
+        diffb = (b.vector() - abb.vector()).norm('l2') / normb
+        diffc = (c.vector() - abc.vector()).norm('l2') / normc
+        if mpirank == 0:
+            print 'diffa={} (|a|={}), diffb={} (|b|={}), diffc={} (|c|={})'.format(\
+            diffa, norma, diffb, normb, diffc, normc)
+
+
+
 if __name__ == "__main__":
     testsplitassign()
+    testsplitassigni()
     testblockdiagonal()
     testassignsplit()
+    testassignspliti()
 
 
 #Profiling test on ccgo1 for testsplitassign()

@@ -665,6 +665,11 @@ class ObjectiveAcoustic(LinearOperator):
 
             # Stopping criterion (gradient)
             if gradnorm < gradnorm0*reltolgrad or gradnorm < abstolgrad:
+                print '{:12d} {:12.4e} {:12.2e} {:12.2e} {:11.4e} {:10.2e} ({:4.1f}%) {:10.2e} ({:4.1f}%)'.\
+                format(it, self.cost, self.cost_misfit, self.cost_reg, gradnorm,\
+                medmisfita, 100.0*medmisfita/atnorm, medmisfitb, 100.0*medmisfitb/btnorm),
+                print '{:11.3f} {:12.2} {:10} {:10d}'.format(\
+                alpha, "", "", self.PDEcount)
                 if isprint:
                     print '\nGradient sufficiently reduced'
                     print 'Optimization converged'
