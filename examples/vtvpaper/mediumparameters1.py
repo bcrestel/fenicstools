@@ -16,10 +16,10 @@ def createparam(Vl, DD, Vt, Vb, Vp):
 
 DD = 0.4
 # medium parameters:
-CC = [2.0, 3.0, 2.5]
-RR = [2.1, 2.2, 2.15]
-#CC = [5.0, 2.0, 3.0, 4.0]
-#RR = [2.0, 2.1, 2.2, 2.5]
+CC = [2.0, 2.0, 2.5]
+RR = [2.1, 2.1, 2.15]
+#CC = [2.0, 3.0, 2.5]
+#RR = [2.1, 2.2, 2.15]
 LL, AA, BB = [], [], []
 for cc, rr in zip(CC, RR):
     ll = rr*cc*cc
@@ -95,9 +95,9 @@ def initmediumparameters(Vl, X, myplot=None):
 def loadparameters(TRANSMISSION):
     if TRANSMISSION:
         Nxy = 20
-        Dt = 1.6e-3
+        Dt = 2.0e-3
         fpeak = 2.0
-        t0, t1, t2, tf = 0.0, 0.1, 0.9, 1.0
+        t0, t1, t2, tf = 0.0, 0.1, 1.2, 1.3
     else:
         Nxy = 20
         Dt = 1.5e-3

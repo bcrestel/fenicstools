@@ -82,8 +82,9 @@ if TRANSMISSION:
     y_src = 0.1
 else:
     y_src = 1.0
-Pt = PointSources(V, [[0.1,y_src], [0.25,y_src], [0.4,y_src],\
-[0.6,y_src], [0.75,y_src], [0.9,y_src]])
+#Pt = PointSources(V, [[0.1,y_src], [0.25,y_src], [0.4,y_src],\
+#[0.6,y_src], [0.75,y_src], [0.9,y_src]])
+Pt = PointSources(V, [[0.1,y_src], [0.4,y_src], [0.6,y_src], [0.9,y_src]])
 srcv = dl.Function(V).vector()
 
 # Boundary conditions:
@@ -124,7 +125,7 @@ if FDGRAD:
     sources, timesteps, PARAM)
 else:
     # REGULARIZATION:
-    amg = 'petsc_amg'
+    amg = 'hypre_amg'
     #regul = V_TV(Vl, {'k':k, 'eps':eps, 'amg':amg,\
     #'print':PRINT, 'GNhessian':False})
     regul = V_TVPD(Vl, {'k':k, 'eps':eps, 'amg':amg,\
