@@ -8,7 +8,11 @@ import numpy as np
 #from numpy.random import randn
 
 from dolfin import Function, GenericVector, PETScKrylovSolver, FunctionSpace,\
-as_backend_type, MixedFunctionSpace, MixedElement
+as_backend_type
+try:
+    from dolfin import MixedFunctionSpace
+except:
+    from dolfin import MixedElement
 from dolfin import __version__ as versiondolfin
 from exceptionsfenics import WrongInstanceError
 
