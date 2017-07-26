@@ -29,8 +29,7 @@ from fenicstools.jointregularization import V_TVPD, V_TV
 from fenicstools.mpicomm import create_communicators, partition_work
 from fenicstools.miscfenics import createMixedFS, ZeroRegularization, computecfromab
 
-#from fenicstools.examples.acousticwave.mediumparameters0 import \
-from fenicstools.examples.acousticwave.mediumparameters1 import \
+from mediumparameters1 import \
 targetmediumparameters, initmediumparameters, loadparameters
 
 dl.set_log_active(False)
@@ -54,7 +53,7 @@ except:
 
 ##############
 PARAM = 'ab'    # shall not be changed
-LARGE = False
+TRANSMISSION = True
 NOISE = True
 PLOTTS = False
 
@@ -62,7 +61,7 @@ FDGRAD = False
 ALL = False
 nbtest = 5
 ##############
-Nxy, Dt, fpeak, t0, t1, t2, tf = loadparameters(LARGE)
+Nxy, Dt, fpeak, t0, t1, t2, tf = loadparameters(TRANSMISSION)
 h = 1./Nxy
 if PRINT:
     print 'Nxy={} (h={}), Dt={}, fpeak={}, t0,t1,t2,tf={}'.format(\
@@ -79,7 +78,10 @@ Vl = dl.FunctionSpace(mesh, 'Lagrange', 1)
 Ricker = RickerWavelet(fpeak, 1e-6)
 r = 2   # polynomial degree for state and adj
 V = dl.FunctionSpace(mesh, 'Lagrange', r)
-y_src = 1.0 # 1.0->reflection, 0.1->transmission
+if TRANSMISSION:
+    y_src = 0.1
+else:
+    y_src = 1.0
 Pt = PointSources(V, [[0.1,y_src], [0.25,y_src], [0.4,y_src],\
 [0.6,y_src], [0.75,y_src], [0.9,y_src]])
 srcv = dl.Function(V).vector()
@@ -294,6 +296,7 @@ else:
     MPI.barrier(mpicommbarrier)
     tstart = time.time()
 
+    #TODO: nbPDEs not correct (needs to be multiplied by nb sources)
     waveobj.inversion(m0, mt, parameters,
     boundsLS=[[1e-6, 1.0], [1e-3, 1.0]], myplot=myplotf)
 
@@ -357,7 +360,7 @@ else:
         # WARNING: only makes sense if mpicomm_local == mpi_comm_self
         # otherwise, can't be restricted to PRINT processor only
         plotfolder = PARAM + '_k' + str(k) + '_e' + str(eps)
-        myplot = PlotFenics(Outputfolder='output/plots/' + plotfolder, \
+        myplot = PlotFenics(Outputfolder='output_transmission/plots/' + plotfolder, \
         comm = mesh.mpi_comm())
         waveobj._plotab(myplot, '-map_' + PARAM + '-VTV_' + amg + '_k' + str(k) + '_e' + str(eps))
 
