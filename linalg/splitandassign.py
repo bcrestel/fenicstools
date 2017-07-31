@@ -63,7 +63,11 @@ class SplitAndAssigni():
     """ Class to split (and assign) vectors from MixedFunctionSpace
     into vectors of each FunctionSpace """
 
-    def __init__(self, Vs, mpicomm):
+    def __init__(self, Vs):
+        """
+        Arguments:
+            Vs = list of function spaces
+        """
         Vdim = Vs[0].dim()
         Vdofmapdofs = Vs[0].dofmap().dofs()
         Vmeshsize = Vs[0].mesh().size(0)
@@ -81,6 +85,7 @@ class SplitAndAssigni():
         for ii, V in enumerate(Vs):
             V_dofs = V.dofmap().dofs()
             VV_dofs = VV.sub(ii).dofmap().dofs()
+            mpicomm = V.mesh().mpi_comm()
             SplitOperatorPETSc,_,_ = setupPETScmatrix(V, VV, 'aij', mpicomm)
             for jj in xrange(len(V_dofs)):
                 SplitOperatorPETSc[V_dofs[jj], VV_dofs[jj]] = 1.0
