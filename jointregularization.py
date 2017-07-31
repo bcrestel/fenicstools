@@ -8,7 +8,8 @@ Function, TestFunction, TrialFunction, assemble, project, \
 PETScKrylovSolver, assign, sqrt, Constant, as_backend_type, \
 FunctionSpace, VectorFunctionSpace, norm, MPI, Vector, split, derivative,\
 UnitSquareMesh, SpatialCoordinate
-from miscfenics import setfct, ZeroRegularization, amg_solver, createMixedFS
+from miscfenics import setfct, ZeroRegularization, amg_solver, \
+createMixedFS, createMixedFSi
 from linalg.splitandassign import BlockDiagonal, PrecondPlusIdentity
 from linalg.miscroutines import setglobalvalue
 try:
@@ -628,17 +629,34 @@ class V_TV():
     def __init__(self, Vm, parameters=[]):
         """ Vm = FunctionSpace for the parameters m1, and m2 """
         self.parameters = {}
-        self.parameters['k']        = 1.0
-        self.parameters['eps']      = 1e-2
-        self.parameters['amg']      = 'default'
-        VmVm = createMixedFS(Vm, Vm)
-        self.parameters['Vm'] = VmVm
+        self.parameters['k']            = 1.0
+        self.parameters['eps']          = 1e-2
+        self.parameters['amg']          = 'default'
+        self.parameters['nb_param']     = 2
+        self.parameters['use_i']        = False
+        self.parameters['print']        = False
         self.parameters.update(parameters)
+
+        n = self.parameters['nb_param']
+        use_i = self.parameters['use_i']
+        assert not ((not use_i) * (n > 2))
+
+        if not use_i:
+            VmVm = createMixedFS(Vm, Vm)
+        else:
+            if self.parameters['print']:
+                print '[V_TV] Using createMixedFSi'
+            Vms = []
+            for ii in range(n):
+                Vms.append(Vm)
+            VmVm = createMixedFSi(Vms)
+        self.parameters['Vm'] = VmVm
 
         self.regTV = TV(self.parameters)
 
-        self.m1, self.m2 = Function(Vm), Function(Vm)
-        self.m = Function(VmVm)
+        if not use_i:
+            self.m1, self.m2 = Function(Vm), Function(Vm)
+            self.m = Function(VmVm)
 
 
     def isTV(self): return True
@@ -655,6 +673,9 @@ class V_TV():
         setfct(self.m2, m2)
         return self.costab(self.m1, self.m2)
 
+    def costabvecti(self, m):
+        return self.regTV.cost(m)
+
 
     def gradab(self, m1, m2):
         assign(self.m.sub(0), m1)
@@ -666,6 +687,9 @@ class V_TV():
         setfct(self.m2, m2)
         return self.gradab(self.m1, self.m2)
 
+    def gradabvecti(self, m):
+        return self.regTV.grad(m)
+
 
     def assemble_hessianab(self, m1, m2):
         setfct(self.m1, m1)
@@ -674,6 +698,10 @@ class V_TV():
         assign(self.m.sub(1), self.m2)
         self.regTV.assemble_hessian(self.m)
 
+    def assemble_hessianabi(self, m):
+        self.regTV.assemble_hessian(m)
+
+
     def hessianab(self, m1h, m2h):
         """ m1h, m2h = Vector(V) """
         setfct(self.m1, m1h)
@@ -681,6 +709,10 @@ class V_TV():
         assign(self.m.sub(0), self.m1)
         assign(self.m.sub(1), self.m2)
         return self.regTV.hessian(self.m.vector())
+
+    def hessianabi(self, mh):
+        return self.regTV.hessian(mh)
+
 
     def getprecond(self):
         return self.regTV.getprecond()
@@ -698,18 +730,35 @@ class V_TVPD():
         self.parameters['rescaledradiusdual']   = 1.0
         self.parameters['print']                = False
         self.parameters['amg']                  = 'default'
+        self.parameters['nb_param']             = 2
+        self.parameters['use_i']                = False
         self.parameters.update(parameters)
 
-        VmVm = createMixedFS(Vm, Vm)
-        self.parameters['Vm'] = VmVm
+        n = self.parameters['nb_param']
+        use_i = self.parameters['use_i']
+        assert ((not use_i) * (n > 2))
+
         Vw = FunctionSpace(Vm.mesh(), 'DG', 0)
-        VwVw = createMixedFS(Vw, Vw)
+        if not use_i:
+            VmVm = createMixedFS(Vm, Vm)
+            VwVw = createMixedFS(Vw, Vw)
+        else:
+            if self.parameters['print']:
+                print '[V_TVPD] Using createMixedFSi'
+            Vms, Vws = [], []
+            for ii in range(n):
+                Vms.append(Vm)
+                Vws.append(Vw)
+            VmVm = createMixedFSi(Vms)
+            VwVw = createMixedFSi(Vws)
+        self.parameters['Vm'] = VmVm
         self.parameters['Vw'] = VwVw
 
         self.regTV = TVPD(self.parameters)
 
-        self.m1, self.m2 = Function(Vm), Function(Vm)
-        self.m = Function(VmVm)
+        if not use_i:
+            self.m1, self.m2 = Function(Vm), Function(Vm)
+            self.m = Function(VmVm)
 
         self.w_loc = Function(VwVw)
         self.factorw = Function(Vw)
@@ -733,6 +782,9 @@ class V_TVPD():
         setfct(self.m2, m2)
         return self.costab(self.m1, self.m2)
 
+    def costabvecti(self, m):
+        return self.regTV.cost(m)
+
 
     def gradab(self, m1, m2):
         assign(self.m.sub(0), m1)
@@ -744,6 +796,9 @@ class V_TVPD():
         setfct(self.m2, m2)
         return self.gradab(self.m1, self.m2)
 
+    def gradabvecti(self, m):
+        return self.regTV.grad(m)
+
 
     def assemble_hessianab(self, m1, m2):
         setfct(self.m1, m1)
@@ -751,6 +806,10 @@ class V_TVPD():
         assign(self.m.sub(0), self.m1)
         assign(self.m.sub(1), self.m2)
         self.regTV.assemble_hessian(self.m)
+
+    def assemble_hessianabi(self, m):
+        self.regTV.assemble_hessian(m)
+
 
     def hessianab(self, m1h, m2h):
         """ m1h, m2h = Vector(V) """
@@ -760,6 +819,10 @@ class V_TVPD():
         assign(self.m.sub(1), self.m2)
         return self.regTV.hessian(self.m.vector())
 
+    def hessianabi(self, mh):
+        return self.regTV.hessian(mh)
+
+
     def getprecond(self):
         return self.regTV.getprecond()
 
@@ -768,6 +831,7 @@ class V_TVPD():
         self.regTV.compute_what(mhat)
 
 
+    #TODO: modify to accept n>=2
     def update_w(self, mhat, alphaLS, compute_what=True):
         """ update dual variable in direction what 
         and update re-scaled version """
