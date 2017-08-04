@@ -71,7 +71,6 @@ class TV():
             Vtmp = FunctionSpace(meshtmp, 'CG', 1)
             x = SpatialCoordinate(meshtmp)
             correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
-            print '[TV] correction cost with factor={}'.format(correctioncost)
         else:
             correctioncost = 1.0
         self.wkformcost = Constant(k*correctioncost) * sqrt(self.fTV) * dx
@@ -83,22 +82,25 @@ class TV():
         inner(nabla_grad(trial), nabla_grad(test)) - \
         inner(nabla_grad(self.m), nabla_grad(test))*\
         inner(nabla_grad(trial), nabla_grad(self.m))/self.fTV )*dx
-        if isprint: print '[TV] TV regularization',
         if GN: 
             self.wkformhess = self.wkformGNhess
-            if isprint: print ' -- GN Hessian',
         else:   
             self.wkformhess = self.wkformFhess
-            if isprint: print ' -- full Hessian',
-        if isprint: 
-            if self.parameters['PCGN']:
-                print ' -- PCGN',
-            print ' -- k={}, eps={}'.format(self.parameters['k'], self.parameters['eps'])
 
         if amg == 'default':    self.amgprecond = amg_solver()
         else:   self.amgprecond = amg
+
         if isprint:
+            print '[TV] TV regularization',
+            if GN:
+                print ' -- GN Hessian',
+            else:
+                print ' -- full Hessian',
+            if self.parameters['PCGN']:
+                print ' -- PCGN',
+            print ' -- k={}, eps={}'.format(k, eps)
             print '[TV] preconditioner = {}'.format(self.amgprecond)
+            print '[TV] correction cost with factor={}'.format(correctioncost)
 
 
     def isTV(self): return True
@@ -240,7 +242,6 @@ class TVPD():
             Vtmp = FunctionSpace(meshtmp, 'CG', 1)
             x = SpatialCoordinate(meshtmp)
             correctioncost = 1./assemble(sqrt(4.0*x[0]*x[0])*dx)
-            print '[TVPD] correction cost with factor={}'.format(correctioncost)
         else:
             correctioncost = 1.0
         self.wkformcost = Constant(k*correctioncost)*TVnorm*dx
@@ -305,16 +306,16 @@ class TVPD():
         self.Msolver.parameters["nonzero_initial_guess"] = False 
         self.Msolver.set_operator(M)
 
+        if amg == 'default':    self.amgprecond = amg_solver()
+        else:   self.amgprecond = amg
+
         if self.parameters['print']:
             print '[TVPD] TV regularization -- primal-dual method',
             if self.parameters['PCGN']:
                 print ' -- PCGN',
-            print ' -- k={}, eps={}'.format(self.parameters['k'], self.parameters['eps'])
-
-        if amg == 'default':    self.amgprecond = amg_solver()
-        else:   self.amgprecond = amg
-        if isprint:
+            print ' -- k={}, eps={}'.format(k, eps)
             print '[TVPD] preconditioner = {}'.format(self.amgprecond)
+            print '[TVPD] correction cost with factor={}'.format(correctioncost)
 
 
     def isTV(self): return True
