@@ -13,10 +13,10 @@ from fenicstools.miscfenics import setfct
 def runtimefilter(dt=0.01):
     t0 = 1.0
     t1 = 5.0
-    tf = TimeFilter([t0, t0+dt, t1-dt, t1])
-    myfig = tf.plot(int(5000/dt))
-    #tf = TimeFilter([0.0, 0.2, 0.8, 1.0])
-    #myfig = tf.plot(int(50000))
+    #tf = TimeFilter([t0, t0+dt, t1-dt, t1])
+    #myfig = tf.plot(int(5000/dt))
+    tf = TimeFilter([0.0, 0.2, 0.8, 1.0])
+    myfig = tf.plot(int(50000))
     plt.show()
 
 def runcontobs():
